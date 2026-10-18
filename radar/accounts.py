@@ -4,14 +4,17 @@
 - Le compte est créé au premier lien cliqué (aucune étape d'inscription).
 - Le lien pose un cookie de session HttpOnly valable 90 jours : on ne se reconnecte qu'exceptionnellement.
 - Seuls les hachages SHA-256 des jetons sont stockés en base.
-- Envoi : `Outbox` garde les liens en mémoire (tests) et, si DEALS_OUTBOX est défini, les écrit dans ce fichier.
-  En production, remplacer `Outbox.send` par un envoi SMTP ou un fournisseur d'e-mail.
+- Envoi : SMTP si DEALS_SMTP_HOST est défini (voir `SmtpOutbox`), sinon `Outbox` (mémoire, et fichier DEALS_OUTBOX
+  si défini) pour le développement et les tests.
 """
 import hashlib
 import os
 import re
 import secrets
+import smtplib
+import ssl
 import time
+from email.message import EmailMessage
 
 LINK_TTL = 15 * 60
 SESSION_TTL = 90 * 24 * 3600
@@ -36,7 +39,25 @@ class RateLimited(ValueError):
     status = 429
 
 
+class MailError(ValueError):
+    status = 503
+
+
+def login_message(to, link, sender):
+    m = EmailMessage()
+    m["Subject"] = "Votre lien de connexion Deals"
+    m["From"] = sender
+    m["To"] = to
+    m.set_content(f"Bonjour,\n\nPour vous connecter à Deals, ouvrez ce lien sur l'appareil où vous utilisez l'app :\n{link}\n\n"
+                  "Il est valable 15 minutes et ne sert qu'une fois. Si vous n'avez rien demandé, ignorez ce message.\n")
+    m.add_alternative(f"""<p>Bonjour,</p><p>Pour vous connecter à Deals, ouvrez ce lien sur l'appareil où vous utilisez l'app :</p>
+<p><a href="{link}" style="display:inline-block;background:#101112;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:700">Me connecter</a></p>
+<p style="color:#5E6166">Valable 15 minutes, à usage unique. Si vous n'avez rien demandé, ignorez ce message.</p>""", subtype="html")
+    return m
+
+
 class Outbox:
+    """Développement et tests : les liens restent en mémoire (et dans le fichier DEALS_OUTBOX s'il est défini)."""
     def __init__(self):
         self.sent = []  # (destinataire, lien)
 
@@ -48,10 +69,39 @@ class Outbox:
                 f.write(f"{to}\t{link}\n")
 
 
+class SmtpOutbox(Outbox):
+    """Production. Variables : DEALS_SMTP_HOST, DEALS_SMTP_PORT (587), DEALS_SMTP_USER, DEALS_SMTP_PASSWORD,
+    DEALS_MAIL_FROM, DEALS_SMTP_TLS = starttls (défaut) | ssl | none."""
+    def __init__(self, env=os.environ):
+        super().__init__()
+        self.host = env["DEALS_SMTP_HOST"]
+        self.port = int(env.get("DEALS_SMTP_PORT", "587"))
+        self.user, self.password = env.get("DEALS_SMTP_USER"), env.get("DEALS_SMTP_PASSWORD")
+        self.sender = env.get("DEALS_MAIL_FROM") or (self.user or "deals@localhost")
+        self.tls = env.get("DEALS_SMTP_TLS", "starttls")
+
+    def send(self, to, link):
+        msg = login_message(to, link, self.sender)
+        try:
+            if self.tls == "ssl":
+                conn = smtplib.SMTP_SSL(self.host, self.port, timeout=10, context=ssl.create_default_context())
+            else:
+                conn = smtplib.SMTP(self.host, self.port, timeout=10)
+            with conn:
+                if self.tls == "starttls":
+                    conn.starttls(context=ssl.create_default_context())
+                if self.user:
+                    conn.login(self.user, self.password or "")
+                conn.send_message(msg)
+        except (OSError, smtplib.SMTPException) as e:
+            raise MailError("Envoi du lien impossible pour le moment, réessayez dans un instant") from e
+        self.sent.append((to, link))
+
+
 class Accounts:
     def __init__(self, radar):
         self.R, self.L = radar, radar.L
-        self.outbox = Outbox()
+        self.outbox = SmtpOutbox() if os.environ.get("DEALS_SMTP_HOST") else Outbox()
         self.base = os.environ.get("DEALS_PUBLIC_URL", "http://127.0.0.1:8000").rstrip("/")
         with self.L.lock:
             self.L.db.executescript(SCHEMA)
