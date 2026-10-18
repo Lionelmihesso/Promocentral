@@ -1,4 +1,4 @@
-"""Recherche et filtres de la page deals — déterministe, sans dépendance.
+"""Recherche de l'app — déterministe, sans dépendance.
 
 Recherche : insensible aux accents, à la casse et aux tirets ; tous les mots doivent être trouvés (titre, marque,
 enseigne, catégorie) ; quelques synonymes du langage courant (frigo → réfrigérateur, télé → téléviseur…).
@@ -38,37 +38,7 @@ def haystack(d):
 
 
 def matches(d, toks):
+    """Chaque mot cherché doit commencer un mot du produit ; un synonyme de plusieurs mots (« lave linge ») est cherché tel quel."""
     h = haystack(d)
-    return all(any(f" {part}" in h for part in [t]) if " " not in t else t in h for t in toks)
+    return all((t in h) if " " in t else (f" {t}" in h) for t in toks)
 
-
-def apply(cards, q=None, category=None, retailer=None, channel=None, min_discount=None, max_price=None, radius_km=None):
-    toks = tokens(q) if q else []
-    out = []
-    for c in cards:
-        if toks and not matches(c, toks):
-            continue
-        if category and c["category"] != category:
-            continue
-        if retailer and c["retailer"] != retailer:
-            continue
-        if channel and c["channel"] not in (channel, "both"):
-            continue
-        if min_discount and (c["real_discount"] or 0) < min_discount:
-            continue
-        if max_price and c["price"] > max_price:
-            continue
-        if radius_km and c["channel"] != "online" and (c["nearest_km"] is None or c["nearest_km"] > radius_km):
-            continue
-        out.append(c)
-    return out
-
-
-def facets(cards):
-    cat, ret = {}, {}
-    for c in cards:
-        if c["category"]:
-            cat[c["category"]] = cat.get(c["category"], 0) + 1
-        ret[c["retailer"]] = ret.get(c["retailer"], 0) + 1
-    return {"categories": [{"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in sorted(cat.items(), key=lambda x: -x[1])],
-            "retailers": [{"key": k, "count": n} for k, n in sorted(ret.items(), key=lambda x: -x[1])]}

@@ -1,5 +1,5 @@
-"""Couche de décision grand public (P0) : le parcours complet par l'API HTTP, sur le vrai moteur et un marché simulé.
-recherche → produit → « je l'achète à X » → prix atteint → récapitulatif → clic marchand → étoile polaire."""
+"""API grand public par HTTP, sur le vrai moteur et un marché simulé : surface publique, connexion par lien magique,
+isolation des comptes, contrat produit (deals, marques, catégories, fiche, favoris), clics sortants."""
 import json
 import threading
 import unittest
@@ -71,14 +71,14 @@ class ConsumerAPI(unittest.TestCase):
                     urllib.request.urlopen(urllib.request.Request(f"{base}{path}", method="POST" if path.startswith(("/api/run", "/api/rules", "/api/demo")) else "GET", data=b"{}" if path.startswith(("/api/run", "/api/rules", "/api/demo")) else None))
                 self.assertEqual(cm.exception.code, 404, path)
             with self.assertRaises(urllib.error.HTTPError) as cm:
-                urllib.request.urlopen(urllib.request.Request(f"{base}/api/r/feed"))
+                urllib.request.urlopen(urllib.request.Request(f"{base}/api/r/saves"))
             self.assertEqual(cm.exception.code, 401)                       # l'API consommateur reste là, protégée par session
         finally:
             srv.shutdown(); srv.server_close()
 
     def test_0_auth_magic_link_and_isolation(self):
         # pas de session : 401, même avec un paramètre ?user= (ignoré)
-        st, _, _ = self.raw("GET", "feed?user=lea")
+        st, _, _ = self.raw("GET", "saves?user=lea")
         self.assertEqual(st, 401)
         # réponse identique qu'une adresse existe ou non
         st, _, body = self.raw("POST", "auth/request", {"email": "inconnu@test.local"})
@@ -97,7 +97,7 @@ class ConsumerAPI(unittest.TestCase):
         st, _, body = self.raw("GET", "auth/me", cookie=cookie)
         self.assertEqual(json.loads(body)["email"], "inconnu@test.local")
         # le cookie ouvre le compte ; un _session dans l'URL ne remplace pas le cookie
-        self.assertEqual(self.raw("GET", "feed?_session=" + cookie)[0], 401)
+        self.assertEqual(self.raw("GET", "saves?_session=" + cookie)[0], 401)
         # déconnexion : la session n'est plus valable
         self.assertEqual(self.raw("POST", "auth/logout", {}, cookie=cookie)[0], 200)
         self.assertEqual(self.raw("GET", "auth/me", cookie=cookie)[0], 401)
@@ -111,73 +111,11 @@ class ConsumerAPI(unittest.TestCase):
         self.assertEqual(codes[5:], [429, 429])
 
     def test_0c_users_cannot_read_each_other(self):
-        self.call("POST", "watch", {"search": {"category": "refrigerateur"}, "target_price": 12345}, user="zoe")
-        self.assertNotIn("12345", json.dumps(self.call("GET", "watches", user="lea")))
-        self.assertIn("12345", json.dumps(self.call("GET", "watches", user="zoe")))
-
-    def next_day(self):
-        urllib.request.urlopen(urllib.request.Request(f"{self.base}/api/demo/next", method="POST", data=b"{}"))
-
-    def test_1_search_product_watch_hit_click_metrics(self):
-        s = self.call("GET", "search?q=lave-linge")
-        self.assertGreater(s["count"], 0)
-        self.assertTrue(all(p["category"] == "lave_linge" for p in s["products"]))
-        pid = s["products"][0]["id"]
-        p = self.call("GET", f"product/{pid}")
-        self.assertIsNone(p["watch"])
-        self.assertLessEqual(p["range"]["low"], p["price"])
-        self.assertGreaterEqual(p["range"]["high"], p["price"])
-        r = self.call("POST", "watch", {"product_id": pid, "target_price": p["price"] + 1})       # prix déjà atteint
-        self.assertEqual([e["type"] for e in r["immediate"]], ["TARGET_REACHED"])                # réponse immédiate, sans attendre la nuit
-        f = self.call("GET", "feed")
-        self.assertIn(pid, [h["product_id"] for h in f["watch_hits"]])                            # « watch hit », distinct de la découverte
-        self.assertNotIn(pid, [o["product_id"] for o in f["foryou"] + f["discovery"]])
-        self.assertEqual(self.call("GET", f"product/{pid}")["watch"]["state"], "TARGET_REACHED")
-        # clic marchand tracé puis redirection
-        st, hdrs, _ = self.raw("GET", f"go/{pid}?from=watch_hit", cookie=self.login("lea"))
-        self.assertEqual(st, 302)
-        self.assertTrue(hdrs["Location"].startswith("http"))
-
-    def test_2_target_update_and_stop(self):
-        pid = self.call("GET", "search?q=televiseur")["products"][0]["id"]
-        w = self.call("POST", "watch", {"product_id": pid, "target_price": 1})
-        self.assertEqual(w["immediate"], [])
-        r = self.call("POST", "target", {"watch_id": w["watch_id"], "target_price": 99999})
-        self.assertEqual(r["immediate"][0]["type"], "TARGET_REACHED")
-        self.call("POST", f"watch/{w['watch_id']}/stop", {})
-        self.assertNotIn(w["watch_id"], [x["id"] for x in self.call("GET", "watches")])
-        with self.assertRaises(urllib.error.HTTPError) as cm:
-            self.call("POST", "watch", {"product_id": pid, "target_price": -5})
-        self.assertEqual(cm.exception.code, 400)
-
-    def test_3_search_watch(self):
-        r = self.call("POST", "watch", {"search": {"category": "refrigerateur"}, "target_price": 99999}, user="sam")
-        self.assertEqual(r["immediate"][0]["type"], "TARGET_REACHED")                             # une recherche surveillée = même entité
-        kinds = {w["kind"] for w in self.call("GET", "watches", user="sam")}
-        self.assertEqual(kinds, {"search"})
-
-    def test_4_dismiss_and_alternative_learning(self):
-        R = self.R
-        uid = R.user("nina")
-        tvs = self.L.q("SELECT id, brand FROM products WHERE category='televiseur'")
-        big = max(tvs, key=lambda t: R.market_signal(t["id"])["price"])
-        wid = R.watch(uid, big["id"], R.market_signal(big["id"])["price"] * 0.999 - 1, alternatives=True)
-        others = [t for t in tvs if t["id"] != big["id"]]
-        # nina refuse deux fois une autre marque → le profil devient « fidèle à la marque »
-        for t in others[:2]:
-            self.L.q("INSERT INTO opportunities(user_id, product_id, type, score, day, alt_of_product_id, section, created_at) VALUES (?,?,?,?,?,?,?,0)",
-                     (uid, t["id"], "ALTERNATIVE", 1, (self.R.today() - timedelta(days=30)).isoformat(), big["id"], "watch"))
-            self.L.q("UPDATE products SET brand='Autre' WHERE id=?", (t["id"],)) if t["brand"] == big["brand"] else None
-            R.reject_alternative(wid, t["id"])
-        prof = R.alt_profile(uid)
-        self.assertTrue(prof["brand_loyal"])
-        base = {"brand": "X", "price": 1000, "attributes": {}}
-        self.assertGreater(R.rank_alternative(0.7, base, {"brand": "X", "price": 900}, prof), R.rank_alternative(0.8, base, {"brand": "Y", "price": 900}, prof))
-        f = self.call("GET", "feed", user="nina")
-        pid = (f["foryou"] + f["discovery"] + [{"product_id": others[-1]["id"]}])[0]["product_id"]
-        self.call("POST", "dismiss", {"product_id": pid}, user="nina")
-        f2 = self.call("GET", "feed", user="nina")
-        self.assertNotIn(pid, [o["product_id"] for o in f2["foryou"] + f2["discovery"]])
+        brand = json.loads(self.raw("GET", "brands")[2])[0]["name"]
+        self.call("POST", "brand/follow", {"brand": brand}, user="zoe")
+        self.assertEqual(self.call("GET", "follows", user="zoe")["brands"], [brand])
+        self.assertEqual(self.call("GET", "follows", user="lea")["brands"], [])
+        self.call("POST", "brand/follow", {"brand": brand, "on": False}, user="zoe")
 
     def test_5_app_and_admin_pages(self):
         app = urllib.request.urlopen(self.base + "/").read().decode()
@@ -249,7 +187,9 @@ class ConsumerAPI(unittest.TestCase):
         before = json.loads(urllib.request.urlopen(f"{self.base}/api/admin/metrics").read())["total_clicks"]
         st, hdrs, _ = self.raw("GET", f"out/{off['offer_id']}?from=item")          # anonyme
         self.assertEqual(st, 302)
-        self.assertEqual(hdrs["Location"], off["url"])                             # vers l'offre connue, rien d'autre
+        known = self.L.q("SELECT url FROM offers WHERE id=?", (off["offer_id"],), one=True)["url"]
+        self.assertEqual(hdrs["Location"], known)                                  # vers l'offre connue, rien d'autre
+        self.assertNotIn("url", off)                                               # l'app ne contourne pas le traçage
         st, _, _ = self.raw("GET", f"out/{off['offer_id']}?from=item", cookie=self.login("mia"))   # connecté
         self.assertEqual(st, 302)
         m = json.loads(urllib.request.urlopen(f"{self.base}/api/admin/metrics").read())

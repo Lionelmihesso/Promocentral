@@ -1,6 +1,6 @@
 """DEALS — serveur de l'app grand public (/) et de la console interne (/admin).
 
-  python app.py serve [--db deals.sqlite] [--port 8000]   base réelle (alimentée par collect.py + radar.py daily)
+  python app.py serve [--db deals.sqlite] [--port 8000]   base réelle (alimentée par collect.py + cli.py daily)
   python app.py demo  [--port 8000]                       marché simulé (électroménager, TV, literie) avec un bouton « jour suivant »
 """
 import os
@@ -36,8 +36,6 @@ def build_demo(warmup_days=90, start=date(2026, 1, 5)):
         goto(k)
         with L.batch():
             C.nightly()
-    me = R.user("moi", budget_max=1500)
-    R.follow(me, "category", "televiseur")
     goto(warmup_days)
     R.run_daily(C)
 
