@@ -18,7 +18,7 @@ Lecture ouverte (sans compte) ; favoris et marques suivies : session requise (�
 Interne (console /admin uniquement) :
   GET  /api/admin/metrics       clics sortants par jour et par source, nombre de comptes
 """
-import json
+import re
 import time
 from urllib.parse import unquote
 
@@ -29,6 +29,15 @@ FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
 SIMILAR_LIMIT = 3
 CLICK_SOURCES = {"item", "hero", "today", "explore", "brand", "similar", "saved"}
+
+
+def display_name(title, brand):
+    """Le titre sans la marque (affichée à part) : « Lave-linge 7 kg Kessler classe C » → « Lave-linge 7 kg classe C »."""
+    if not brand:
+        return title
+    name = re.sub(rf"(?<!\w){re.escape(brand)}(?!\w)", " ", title or "", flags=re.I)
+    name = re.sub(r"\s{2,}", " ", name).strip(" -–·,")
+    return name or title
 
 
 class NotFound(LookupError):
@@ -71,7 +80,7 @@ class Shop:
         best = min((o for o in s["offers"] if o["availability"] in ("in_stock", "unknown")), key=lambda o: o["price"], default=None)
         lst = best and best.get("list_price")
         real = bool(lst and lst > price) and pid not in inflated
-        return {"id": pid, "title": p["title"], "brand": p["brand"], "category": p["category"],
+        return {"id": pid, "title": p["title"], "name": display_name(p["title"], p["brand"]), "brand": p["brand"], "category": p["category"],
                 "category_label": SE.CATEGORY_LABEL.get(p["category"], p["category"]),
                 "price": price, "was": lst if real else None, "pct": round((1 - price / lst) * 100) if real else 0,
                 "merchant": s["merchant"], "inflated": pid in inflated}

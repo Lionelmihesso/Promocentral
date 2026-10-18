@@ -277,7 +277,7 @@ export default function App() {
     <Mark on={isSaved(p.id)} size={20} /></button>;
 
   const row = p => <div key={p.id} className="prow" role="button" tabIndex={0} onClick={() => setView({ kind: "item", id: p.id })}>
-    <span><span className="brand">{p.brand}{isFollowed(p.brand) ? <span className="tagl">suivie</span> : ""}</span><div className="t">{p.title}</div></span>
+    <span><span className="brand">{p.brand}{isFollowed(p.brand) ? <span className="tagl">suivie</span> : ""}</span><div className="t">{p.name || p.title}</div></span>
     <span className="p"><b>{eur(p.price)}</b>{p.pct > 0 && <i>−{p.pct}%</i>}</span>{fav(p)}</div>;
 
   const searchBar = placeholder => <div className="pad" style={{ marginTop: 16 }}>
@@ -291,7 +291,7 @@ export default function App() {
       <button className="back" onClick={() => { setView(null); setItem(null); }}>← Retour</button>
       <div className="pcard">
         <div className="phead">
-          <div><div className="brand">{item.brand} · {item.category_label}</div><div className="t">{item.title}</div></div>
+          <div><div className="brand">{item.brand} · {item.category_label}</div><div className="t">{item.name || item.title}</div></div>
           <button className={`fav ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
             aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Mark on={isSaved(item.id)} size={22} /></button>
         </div>
@@ -334,7 +334,7 @@ export default function App() {
       {searchBar("Rechercher un produit ou une marque")}
       {hero && <button className="hero" onClick={() => setView({ kind: "item", id: hero.id })}>
         <div className="eyebrow" style={{ color: "#9EA1A6" }}>Le plus intéressant</div>
-        <div className="t">{hero.brand} {hero.title}</div>
+        <div className="t">{hero.brand} {hero.name || hero.title}</div>
         <div className="row"><div className="price">{eur(hero.price)}</div>{hero.pct > 0 && <div className="pct">−{hero.pct}%</div>}</div>
       </button>}
       <div className="sechead"><h2>{q ? "Résultats" : "Les autres"}</h2></div>

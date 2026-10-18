@@ -117,6 +117,16 @@ class Engine(unittest.TestCase):
         self.assertEqual(self.shop.item({}, pid)["similar"][0]["id"], best)     # la fiche suit la similarité calculée
 
 
+class DisplayName(unittest.TestCase):
+    def test_brand_is_not_repeated_in_the_name(self):
+        from radar.shop import display_name
+        self.assertEqual(display_name("Lave-linge 7 kg Kessler classe C", "Kessler"), "Lave-linge 7 kg classe C")
+        self.assertEqual(display_name('Samsung TV OLED 55"', "samsung"), 'TV OLED 55"')
+        self.assertEqual(display_name("Aurelien 3000", "Aurel"), "Aurelien 3000")      # pas de coupe au milieu d'un mot
+        self.assertEqual(display_name("Kessler", "Kessler"), "Kessler")                  # jamais de nom vide
+        self.assertEqual(display_name("De'Longhi Magnifica Evo", "De'Longhi"), "Magnifica Evo")
+
+
 class Lifecycle(unittest.TestCase):
     def test_connection_closed(self):
         with warnings.catch_warnings(record=True) as w:
