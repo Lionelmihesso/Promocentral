@@ -1,0 +1,21 @@
+[Unit]
+Description=DEALS — app et API publiques (/ et /api/r/)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=deals
+Group=deals
+WorkingDirectory=/var/lib/deals
+EnvironmentFile=/etc/deals/deals.env
+ExecStart=/usr/bin/python3 /opt/deals/app.py serve --db /var/lib/deals/deals.sqlite --port 8000
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/deals
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,8 @@ import time
 from collections import Counter
 from datetime import timedelta
 
+from collect.retailers import MIN_INTERVAL_S
+
 from .verify import verify
 
 SCHEMA = """
@@ -36,7 +38,7 @@ CREATE TABLE IF NOT EXISTS jobs (name TEXT NOT NULL, key TEXT NOT NULL, started 
 """
 ENERGY = "ABCDEFG"
 NIGHT_BUDGET_S = int(os.environ.get("DEALS_NIGHT_BUDGET_S", 4 * 3600))   # durée maximale de la passe de nuit
-REQUEST_INTERVAL_S = float(os.environ.get("DEALS_REQUEST_INTERVAL_S", 5))  # politesse : secondes entre deux requêtes d'un même site
+REQUEST_INTERVAL_S = MIN_INTERVAL_S                                     # politesse : la même valeur que la collecte
 
 
 class Radar:

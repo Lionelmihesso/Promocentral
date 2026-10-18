@@ -1,0 +1,17 @@
+[Unit]
+Description=DEALS — passe de nuit (collecte, similarités, signaux de marché)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deals
+Group=deals
+WorkingDirectory=/var/lib/deals
+EnvironmentFile=/etc/deals/deals.env
+ExecStart=/usr/bin/python3 /opt/deals/cli.py --db /var/lib/deals/deals.sqlite daily
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/deals

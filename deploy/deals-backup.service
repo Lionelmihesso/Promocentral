@@ -1,0 +1,14 @@
+[Unit]
+Description=DEALS — sauvegarde de la base (à chaud, vérifiée, 14 jours conservés)
+
+[Service]
+Type=oneshot
+User=deals
+Group=deals
+ExecStart=/usr/bin/python3 /opt/deals/deploy/backup.py /var/lib/deals/deals.sqlite /var/backups/deals --keep 14
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/backups/deals
+ReadOnlyPaths=/var/lib/deals

@@ -1,0 +1,5 @@
+# HTTPS automatique (Let's Encrypt) devant l'app. Seules / et /api/r/ existent en mode public.
+deals.example.fr {
+	encode gzip
+	reverse_proxy 127.0.0.1:8000
+}
