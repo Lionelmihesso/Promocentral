@@ -112,6 +112,9 @@ def jaccard(a, b):
     return len(A & B) / len(A | B) if A and B else 0.0
 
 
+BATCH_COMMIT_S = 1.0   # durée maximale de détention du verrou d'écriture pendant une passe groupée
+BATCH_YIELD_S = 0.1    # pause après chaque validation groupée : un favori ou un clic passe en moins d'une seconde
+
 class Bus:
     def __init__(self):
         self.subs, self.lock = [], threading.Lock()
@@ -138,7 +141,8 @@ class Bus:
 
 class Listener:
     def __init__(self, path=":memory:", fetcher=None, clock=time.time, workers=8, intel_cfg=None):
-        self.db = sqlite3.connect(path, check_same_thread=False)
+        # timeout : une écriture du serveur web attend (au lieu d'échouer) pendant une validation de la passe de nuit
+        self.db = sqlite3.connect(path, check_same_thread=False, timeout=15)
         self.db.row_factory = sqlite3.Row
         if path != ":memory:":
             self.db.execute("PRAGMA journal_mode=WAL")
@@ -187,6 +191,7 @@ class Listener:
             def __enter__(self):
                 with L.lock:
                     L._depth = getattr(L, "_depth", 0) + 1
+                    L._last_commit = time.monotonic()
                 return L
 
             def __exit__(self, exc_type, *a):
@@ -209,6 +214,12 @@ class Listener:
             cur = self.db.execute(sql, args)
             if not getattr(self, "_depth", 0):
                 self.db.commit()
+            elif time.monotonic() - self._last_commit >= BATCH_COMMIT_S:
+                # passe de nuit : validation au plus toutes les secondes, pour que le verrou d'écriture ne soit jamais
+                # tenu plus longtemps (sinon favoris, clics et connexions échouent pendant la collecte)
+                self.db.commit()
+                time.sleep(BATCH_YIELD_S)        # fenêtre laissée aux autres processus (sinon la passe reprend le verrou aussitôt)
+                self._last_commit = time.monotonic()
             if sql.lstrip()[:6].upper() == "INSERT":
                 return cur.lastrowid
             rows = [dict(r) for r in cur.fetchall()]
