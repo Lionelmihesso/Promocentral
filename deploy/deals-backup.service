@@ -5,10 +5,11 @@ Description=DEALS — sauvegarde de la base (à chaud, vérifiée, 14 jours cons
 Type=oneshot
 User=deals
 Group=deals
-ExecStart=/usr/bin/python3 /opt/deals/deploy/backup.py /var/lib/deals/deals.sqlite /var/backups/deals --keep 14
+ExecStart=/usr/bin/python3 /opt/deals/deals.py --db /var/lib/deals/deals.sqlite backup /var/backups/deals --keep 14
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/backups/deals
-ReadOnlyPaths=/var/lib/deals
+# /var/lib/deals en écriture : une lecture SQLite en mode WAL doit pouvoir créer ses fichiers -wal/-shm quand
+# aucun autre processus n'a la base ouverte (service web arrêté). La sauvegarde, elle, n'écrit rien dans la base.
+ReadWritePaths=/var/backups/deals /var/lib/deals

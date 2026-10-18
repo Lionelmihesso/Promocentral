@@ -1,5 +1,5 @@
 [Unit]
-Description=DEALS — passe de nuit (collecte, similarités, signaux de marché)
+Description=DEALS — passe de nuit (collecte, rapport du matin, publication du catalogue)
 After=network-online.target
 Wants=network-online.target
 
@@ -9,7 +9,7 @@ User=deals
 Group=deals
 WorkingDirectory=/var/lib/deals
 EnvironmentFile=/etc/deals/deals.env
-ExecStart=/usr/bin/python3 /opt/deals/cli.py --db /var/lib/deals/deals.sqlite daily
+ExecStart=/usr/bin/python3 /opt/deals/deals.py --db /var/lib/deals/deals.sqlite nightly
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

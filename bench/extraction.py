@@ -5,17 +5,17 @@
 - spécification robots.txt (cas Protego / Google, 66 cas) ;
 - pages-pièges construites sur des motifs réels (tests/pages.py : 25 réglées + 8 écrites après réglage) ;
 - temps CPU sur une grande page produit (~450 Ko : méga-menu, scripts, carrousel).
-Les pages réelles des enseignes se mesurent sur le serveur : python collect.py diagnose all.
+Les pages réelles des enseignes se mesurent sur le serveur : python deals.py diagnose all.
 """
 import json
 import time
 from pathlib import Path
 
-from listener import extract as X
-from listener.structured import jsonld_items
-from listener.vendor.protego import Protego
+from deals import extract as X
+from deals.extract.page import jsonld_items
+from deals.vendor.protego import Protego
 from tests.pages import HELDOUT, PAGES
-from tests.test_extraction import outcome
+from tests.test_extract import outcome
 
 CORPUS = Path(__file__).resolve().parent.parent / "tests" / "corpus"
 

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Commande DEALS sur le serveur, dans les mêmes conditions que les services : utilisateur deals, dossier /var/lib/deals,
+# réglages de /etc/deals/deals.env (lisible par root seulement). Exemple : sudo deals diagnose all --n 20
+exec systemd-run --quiet --wait --pty --collect --uid=deals --gid=deals \
+  -p WorkingDirectory=/var/lib/deals -p EnvironmentFile=/etc/deals/deals.env \
+  /usr/bin/python3 /opt/deals/deals.py --db /var/lib/deals/deals.sqlite "$@"

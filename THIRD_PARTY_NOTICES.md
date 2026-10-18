@@ -5,8 +5,8 @@ ci-dessous. Aucune dépendance à installer : le code repris est embarqué et n'
 
 | Élément | Où | Origine | Ce qui est repris |
 |---|---|---|---|
-| Protego 0.7.0 | `listener/vendor/protego/` (copie intégrale, non modifiée) | github.com/scrapy/protego, révision 53d6df8 (2026-10-08) | lecture de robots.txt conforme RFC 9309 |
-| extruct | `listener/structured.py` (fonctions `_repair_*`, `_strip_framing`, `_decode_leading_values`, `_iter_jsonld`) | github.com/scrapinghub/extruct, `extruct/jsonld.py`, révision d24f541 (2026-10-15) | réparation des JSON-LD mal formés |
+| Protego 0.7.0 | `deals/vendor/protego/` (copie intégrale, non modifiée) | github.com/scrapy/protego, révision 53d6df8 (2026-10-08) | lecture de robots.txt conforme RFC 9309 |
+| extruct | `deals/extract/page.py` (fonctions `_repair_*`, `_strip_framing`, `_decode_leading_values`, `_iter_jsonld`) | github.com/scrapinghub/extruct, `extruct/jsonld.py`, révision d24f541 (2026-10-15) | réparation des JSON-LD mal formés |
 | extruct (tests) | `tests/corpus/jsonld_cases.json` | même dépôt, `tests/test_jsonld.py` et `tests/samples/*.invalid` | cas de test |
 | price-parser (tests) | `tests/corpus/price_strings.json` | github.com/scrapinghub/price-parser, `tests/test_price_parsing.py`, révision 6718bfe (2026-10-06) | 1 040 chaînes de prix réelles (le code n'est pas repris : notre lecteur fait déjà 99,6 % sur ce corpus) |
 | Protego (tests) | `tests/corpus/robots_spec.json` | `tests/test_on_google_spec.py` | cas de la spécification robots.txt |
