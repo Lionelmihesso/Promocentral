@@ -303,7 +303,7 @@ export default function App() {
         {item.offers.map(o => <div key={o.merchant} className={`offer ${o.best ? "best" : ""}`}>
           <div><div className="m">{o.merchant}</div>{o.best && <div className="tag">Meilleure offre</div>}{o.availability !== "in_stock" && o.availability !== "unknown" && <div className="e">Indisponible</div>}</div>
           <div className="r"><b>{eur(o.price)}</b>
-            <a className="go" href={o.url} target="_blank" rel="noopener noreferrer">Voir ↗</a></div></div>)}
+            <a className="go" href={`/api/r/out/${o.offer_id}?from=item`} target="_blank" rel="noopener">Voir ↗</a></div></div>)}
       </div>
       {item.similar.length > 0 && <>
         <div className="sechead"><h2>Produits similaires</h2></div>

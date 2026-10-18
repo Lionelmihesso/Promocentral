@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from collect.pipeline import Collector
 from listener.core import Listener
 from listener.server import serve
-from radar.api import routes as radar_routes
+from radar.api import admin_routes, routes as radar_routes
 from radar.engine import Radar
 
 
@@ -64,7 +64,7 @@ def main(argv=None):
         L = Listener(a.db, workers=1)
         R, extra = Radar(L), []
     admin = a.admin or a.cmd == "demo"
-    srv = serve(L, a.port, extra=radar_routes(R) + extra, admin=admin)
+    srv = serve(L, a.port, extra=radar_routes(R) + (admin_routes(R) + extra if admin else []), admin=admin)
     print(f"App : http://127.0.0.1:{a.port}/" + (f"   ·   console interne : http://127.0.0.1:{a.port}/admin" if admin else ""))
     try:
         srv.serve_forever()

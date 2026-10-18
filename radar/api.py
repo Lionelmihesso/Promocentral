@@ -19,6 +19,7 @@ def routes(radar):
         ("GET", r"/api/r/saves", lambda b, q: S.saves(U(q))),
         ("POST", r"/api/r/brand/follow", lambda b, q: S.follow(U(q, b), b)),
         ("GET", r"/api/r/follows", lambda b, q: S.follows(U(q))),
+        ("GET", r"/api/r/out/(\d+)", lambda b, q, i: S.out(q, int(i))),
         ("POST", r"/api/r/auth/request", lambda b, q: A.request_link(b.get("email"))),
         ("GET", r"/api/r/auth/verify", lambda b, q: A.verify(q)),
         ("GET", r"/api/r/auth/me", lambda b, q: A.me(q.get("_session"))),
@@ -35,5 +36,11 @@ def routes(radar):
         ("POST", r"/api/r/alternative", lambda b, q: C.alternative(U(q, b), b)),
         ("GET", r"/api/r/go/(\d+)", lambda b, q, i: C.go(U(q), int(i), q)),
         ("GET", r"/api/r/alerts", lambda b, q: C.alerts(U(q))),
-        ("GET", r"/api/r/metrics", lambda b, q: C.metrics()),
     ]
+
+
+def admin_routes(radar):
+    """Routes internes : exposées seulement avec la console (python app.py serve --admin, ou demo)."""
+    from .shop import Shop
+    S = Shop(radar, Consumer(radar))
+    return [("GET", r"/api/admin/metrics", lambda b, q: S.metrics())]

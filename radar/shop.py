@@ -12,6 +12,9 @@ Lecture ouverte (sans compte) ; favoris et marques suivies : session requise (�
   GET  saves                    favoris                     (session)
   POST brand/follow {brand, on} suivre une marque           (session)
   GET  follows                  marques suivies             (session)
+  GET  out/<offer_id>?from=     clic vers l'enseigne : tracé (avec ou sans compte), puis redirection vers l'offre connue
+Interne (console /admin uniquement) :
+  GET  metrics                  clics sortants par jour, par source, part des visiteurs connectés
 """
 import time
 import unicodedata
@@ -20,6 +23,7 @@ from urllib.parse import unquote
 from . import accounts
 
 FOLLOW_BOOST = 1.5
+CLICK_SOURCES = {"item", "hero", "today", "explore", "brand", "similar", "saved"}
 TODAY_LIMIT = 60
 
 
@@ -30,7 +34,10 @@ class Shop:
         with self.L.lock:
             self.L.db.executescript("""
                 CREATE TABLE IF NOT EXISTS saves (user_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-                  created_at REAL NOT NULL, PRIMARY KEY (user_id, product_id));""")
+                  created_at REAL NOT NULL, PRIMARY KEY (user_id, product_id));
+                CREATE TABLE IF NOT EXISTS clicks (id INTEGER PRIMARY KEY, at REAL NOT NULL, day TEXT NOT NULL,
+                  user_id INTEGER, product_id INTEGER NOT NULL, offer_id INTEGER NOT NULL, merchant TEXT, source TEXT);
+                CREATE INDEX IF NOT EXISTS clicks_day ON clicks(day);""")
             self.L.db.commit()
 
     # ------------------------------------------------------------ identité optionnelle
@@ -120,7 +127,7 @@ class Shop:
         offers = []
         for o in s["offers"]:
             lst = o.get("list_price")
-            offers.append({"merchant": o["merchant"], "url": o["url"], "price": o["price"], "was": lst if lst and lst > o["price"] else None,
+            offers.append({"offer_id": o["offer_id"], "merchant": o["merchant"], "url": o["url"], "price": o["price"], "was": lst if lst and lst > o["price"] else None,
                            "pct": round((1 - o["price"] / lst) * 100) if lst and lst > o["price"] else 0,
                            "availability": o["availability"]})
         offers.sort(key=lambda o: (o["availability"] != "in_stock", o["price"]))
@@ -163,6 +170,29 @@ class Shop:
 
     def follows(self, uid):
         return {"brands": sorted(self._followed(uid))}
+
+    # ------------------------------------------------------------ clics sortants (mesure du produit)
+    def out(self, q, offer_id):
+        """Redirige uniquement vers l'URL d'une offre connue (pas de redirection ouverte) et trace le clic."""
+        o = self.q("SELECT id, product_id, merchant, url FROM offers WHERE id=?", (offer_id,), one=True)
+        if not o or not o["product_id"] or not (o["url"] or "").startswith(("http://", "https://")):
+            raise NotFound()
+        source = q.get("from") if q.get("from") in CLICK_SOURCES else None
+        now = self.L.clock()
+        self.q("INSERT INTO clicks(at, day, user_id, product_id, offer_id, merchant, source) VALUES (?,?,?,?,?,?,?)",
+               (now, self.L.today().isoformat(), self._uid(q), o["product_id"], o["id"], o["merchant"], source))
+        return {"__redirect__": o["url"]}
+
+    def metrics(self, days=14):
+        rows = self.q("SELECT day, COUNT(*) n, COUNT(DISTINCT product_id) products, SUM(user_id IS NOT NULL) signed "
+                      "FROM clicks GROUP BY day ORDER BY day DESC LIMIT ?", (days,))
+        by_source = {r["source"] or "inconnue": r["n"] for r in self.q("SELECT source, COUNT(*) n FROM clicks GROUP BY source")}
+        total = sum(r["n"] for r in self.q("SELECT COUNT(*) n FROM clicks"))
+        return {"north_star": "clics sortants vers une enseigne",
+                "total_clicks": total,
+                "by_day": rows,
+                "by_source": by_source,
+                "accounts": self.q("SELECT COUNT(*) n FROM users WHERE name LIKE '%@%'", one=True)["n"]}
 
 
 def _fold(text):

@@ -10,14 +10,14 @@ from datetime import timedelta
 from app import build_demo
 from radar import accounts
 from listener.server import serve
-from radar.api import routes
+from radar.api import admin_routes, routes
 
 
 class ConsumerAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.L, cls.R, demo = build_demo(warmup_days=60)
-        cls.srv = serve(cls.L, 0, extra=routes(cls.R) + demo)
+        cls.srv = serve(cls.L, 0, extra=routes(cls.R) + admin_routes(cls.R) + demo)
         cls.base = f"http://127.0.0.1:{cls.srv.server_port}"
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
 
@@ -66,9 +66,9 @@ class ConsumerAPI(unittest.TestCase):
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         base = f"http://127.0.0.1:{srv.server_port}"
         try:
-            for path in ["/api/offers", "/api/rules", "/api/run", "/api/stream", "/admin"]:
+            for path in ["/api/offers", "/api/rules", "/api/run", "/api/stream", "/admin", "/api/admin/metrics", "/api/demo/next"]:
                 with self.assertRaises(urllib.error.HTTPError) as cm:
-                    urllib.request.urlopen(urllib.request.Request(f"{base}{path}", method="POST" if path.startswith(("/api/run", "/api/rules")) else "GET", data=b"{}" if path.startswith(("/api/run", "/api/rules")) else None))
+                    urllib.request.urlopen(urllib.request.Request(f"{base}{path}", method="POST" if path.startswith(("/api/run", "/api/rules", "/api/demo")) else "GET", data=b"{}" if path.startswith(("/api/run", "/api/rules", "/api/demo")) else None))
                 self.assertEqual(cm.exception.code, 404, path)
             with self.assertRaises(urllib.error.HTTPError) as cm:
                 urllib.request.urlopen(urllib.request.Request(f"{base}/api/r/feed"))
@@ -137,9 +137,6 @@ class ConsumerAPI(unittest.TestCase):
         st, hdrs, _ = self.raw("GET", f"go/{pid}?from=watch_hit", cookie=self.login("lea"))
         self.assertEqual(st, 302)
         self.assertTrue(hdrs["Location"].startswith("http"))
-        m = self.call("GET", "metrics")
-        self.assertGreaterEqual(m["north_star_useful_opportunities"], 1)
-        self.assertGreaterEqual(m["useful_by_kind"]["watch_hit"], 1)
 
     def test_2_target_update_and_stop(self):
         pid = self.call("GET", "search?q=televiseur")["products"][0]["id"]
@@ -244,6 +241,25 @@ class ConsumerAPI(unittest.TestCase):
         word = today["products"][0]["brand"].upper()
         hits = json.loads(self.raw("GET", "today?q=" + word.replace(" ", "%20"))[2])["products"]
         self.assertTrue(hits and all(word.lower() in p["brand"].lower() for p in hits))
+
+    def test_8_outbound_clicks_tracked_without_account(self):
+        pid = json.loads(self.raw("GET", "today")[2])["products"][0]["id"]
+        item = json.loads(self.raw("GET", f"item/{pid}")[2])
+        off = item["offers"][0]
+        before = json.loads(urllib.request.urlopen(f"{self.base}/api/admin/metrics").read())["total_clicks"]
+        st, hdrs, _ = self.raw("GET", f"out/{off['offer_id']}?from=item")          # anonyme
+        self.assertEqual(st, 302)
+        self.assertEqual(hdrs["Location"], off["url"])                             # vers l'offre connue, rien d'autre
+        st, _, _ = self.raw("GET", f"out/{off['offer_id']}?from=item", cookie=self.login("mia"))   # connecté
+        self.assertEqual(st, 302)
+        m = json.loads(urllib.request.urlopen(f"{self.base}/api/admin/metrics").read())
+        self.assertEqual(m["total_clicks"], before + 2)
+        self.assertGreaterEqual(m["by_source"]["item"], 2)
+        self.assertGreaterEqual(m["by_day"][0]["signed"], 1)
+        # pas de redirection ouverte, source inconnue ignorée
+        self.assertEqual(self.raw("GET", "out/999999")[0], 404)
+        self.assertEqual(self.raw("GET", f"out/{off['offer_id']}?from=http://evil.example")[0], 302)
+        self.assertNotIn("http://evil.example", json.dumps(urllib.request.urlopen(f"{self.base}/api/admin/metrics").read().decode()))
 
     def test_6_batch_rollback(self):
         n = self.L.q("SELECT COUNT(*) n FROM users", one=True)["n"]
