@@ -34,6 +34,9 @@ def main(argv=None):
     sub.add_parser("nightly")
     sub.add_parser("review")
     sub.add_parser("estimate")
+    r = sub.add_parser("rules", help="règle d'extraction d'un site, ex. rules www.site.fr '{\"price\": \".prix\"}'")
+    r.add_argument("host")
+    r.add_argument("rules", help="JSON : sélecteurs CSS (price, list_price, title, gtin…)")
     a = ap.parse_args(argv)
     L = Listener(a.db, Fetcher(user_agent=USER_AGENT, min_interval=a.interval), workers=1)
     C = Collector(L)
@@ -41,6 +44,10 @@ def main(argv=None):
     Path("urls").mkdir(exist_ok=True)
     Path("reports").mkdir(exist_ok=True)
 
+    if a.cmd == "rules":
+        L.set_rules(a.host, json.loads(a.rules))
+        print(f"règle enregistrée pour {a.host} : relancez « python collect.py diagnose <enseigne> »")
+        return 0
     if a.cmd == "discover":
         for k in keys():
             r = C.discover(k, per_category=a.per)

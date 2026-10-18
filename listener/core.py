@@ -154,7 +154,6 @@ class Listener:
         # Demande partagée : les couches supérieures (missions) déclarent les produits qui comptent.
         # Une seule observation par offre, quel que soit le nombre d'utilisateurs intéressés.
         self.demand_providers = []
-        self.on_tick = []        # rappels après chaque passe de surveillance (ex. recalcul des décisions)
         self.extract_hooks = []  # rappels (offer_id, extraction, html) après chaque page lue avec succès
 
     def _migrate(self):
@@ -731,21 +730,6 @@ class Listener:
         eff = max(base / 4, min(base * 2, o["interval_s"] or base) * factor, MIN_INTERVAL_S)
         why.append(f"toutes les {eff / 3600:.1f} h" if eff >= 3600 else f"toutes les {eff / 60:.0f} min")
         self.q("UPDATE offers SET next_check_at=?, schedule_reason=? WHERE id=?", (o["last_check_at"] + eff, ", ".join(why), o["id"]))
-
-    def run_forever(self, tick=5.0, stop=None):
-        last_daily = None
-        while not (stop and stop.is_set()):
-            try:
-                self.run_due()
-                for hook in self.on_tick:
-                    hook()
-                if last_daily != self.today():   # la fenêtre glisse : recalcul quotidien des signaux même sans nouveau fait
-                    for p in self.q("SELECT id FROM products"):
-                        self.refresh_product(p["id"])
-                    last_daily = self.today()
-            except Exception as e:
-                print("run_due:", e)
-            time.sleep(tick)
 
     # ------------------------------------------------------------ flux marchands
     def add_feed(self, source, merchant, interval_s=6 * 3600):

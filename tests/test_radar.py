@@ -53,23 +53,36 @@ class Engine(unittest.TestCase):
         self.assertTrue(self.RD.run_daily(self.C)["skipped"])                   # relance : rien de refait
         self.assertEqual(self.L.q("SELECT COUNT(*) n FROM jobs WHERE name='daily' AND key=?", (self.L.today().isoformat(),), one=True)["n"], 1)
 
-    def test_2_refresh_follows_real_demand_and_never_exceeds_daily(self):
+    def test_2_full_daily_refresh_while_it_fits_the_night(self):
+        plan, tiers = self.RD.refresh_plan()
+        live = {r["id"] for r in self.L.q("SELECT id FROM offers WHERE status!='gone'")}
+        self.assertEqual(tiers["mode"], "full")                                 # petit catalogue : tout est relu chaque jour
+        self.assertEqual(set(plan), live)
+        self.assertEqual(len(plan), len(set(plan)))
+        self.assertEqual(self.first["refresh"]["mode"], "full")
+
+    def test_2b_adaptive_beyond_the_night_budget_keeps_deals_fresh(self):
         u = self.RD.user("demande@test.local")
         pid = self.L.q("SELECT id FROM products ORDER BY id LIMIT 1", one=True)["id"]
         self.L.q("INSERT OR IGNORE INTO saves(user_id, product_id, created_at) VALUES (?,?,0)", (u, pid))
         brand = self.L.q("SELECT brand FROM products WHERE id<>? AND brand IS NOT NULL ORDER BY id DESC LIMIT 1", (pid,), one=True)["brand"]
         self.RD.follow(u, "brand", brand)
-        day = self.L.today()
-        plan, tiers = self.RD.refresh_plan(day)
-        total = self.L.q("SELECT COUNT(*) n FROM offers WHERE status!='gone'", one=True)["n"]
-        self.assertLessEqual(len(plan), total)
-        self.assertEqual(len(plan), len(set(plan)))                             # chaque offre au plus une fois par jour
-        self.assertTrue(self.offers_of("p.id=?", (pid,)) <= set(plan))          # un favori est relu chaque jour
-        three = set().union(*(set(self.RD.refresh_plan(day + timedelta(days=d))[0]) for d in range(3)))
-        self.assertTrue(self.offers_of("p.brand=?", (brand,)) <= three)          # marque suivie : au moins tous les 3 jours
-        self.assertLess(len(plan), total)                                       # le reste n'est pas relu tous les jours
-        self.L.q("DELETE FROM saves WHERE user_id=?", (u,))
-        self.RD.follow(u, "brand", brand, on=False)
+        try:
+            day = self.L.today()
+            plan, tiers = self.RD.refresh_plan(day, budget_s=0)                 # catalogue trop gros pour la nuit (simulé)
+            self.assertEqual(tiers["mode"], "adaptive")
+            total = self.L.q("SELECT COUNT(*) n FROM offers WHERE status!='gone'", one=True)["n"]
+            self.assertLessEqual(len(plan), total)
+            self.assertEqual(len(plan), len(set(plan)))                         # chaque offre au plus une fois par jour
+            self.assertTrue(self.offers_of("p.id=?", (pid,)) <= set(plan))      # un favori est relu chaque jour
+            in_deal = {d["id"] for d in self.shop._deals()}
+            for d in in_deal:                                                   # un deal affiché est relu le jour même : jamais périmé
+                self.assertTrue(self.offers_of("p.id=?", (d,)) <= set(plan), d)
+            three = set().union(*(set(self.RD.refresh_plan(day + timedelta(days=k), budget_s=0)[0]) for k in range(3)))
+            self.assertTrue(self.offers_of("p.brand=?", (brand,)) <= three)      # marque suivie : au moins tous les 3 jours
+        finally:
+            self.L.q("DELETE FROM saves WHERE user_id=?", (u,))
+            self.RD.follow(u, "brand", brand, on=False)
 
     def test_3_fake_discounts_are_never_listed(self):
         deals = self.shop._deals()

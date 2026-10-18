@@ -3,7 +3,8 @@
 Le marché (listener/) dit ce qui s'est passé ; ce module en tire, une fois par jour :
   - le signal de marché des produits dont un prix a bougé : bon prix, très bon prix, fausse remise (prix barré gonflé) ;
   - les similarités entre produits (caractéristiques, même catégorie), une fois par semaine ;
-  - le plan de relecture des offres, adaptatif mais plafonné à une fois par jour.
+  - le plan de relecture des offres : tout, chaque jour, tant que la passe tient dans la nuit ; au-delà, adaptatif
+    (jamais plus d'une fois par jour, et un deal en cours est toujours relu le jour même).
 Il porte aussi les tables du produit, lues et écrites par radar/shop.py : comptes, marques suivies, favoris, clics sortants.
 
 Contraintes : un passage par jour, aucun LLM, calcul borné, tâches idempotentes (clé = nom + jour).
@@ -11,7 +12,9 @@ Pas de surveillance de prix ni d'opportunités personnelles : un deal est un dea
 seule la marque suivie change l'ordre (radar/shop.py).
 """
 import json
+import os
 import time
+from collections import Counter
 from datetime import timedelta
 
 from .verify import verify
@@ -32,6 +35,8 @@ CREATE TABLE IF NOT EXISTS jobs (name TEXT NOT NULL, key TEXT NOT NULL, started 
   PRIMARY KEY (name, key));
 """
 ENERGY = "ABCDEFG"
+NIGHT_BUDGET_S = int(os.environ.get("DEALS_NIGHT_BUDGET_S", 4 * 3600))   # durée maximale de la passe de nuit
+REQUEST_INTERVAL_S = float(os.environ.get("DEALS_REQUEST_INTERVAL_S", 5))  # politesse : secondes entre deux requêtes d'un même site
 
 
 class Radar:
@@ -134,11 +139,26 @@ class Radar:
         return {"products": len(prods), "pairs": n}
 
     # ============================================================ FRÉQUENCE ADAPTATIVE (plafond : 1 fois par jour)
-    def refresh_plan(self, day=None):
-        """→ (offer_ids à relire aujourd'hui, répartition par rythme). Favori, clic récent ou produit volatil : chaque jour ;
-        marque suivie : tous les 3 jours ; le reste : chaque semaine. Étalement déterministe par identifiant."""
+    def refresh_plan(self, day=None, budget_s=None):
+        """→ (offer_ids à relire aujourd'hui, répartition par rythme).
+
+        Promesse du produit : montrer les deals qui existent. Tant que la passe complète tient dans le budget de nuit
+        (les sites sont lus en parallèle, chacun à son rythme poli), toutes les offres sont relues chaque jour.
+        Au-delà seulement, mode adaptatif (bench/refresh_policy.py) : deal en cours, bon prix vu ces 3 derniers jours,
+        favori, clic récent ou produit volatil → chaque jour ; marque suivie → tous les 3 jours ; le reste → chaque semaine."""
         day = day or self.today()
+        budget_s = NIGHT_BUDGET_S if budget_s is None else budget_s
+        offers = self.q("SELECT o.id, o.host, o.product_id, p.brand, p.category FROM offers o LEFT JOIN products p ON p.id=o.product_id "
+                        "WHERE o.status!='gone'")
+        per_host = Counter(o["host"] for o in offers)
+        if (max(per_host.values()) if per_host else 0) * REQUEST_INTERVAL_S <= budget_s:
+            return [o["id"] for o in offers], {"daily": len(offers), "every_3_days": 0, "weekly": 0, "mode": "full"}
         idx = day.toordinal()
+        in_deal = {r["product_id"] for r in self.q(
+            "SELECT o.product_id FROM offers o JOIN observations ob ON ob.id=(SELECT id FROM observations WHERE offer_id=o.id "
+            "ORDER BY first_seen DESC, id DESC LIMIT 1) WHERE ob.list_price > ob.price AND o.product_id IS NOT NULL")}
+        good = {r["product_id"] for r in self.q("SELECT product_id FROM market_signals WHERE state!='NORMAL' AND day>=?",
+                                                ((day - timedelta(days=3)).isoformat(),))}
         saved = {r["product_id"] for r in self.q("SELECT DISTINCT product_id FROM saves")}
         clicked = {r["product_id"] for r in self.q("SELECT DISTINCT product_id FROM clicks WHERE day>=?", ((day - timedelta(days=3)).isoformat(),))}
         brands = {r["value"] for r in self.q("SELECT value FROM preferences WHERE kind='brand'")}
@@ -146,10 +166,10 @@ class Radar:
         since = time.mktime((day - timedelta(days=30)).timetuple())
         volatile = {r["pid"] for r in self.q("SELECT o.product_id pid, COUNT(*) n FROM observations ob JOIN offers o ON o.id=ob.offer_id "
                                              "WHERE ob.first_seen>=? GROUP BY o.product_id HAVING n>=3", (since,))}
-        plan, tiers = [], {"daily": 0, "every_3_days": 0, "weekly": 0}
-        for o in self.q("SELECT o.id, o.product_id, p.brand, p.category FROM offers o LEFT JOIN products p ON p.id=o.product_id WHERE o.status!='gone'"):
+        plan, tiers = [], {"daily": 0, "every_3_days": 0, "weekly": 0, "mode": "adaptive"}
+        for o in offers:
             pid = o["product_id"]
-            period, tier = (1, "daily") if pid in saved or pid in clicked or pid in volatile else \
+            period, tier = (1, "daily") if pid in in_deal or pid in good or pid in saved or pid in clicked or pid in volatile else \
                 (3, "every_3_days") if o["brand"] in brands or o["category"] in cats else (7, "weekly")
             if (idx + o["id"]) % period == 0:
                 plan.append(o["id"])

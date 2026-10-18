@@ -1,97 +1,82 @@
-# DEALS — radar personnel des bonnes offres
+# DEALS — les bons deals du jour, au même endroit
 
-« Vous n'avez pas besoin de surveiller le marché en permanence. DEALS le fait pour vous. »
-Chaîne active : **MARCHÉ → OPPORTUNITÉ → UTILISATEUR → SUIVI → ALTERNATIVE → ACHAT** (audit v15).
-Un passage par jour, aucun LLM, un seul petit serveur.
+On ouvre l'app pour savoir quelles bonnes affaires existent aujourd'hui. Un deal est un deal : le même pour tout le monde,
+sans onboarding. L'entrée est le produit ; la marque et la catégorie sont des entrées secondaires ; l'enseigne n'est qu'un
+attribut de l'offre. Simple, sans friction : on lit sans compte ; un e-mail suffit pour garder des favoris et suivre des marques.
 
-| Couche | Dossier | Rôle |
+Une collecte par jour, sans affiliation, aucune IA dans le classement, un seul petit serveur (Python, bibliothèque standard, SQLite).
+
+| Couche | Fichiers | Rôle |
 |---|---|---|
-| Marché | `listener/`, `collect/` | collecte quotidienne polie, extraction, normalisation, produit / offre / observation (EAN prioritaire), historique des prix |
-| Intelligence | `listener/intelligence.py`, `radar/verify.py` | prix habituel, percentile, état du prix ; fausses remises (prix barré gonflé) écartées |
-| Utilisateur | `radar/engine.py` | utilisateurs, marques / catégories suivies, interactions, suivis avec `user_id` |
-| Personnalisation | `radar/engine.py` | opportunités personnelles (score + raison), alternatives sous contraintes, récapitulatif quotidien plafonné |
+| Marché | `listener/`, `collect/` | collecte quotidienne polie, extraction, rapprochement produit / offre (EAN d'abord), historique des prix |
+| Moteur quotidien | `radar/engine.py`, `radar/verify.py` | signaux de marché, **fausses remises détectées** (prix barré gonflé), similarité hebdomadaire, plan de collecte |
+| Produit | `radar/shop.py`, `radar/search.py` | deals du jour, catégories, marques, fiche, favoris, marques suivies, clics sortants |
+| Comptes | `radar/accounts.py` | lien magique par e-mail, session 90 jours, SMTP |
+| App | `web/src/App.jsx` → `web/app.html` | une page, design de la maquette v41 |
+| Serveur | `app.py`, `listener/server.py`, `radar/api.py` | API publique `/api/r/` ; console et API marché seulement en mode admin |
 
+## Règles du produit (dans le code)
+- **Seulement des remises réelles** : prix barré au-dessus du prix, et jamais une fausse remise (prix barré nettement au-dessus du
+  prix habituel). Une fiche reste consultable, sans remise affichée.
+- **Classement** : remise en %, × 1,5 si la marque est suivie par la personne connectée. Rien d'autre.
+- **Produits similaires** : similarité calculée chaque semaine sur les caractéristiques (même catégorie) ; repli : même catégorie, prix le plus proche.
+- **Recherche** : insensible aux accents et à la casse, avec synonymes du langage courant (frigo, télé, ordi…).
+- **Connexion demandée au moment de l'action** (favori, suivre), jamais à l'entrée. Lien à usage unique valable 15 min ;
+  5 demandes par adresse et par heure ; même réponse qu'un compte existe ou non ; seuls les hachages des jetons sont stockés.
+- **Clics sortants** : `out/<offer_id>` trace le clic (avec ou sans compte, sans cookie pour l'anonyme) et ne redirige que vers
+  une URL d'offre connue. C'est la mesure du produit (`/api/admin/metrics`, `python cli.py metrics`).
+- **Fraîcheur** : toutes les offres sont relues chaque jour tant que la passe tient dans la nuit (`DEALS_NIGHT_BUDGET_S`, 4 h).
+  Au-delà, mode adaptatif : deal en cours, bon prix récent, favori, clic récent, produit volatil → chaque jour ;
+  marque suivie → tous les 3 jours ; le reste → chaque semaine.
+
+## Commandes
 ```
-python collect.py discover|diagnose|build all      constituer la base (voir plus bas)
-python radar.py daily                              la tâche de chaque nuit (idempotente)
-python radar.py feed alice                         ce que l'app affiche à alice
-python -m unittest discover -s tests -v            tests
-python -m bench.refresh_policy                     coût de collecte vs événements ratés
+python app.py demo                       app sur http://127.0.0.1:8000/ avec un marché simulé (console /admin incluse)
+python app.py serve [--db deals.sqlite]  app publique : seules l'app et /api/r/ sont exposées
+python app.py serve --admin              + console /admin et API marché (outil interne, à ne pas publier)
+python cli.py daily                      tâche de nuit : plan de collecte → collecte → similarités (hebdo) → signaux
+python cli.py metrics                    clics sortants, comptes, deals du jour, fausses remises écartées
+python collect.py discover|diagnose|build|rules|review|estimate   constituer et régler la base
+python -m unittest discover -s tests -t .                         tests
+ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html (build seulement)
 ```
 
-## Moteur
-- **Signal de marché** (objectif) : `NORMAL / GOOD_PRICE / VERY_GOOD_PRICE`, baisse du jour, retour en stock, prix barré gonflé.
-  Recalculé seulement pour les produits dont le prix a bougé, plus les produits suivis.
-- **Opportunité personnelle** (`NEW_OPPORTUNITY, EXCEPTIONAL_PRICE, PRICE_DROP, BACK_IN_STOCK, TARGET_REACHED, ALTERNATIVE`) :
-  pertinence (marques et catégories suivies, interactions avec demi-vie de 3 semaines, produits écartés, budget) + qualité du prix
-  + nouveauté + fraîcheur. Sans signal personnel, seules les très bonnes affaires (≥ 15 % sous l'habituel) vont dans « Vous ne cherchiez pas ça ».
-- **Suivi** : prix cible, date limite, alternatives autorisées, contraintes dures (marque uniquement, minimums de caractéristiques),
-  alternatives refusées. Une alternative que l'utilisateur suit lui-même devient un suivi à part entière.
-- **Alternatives** : similarité déterministe sur les caractéristiques, même catégorie, précalculée une fois par semaine.
-- **Notifications** : un récapitulatif par jour au plus, plafonné par utilisateur ; seulement prix atteint, alternative, ou forte
-  opportunité d'une marque / catégorie suivie ; pas plus de 2 alertes « opportunité » par semaine ; un même produit n'est
-  renotifié qu'après 7 jours (14 pour un suivi) ou si son prix baisse encore (≥ 5 % pour un suivi).
-- **Fréquence de relecture** (plafond 1 fois par jour) : suivi, opportunité récente ou produit volatil → chaque jour ;
-  centre d'intérêt → tous les 3 jours ; reste → chaque semaine.
-- **Exploitation** : connexions fermées explicitement (`with Listener(...)`), tâches idempotentes (clé nom + jour), contraintes d'unicité.
+## API publique `/api/r/`
+Lecture ouverte : `today?category=&q=`, `categories`, `brands`, `brand/<nom>`, `item/<id>`, `out/<offer_id>?from=`.
+Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`.
+Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`, `auth/logout`.
 
-## App grand public et API (couche de décision)
-- `python app.py demo` → app sur http://127.0.0.1:8000/ (marché simulé, bouton « jour suivant ») ; console interne sur `/admin`.
-- `python app.py serve --db deals.sqlite` → mêmes écrans sur la base réelle alimentée par `collect.py` et `radar.py daily`.
-- Contrat `/api/r/` (`radar/api.py`, `radar/consumer.py`) : `feed`, `search`, `product/<id>`, `watch`, `watches`, `target`,
-  `watch/<id>/stop`, `interactions`, `dismiss`, `alternative`, `go/<id>` (clic marchand tracé puis redirection), `alerts`, `metrics`.
-  Utilisateur passé en `?user=` : **pas d'authentification, à ajouter avant toute ouverture publique.**
-- Une seule entité de surveillance (`user_watches`) : un produit (« je l'achète à 999 € ») ou une recherche (« un lave-linge sous 500 € »).
-  Elle alimente la priorité de collecte et est évaluée tout de suite à sa création (prix déjà atteint ? alternative déjà là ?).
-- Fil : `watch_hits` (opportunité attendue) est séparé de `foryou` / `discovery` (opportunité inconnue).
-- Alternatives apprises : deux refus d'une autre marque → l'utilisateur est traité comme fidèle à sa marque ; deux acceptations →
-  l'économie compte davantage dans le classement.
-- Étoile polaire (`/api/r/metrics`) : opportunités suivies d'un clic marchand dans les 3 jours, détaillées en watch hit / découverte ;
-  taux de prix atteints, clic après opportunité, acceptation des alternatives, conversion des alertes, délai intention → clic.
+## Exploitation
+Voir `deploy/` : service systemd, tâche de nuit, sauvegarde quotidienne de la base, variables d'environnement (`deploy/deals.env.example`).
 
 ## Mesures
-`bench/refresh_policy.py`, un an de marché simulé, 2 tirages :
-
-| | Tout relire chaque jour | Adaptatif |
-|---|---|---|
-| Requêtes par jour | 108 | 44–45 (**−58 %**) |
-| Prix cible atteint (suivis) ratés | 0 % | **0 %** (délai 0 j) |
-| Bonne affaire, centre d'intérêt, ratée | 0 % | 0–5,7 % (délai ~1 j) |
-| Bonne affaire, découverte, ratée | 0 % | 13–17 % (délai ~2,7 j) |
-
-Notifications sur 61 jours simulés (`tests/test_radar.py`) : 1,7 par semaine pour un utilisateur qui suit une marque, une catégorie et
-un produit ; 0 pour un utilisateur sans intérêt déclaré.
-
-Transactions (`bench/transactions.py`, base fichier, 30 nuits) : validation à chaque requête 1,4 s → une transaction par nuit 0,9 s (−37 %).
+- Politique de collecte (`python -m bench.refresh_policy`, un an simulé, 2 tirages) : le mode adaptatif fait −58 % de requêtes
+  mais rate 13 à 17 % des bonnes affaires hors centres d'intérêt (2,7 j de retard). D'où la relecture complète par défaut.
+- Transactions (`python -m bench.transactions`, 30 nuits) : une transaction par nuit, −33 % de temps.
 
 ## Archives
-Les générations précédentes (assistant de déménagement, Decision OS, vitrine) sont sorties du produit : voir `deals-archive-legacy.zip`.
+Les générations précédentes (Decision OS, déménagement, vitrine, surveillance de prix) sont dans `deals-archive-legacy.zip`.
 
-## Authentification
-Connexion par lien magique (e-mail, sans mot de passe) : `POST /api/r/auth/request`, lien → `GET /api/r/auth/verify` (cookie de session 90 jours). Toute route `/api/r/` sans session répond 401. Envoi des liens : `radar/accounts.py` (`Outbox.send`, à brancher sur un envoi SMTP en production).
-
----
-
-# DEALS — collecte des prix (sans affiliation) · v0.1
+## Collecte des prix (sans affiliation)
 
 Base produits construite soi-même, prix rafraîchis **une fois par jour**, sans IA, sur un seul petit serveur.
 Catégories : **Tech + Électroménager**. Enseignes : Boulanger, Cdiscount, Fnac, Darty (top 5 de la catégorie selon
 Fevad/Médiamétrie 2025, avec Amazon), plus Electro Dépôt, Ubaldi et LDLC. Amazon est désactivé : ses conditions
 d'utilisation interdisent la collecte automatisée ; il viendra par l'affiliation.
 
-## Mode d'emploi (sur votre machine, avec accès au web)
+### Constituer la base (sur votre machine, avec accès au web)
 1. Dans `collect/retailers.py`, remplacez `USER_AGENT` par le nom de votre robot, une page qui le décrit et une adresse de contact.
 2. `python collect.py discover all --per 20` → pages produit trouvées dans les plans de site (`urls/<enseigne>.json`).
 3. `python collect.py diagnose all --n 20` → `reports/diagnostic.md` : par enseigne, pages lues / avec prix / avec EAN /
    bloquées, et un verdict **garder** (≥ 80 % de pages avec prix), **règle de site à écrire** ou **abandonner**.
    Le détail page par page est dans `reports/diagnostic-<enseigne>.csv`.
-4. Pour une enseigne « règle à écrire » : `python run.py rules <site> '{"price": "sélecteur CSS du prix"}'`, puis relancer le diagnostic.
+4. Pour une enseigne « règle à écrire » : `python collect.py rules <site> '{"price": "sélecteur CSS du prix"}'`, puis relancer le diagnostic.
 5. `python collect.py build all` → première lecture : produits rapprochés par EAN puis par titre ; `python collect.py review` pour les cas douteux.
-6. `python collect.py estimate` → durée de la passe de nuit, puis planifier une passe par jour :
-   `0 3 * * *  cd /chemin/deals && python3 collect.py nightly >> logs/nightly.log 2>&1`
+6. `python collect.py estimate` → durée de la passe de nuit. En production, la passe est lancée par `cli.py daily`
+   (voir « Exploitation ») ; ne pas planifier aussi `collect.py nightly`, qui relirait tout une seconde fois.
    Chaque passe écrit `reports/AAAA-MM-JJ.md` : réussite par enseigne (⚠ sous 80 %), plus fortes baisses, « plus bas 30 jours » relevés.
 
-## Ce que fait la passe de nuit
+### Ce que fait la passe de nuit
 - Une requête par page et par jour, en respectant robots.txt et au moins 5 s entre deux requêtes vers un même site ; les sites tournent en parallèle.
 - Requêtes conditionnelles (ETag / Last-Modified) : une page inchangée n'est pas retéléchargée.
 - Seuls les **changements** de prix sont enregistrés ; les fortes variations sont relues une fois pour confirmation.
@@ -99,22 +84,14 @@ d'utilisation interdisent la collecte automatisée ; il viendra par l'affiliatio
 - Une enseigne bloquée ou dont la page a changé apparaît en ⚠ dans le rapport : on la corrige ou on la retire (pas de proxies payants).
 - Ordre de grandeur : 7 enseignes × 14 catégories × 20 pages ≈ 2 000 offres ; ~280 par site × 5 s ≈ **25 minutes** par nuit.
 
-## Testé (sur de faux sites locaux, l'environnement de développement n'a pas accès au web)
+### Testé (sur de faux sites locaux, l'environnement de développement n'a pas accès au web)
 `tests/test_collect.py` : découverte (robots.txt → index → plan compressé, page panier interdite écartée), diagnostic
 (site JSON-LD gardé, site en microdonnées gardé, site anti-robot « abandonner (bloqué) »), rapprochement (même EAN chez
 deux enseignes → un seul produit), deux nuits (304 sans changement ; baisse 1 299 € → 999 € enregistrée en une seule
 ligne ; « plus bas 30 jours » relevé ; rapport). **Les taux réels par enseigne restent à mesurer avec l'étape 3.**
 
-## Application grand public (`web/`)
-- Source : `web/src/App.jsx` (une seule page React, design de la maquette v41), point d'entrée `web/src/mount.jsx`.
-- Build : `ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh` → `web/app.html`, page autonome servie à `/`.
-  Dépendances de build uniquement ; rien n'est requis à l'exécution.
-- Contrat `/api/r/` (`radar/shop.py`) : `today?category=&q=`, `categories`, `brands`, `brand/<nom>`, `item/<id>`
-  (lecture ouverte) ; `save`, `saves`, `brand/follow`, `follows` (session requise, sinon 401).
-- Lancement : `python app.py serve` (public : seule l'API `/api/r/` et l'app sont exposées) ;
-  `python app.py serve --admin` ou `python app.py demo` ajoutent la console `/admin` et l'API marché (outil interne).
 
 ## Limites connues
-- Les liens « Voir ↗ » vont directement à l'enseigne : le clic n'est pas tracé pour les visiteurs anonymes.
-- Les fonctionnalités de surveillance (`watch`, `target`, alternatives) restent dans le moteur mais ne sont pas exposées par l'app.
-- `radar.py` (CLI) porte le même nom que le package `radar/` : à renommer en `cli.py`.
+- Pas de date de fin d'offre dans les données collectées : l'app n'affiche pas « fin dans X jours ».
+- Les favoris et marques choisis avant connexion ne sont pas repris : la connexion est demandée avant l'action.
+- Les taux de lecture réels par enseigne restent à mesurer sur le web (étape « diagnose »).
