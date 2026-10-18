@@ -6,7 +6,6 @@
 import os
 import tempfile
 import argparse
-import threading
 from datetime import date, timedelta
 
 from collect.pipeline import Collector
@@ -16,9 +15,12 @@ from radar.api import admin_routes, routes as radar_routes
 from radar.engine import Radar
 
 
-def build_demo(warmup_days=90, start=date(2026, 1, 5)):
+DEMO_CATEGORIES = ("lave_linge", "lave_vaisselle", "refrigerateur", "four", "canape", "lit", "table", "matelas")
+
+
+def build_demo(warmup_days=90, start=date(2026, 1, 5), categories=DEMO_CATEGORIES):
     from bench.market_sim import MOVING_CATALOG, Market, SimClock, SimFetcher
-    cat = [c for c in MOVING_CATALOG if c[0] in ("lave_linge", "lave_vaisselle", "refrigerateur", "televiseur", "four", "matelas")]
+    cat = [c for c in MOVING_CATALOG if c[0] in categories]
     m = Market(start=start, days=warmup_days + 120, seed=4, catalog=cat)
     clock = SimClock(start)
     L = Listener(fetcher=SimFetcher(m, clock), clock=clock, workers=1)

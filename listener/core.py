@@ -21,7 +21,7 @@ import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from . import extract as X
@@ -70,7 +70,9 @@ MIGRATIONS = {
     "products": {"category": "TEXT", "category_source": "TEXT", "attributes": "TEXT NOT NULL DEFAULT '{}'",
                  "gap_active": "INTEGER NOT NULL DEFAULT 0", "image": "TEXT"},
     "offers": {"promo_active": "INTEGER NOT NULL DEFAULT 0", "schedule_reason": "TEXT", "quality": "TEXT"},
-    "observations": {"raw_price": "TEXT", "list_price": "REAL", "confidence": "REAL", "quality": "TEXT", "found": "TEXT"},
+    "observations": {"raw_price": "TEXT", "list_price": "REAL", "confidence": "REAL", "quality": "TEXT", "found": "TEXT",
+                     "was_method": "TEXT", "seller": "TEXT", "valid_until": "TEXT"},
+    "checks": {"note": "TEXT", "protection": "TEXT"},
     "events": {"entity_type": "TEXT", "entity_id": "INTEGER", "previous": "TEXT", "new": "TEXT",
                "confidence": "REAL", "source": "TEXT"},
 }
@@ -159,6 +161,7 @@ class Listener:
         # Une seule observation par offre, quel que soit le nombre d'utilisateurs intéressés.
         self.demand_providers = []
         self.extract_hooks = []  # rappels (offer_id, extraction, html) après chaque page lue avec succès
+        self.accept = None       # première lecture d'une fiche : fonction(extraction) → None (on garde) ou raison du refus
 
     def _migrate(self):
         for table, cols in MIGRATIONS.items():
@@ -251,17 +254,23 @@ class Listener:
 
     def diagnose(self, url):
         r = self.fetcher.get(url)
-        out = {"url": url, "status": r["status"], "code": r.get("code"), "elapsed_ms": r.get("elapsed_ms")}
+        out = {"url": url, "status": r["status"], "code": r.get("code"), "elapsed_ms": r.get("elapsed_ms"),
+               "protection": r.get("protection"), "final_url": r.get("final_url")}
         if r["status"] == "ok":
-            ex = X.extract(r["html"], self.rules_for(_host(url)))
+            a = X.analyze(r["html"], self.rules_for(_host(url)), url=r.get("final_url") or url)
+            ex = a["best"]
             if ex:
                 ex["category"], _ = N.categorize(ex.get("title"), ex.get("category"))
                 ex["attributes"] = N.attributes(ex.get("title"), ex.get("properties"))
                 ex["quality"] = N.quality(ex)
-            out["extraction"] = ex
-            out["hint"] = None if ex else ("Aucun prix structuré trouvé : ajoutez une règle pour ce site "
-                                           "(sélecteur du prix, ex. div.prix-final) via le formulaire « Règle » "
-                                           "ou la commande : python run.py rules <site> '{\"price\": \"div.prix\"}'")
+            out.update(extraction=ex, page_kind=a["page_kind"], reasons=a["reasons"],
+                       candidates=[{k: c.get(k) for k in ("method", "price", "list_price", "currency", "availability", "gtin")}
+                                   for c in a["candidates"]])
+            if a["page_kind"] in ("listing", "not_found"):
+                out["status"] = "gone"
+            out["hint"] = None if ex or out["status"] == "gone" else (
+                "Aucun prix structuré trouvé : ajoutez une règle pour ce site (sélecteur du prix, ex. div.prix-final) : "
+                "python collect.py rules <site> '{\"price\": \"div.prix\", \"list_price\": \"del\"}'")
         return out
 
     # ------------------------------------------------------------ graphe produit
@@ -343,9 +352,9 @@ class Listener:
             events += self._promotion_transition(o, price, ex.get("list_price"))
             return events, "unchanged"
         self.q("INSERT INTO observations(offer_id, first_seen, last_seen, price, currency, availability, method, raw_price, list_price, "
-               "confidence, quality, found) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+               "confidence, quality, found, was_method, seller, valid_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                (offer_id, now, now, price, cur, avail, src_method, str(ex.get("raw_price") or price), ex.get("list_price"),
-                conf, q, json.dumps(ex.get("found") or {})))
+                conf, q, json.dumps(ex.get("found") or {}), ex.get("was_method"), ex.get("seller"), ex.get("valid_until")))
         if not prev:
             events.append(self._event("NEW_OFFER", offer=o, new={"price": price, "availability": avail}, confidence=conf,
                                       method=src_method, data={"title": ex.get("title")}))
@@ -620,11 +629,20 @@ class Listener:
         now = self.clock()
         confirming = o["pending_price"] is not None
         r = self.fetcher.get(o["url"], None if confirming else o["etag"], None if confirming else o["last_modified"])
-        st, method, outcome = r["status"], None, None
+        st, method, outcome, note, was = r["status"], None, None, None, None
         if st == "ok":
-            ex = X.extract(r["html"], self.rules_for(o["host"]))
-            if ex:
-                method = ex["method"]
+            a = X.analyze(r["html"], self.rules_for(o["host"]), url=r.get("final_url") or o["url"], merchant=o["merchant"])
+            ex = a["best"]
+            note = "; ".join(a["reasons"]) or None
+            if a["page_kind"] in ("listing", "not_found"):
+                st = "gone"                               # fiche retirée : redirigée vers une liste, ou page introuvable
+                note = "page liste" if a["page_kind"] == "listing" else "page introuvable"
+            elif ex and self._other_product(o, ex):
+                st, note = "gone", "l'adresse montre un autre produit"
+            elif ex and not o["product_id"] and self.accept and self.accept(ex):
+                st, note = "out_of_scope", self.accept(ex)      # hors catalogue (accessoire, autre famille) : jamais enregistré
+            elif ex:
+                method, was = ex["method"], ex.get("list_price")
                 _, outcome = self.record(offer_id, ex)
                 for hook in self.extract_hooks:
                     hook(offer_id, ex, r["html"])
@@ -638,13 +656,24 @@ class Listener:
                 self.q("UPDATE observations SET last_seen=?, n=n+1 WHERE id=?", (now, last["id"]))
                 self._promotion_transition(self.q("SELECT * FROM offers WHERE id=?", (offer_id,), one=True), last["price"], last["list_price"])
             outcome = "unchanged"
-        self.q("INSERT INTO checks(offer_id, host, at, status, code, elapsed_ms, method) VALUES (?,?,?,?,?,?,?)",
-               (offer_id, o["host"], now, st, r.get("code"), r.get("elapsed_ms"), method))
+        self.q("INSERT INTO checks(offer_id, host, at, status, code, elapsed_ms, method, note, protection) VALUES (?,?,?,?,?,?,?,?,?)",
+               (offer_id, o["host"], now, st, r.get("code"), r.get("elapsed_ms"), method, note, r.get("protection")))
         pid = self.q("SELECT product_id FROM offers WHERE id=?", (offer_id,), one=True)["product_id"]
         if refresh and pid and outcome in ("changed", "unchanged", "suspect"):
             self.refresh_product(pid)
         self._schedule(self.q("SELECT * FROM offers WHERE id=?", (offer_id,), one=True), st, outcome, r.get("retry_after"))
-        return {"offer_id": offer_id, "product_id": pid, "status": st, "outcome": outcome, "method": method}
+        return {"offer_id": offer_id, "product_id": pid, "status": st, "outcome": outcome, "method": method, "note": note, "was": was}
+
+    def _other_product(self, o, ex):
+        """La page relue montre-t-elle un autre produit que celui rattaché à l'offre ? (EAN différent, ou titre sans rapport)"""
+        if not o["product_id"]:
+            return False
+        p = self.q("SELECT gtin, title FROM products WHERE id=?", (o["product_id"],), one=True)
+        if not p:
+            return False
+        if p["gtin"] and ex.get("gtin"):
+            return p["gtin"] != ex["gtin"]
+        return bool(p["title"] and ex.get("title")) and jaccard(norm_title(p["title"]), norm_title(ex["title"])) < 0.2
 
     def schedule_factors(self, o, watched=None):
         """Facteurs de fréquence (§15), explicites pour l'observabilité."""
@@ -686,6 +715,8 @@ class Listener:
             fails += 1
             nxt = now + max(retry_after or 0, base * 2)
             why = ["limitation de débit du site (429)"]
+        elif st == "out_of_scope":
+            status, nxt, why = st, now + 30 * 86400, ["hors du catalogue suivi"]
         elif st in ("gone", "disallowed"):
             status, nxt = st, now + 7 * 86400
             if o["status"] != st:

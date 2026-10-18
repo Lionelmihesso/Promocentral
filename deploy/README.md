@@ -16,8 +16,9 @@ Dans `collect/retailers.py`, remplacez `USER_AGENT` par le nom du robot, une pag
 ## 2. Constituer la base (une fois, en tant que deals)
 ```
 cd /var/lib/deals
-sudo -u deals python3 /opt/deals/collect.py --db deals.sqlite discover all --per 20
+sudo -u deals python3 /opt/deals/collect.py --db deals.sqlite discover all --per 40
 sudo -u deals python3 /opt/deals/collect.py --db deals.sqlite diagnose all --n 20     # lire reports/diagnostic.md
+sudo -u deals python3 /opt/deals/collect.py --db deals.sqlite sample all --n 5        # pages brutes (samples/) pour une mise au point
 sudo -u deals python3 /opt/deals/collect.py --db deals.sqlite build all
 sudo -u deals python3 /opt/deals/collect.py --db deals.sqlite estimate               # durée de la passe de nuit
 sudo -u deals python3 /opt/deals/cli.py --db deals.sqlite daily                     # premiers signaux et similarités

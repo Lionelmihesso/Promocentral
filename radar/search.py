@@ -10,11 +10,17 @@ CATEGORY_LABEL = {"ordinateur_portable": "Ordinateurs portables", "smartphone": 
                   "tablette": "Tablettes", "micro_ondes": "Micro-ondes", "robot_aspirateur": "Robots aspirateurs", "machine_cafe": "Machines à café",
                   "montre_connectee": "Montres connectées", "lave_linge_sechant": "Lave-linge séchants", "canape": "Canapés", "lit": "Lits", "matelas": "Matelas", "refrigerateur": "Réfrigérateurs", "four": "Fours",
                   "lave_linge": "Lave-linge", "lave_vaisselle": "Lave-vaisselle", "televiseur": "Téléviseurs", "luminaire": "Luminaires",
-                  "table": "Tables", "seche_linge": "Sèche-linge", "aspirateur": "Aspirateurs"}
+                  "table": "Tables", "seche_linge": "Sèche-linge", "aspirateur": "Aspirateurs",
+                  "congelateur": "Congélateurs", "plaque_cuisson": "Plaques de cuisson", "hotte": "Hottes", "cuisiniere": "Cuisinières",
+                  "sommier": "Sommiers", "fauteuil": "Fauteuils", "armoire": "Armoires", "buffet": "Buffets", "meuble_tv": "Meubles TV",
+                  "commode": "Commodes"}
 SYNONYMS = {"frigo": "refrigerateur", "refrigerateurs": "refrigerateur", "tele": "televiseur", "tv": "televiseur", "televiseurs": "televiseur",
             "sofa": "canape", "canapes": "canape", "lampe": "luminaire", "lampadaire": "luminaire", "matelas": "matelas",
             "lavevaisselle": "lave vaisselle", "lavelinge": "lave linge", "laver": "lave linge", "ordi": "ordinateur", "pc": "ordinateur",
-            "portable": "portable", "ecouteurs": "casque", "cafetiere": "cafe", "expresso": "cafe"}
+            "portable": "portable", "ecouteurs": "casque", "cafetiere": "cafe", "expresso": "cafe",
+            "congelo": "congelateur", "congel": "congelateur", "induction": "plaque", "plaques": "plaque", "clicclac": "canape",
+            "bz": "canape", "convertible": "canape", "dressing": "armoire", "armoires": "armoire", "sommiers": "sommier",
+            "fauteuils": "fauteuil", "hottes": "hotte", "buffets": "buffet", "commodes": "commode", "lits": "lit"}
 
 
 def norm(s):

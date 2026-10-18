@@ -4,11 +4,13 @@ On ouvre l'app pour savoir quelles bonnes affaires existent aujourd'hui. Un deal
 sans onboarding. L'entrée est le produit ; la marque et la catégorie sont des entrées secondaires ; l'enseigne n'est qu'un
 attribut de l'offre. Simple, sans friction : on lit sans compte ; un e-mail suffit pour garder des favoris et suivre des marques.
 
-Une collecte par jour, sans affiliation, aucune IA dans le classement, un seul petit serveur (Python, bibliothèque standard, SQLite).
+Trois familles chères, où une remise compte : **électroménager, ameublement, literie**. Une collecte par jour, sans
+affiliation, aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
 
 | Couche | Fichiers | Rôle |
 |---|---|---|
 | Marché | `listener/`, `collect/` | collecte quotidienne polie, extraction, rapprochement produit / offre (EAN d'abord), historique des prix |
+| Extraction | `listener/fetch.py`, `listener/structured.py`, `listener/extract.py`, `listener/vendor/protego/` | robots.txt RFC 9309, blocages reconnus, données structurées réparées, prix barré, garde-fous |
 | Moteur quotidien | `radar/engine.py`, `radar/verify.py` | signaux de marché, **fausses remises détectées** (prix barré gonflé), similarité hebdomadaire, plan de collecte |
 | Produit | `radar/shop.py`, `radar/search.py` | deals du jour, catégories, marques, fiche, favoris, marques suivies, clics sortants |
 | Comptes | `radar/accounts.py` | lien magique par e-mail, session 90 jours, SMTP |
@@ -36,8 +38,9 @@ python app.py serve [--db deals.sqlite]  app publique : seules l'app et /api/r/ 
 python app.py serve --admin              + console /admin et API marché (outil interne, à ne pas publier)
 python cli.py daily                      tâche de nuit : plan de collecte → collecte → similarités (hebdo) → signaux
 python cli.py metrics                    clics sortants, comptes, deals du jour, fausses remises écartées
-python collect.py discover|diagnose|build|rules|review|estimate   constituer et régler la base
+python collect.py discover|diagnose|sample|explain|build|rules|review|estimate   constituer et régler la base
 python -m unittest discover -s tests -t .                         tests
+python -m bench.extraction                                        mesure de l'extraction (corpus publics, pages-pièges, temps CPU)
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html (build seulement)
 ```
 
@@ -57,41 +60,94 @@ Voir `deploy/` : service systemd, tâche de nuit, sauvegarde quotidienne de la b
 ## Archives
 Les générations précédentes (Decision OS, déménagement, vitrine, surveillance de prix) sont dans `deals-archive-legacy.zip`.
 
+## Extraction : ne jamais enregistrer une donnée fausse
+
+Une donnée manquée coûte une bonne affaire ; une donnée fausse (prix membre pris pour le prix public, prix d'un produit
+voisin, fiche devenue page liste) coûte la confiance. L'extraction lit dans l'ordre : JSON-LD, règles de site,
+microdonnées, balises meta, état applicatif embarqué (seulement si l'identité du produit concorde). Le prix barré peut
+aussi venir du bloc de prix HTML, mais seulement à côté du prix trouvé par une source structurée, dans le même bloc.
+
+Ce qui a été repris de l'existant (licences BSD-3, voir `THIRD_PARTY_NOTICES.md`) : **Protego** (Scrapy) pour robots.txt,
+la chaîne de réparation JSON-LD d'**extruct** (Zyte), et les corpus de test d'extruct, de price-parser et de Protego.
+Consultés sans rien reprendre : changedetection.io (sa détection de rupture s'appuie sur un navigateur), Scrapling
+(relocalisation de sélecteurs, dépend de lxml), les services payants (Zyte API, Diffbot, Bright Data, Apify).
+
+Mesures (`python -m bench.extraction`, le 18/10/2026) :
+
+| | Avant | Après |
+|---|---|---|
+| Chaînes de prix réelles (corpus price-parser) | 1 035 / 1 040 | 1 036 / 1 040 |
+| JSON-LD mal formés tirés de bugs réels (corpus extruct) | 5 / 36 | 36 / 36 |
+| Spécification robots.txt, Python 3.11 / 3.12 du serveur | 37 / 66 | 66 / 66 |
+| Pages-pièges construites sur des motifs réels | 9 / 25 | 25 / 25 |
+| Pages-pièges écrites après réglage (généralisation) | 3 / 8 | 8 / 8 |
+| Temps CPU, grande page produit (~450 Ko) | 80 ms | ~110 ms |
+
+Garde-fous en place : prix membre / fidélité (`validForMemberTier`, « Prix membre ») jamais pris pour le prix public ;
+produit principal choisi parmi plusieurs (produits associés, carrousels) ; fiche redirigée vers une page liste ou page
+introuvable → offre retirée, rien d'enregistré ; autre produit à la même adresse (EAN différent) → idem ; offre
+reconditionnée écartée si une offre neuve existe ; devise autre que l'euro refusée ; « -40 % » jamais lu comme un prix ;
+prix barré validé (au-dessus du prix, remise ≤ 85 %, cohérent avec le pourcentage affiché dans le même bloc ; bandeaux
+« jusqu'à -50 % » ignorés) ; « à partir de » (variantes) sans prix barré ; financement (« 108,42 €/mois en 4x »),
+éco-participation, ODR, « autres offres dès … » jamais pris pour un prix. Blocage reconnu par signature (DataDome,
+Cloudflare, Akamai, Imperva, PerimeterX, Kasada, Queue-it) sans faux positif sur une page lisible d'un site protégé.
+Passe de nuit : 5 refus de suite sur un site → on arrête ce site pour la nuit ; chute du taux de prix barré lu → alerte
+dans le rapport (changement de page probable). Provenance enregistrée : source du prix barré, vendeur, fin de promotion.
+
 ## Collecte des prix (sans affiliation)
 
 Base produits construite soi-même, prix rafraîchis **une fois par jour**, sans IA, sur un seul petit serveur.
-Catégories : **Tech + Électroménager**. Enseignes : Boulanger, Cdiscount, Fnac, Darty (top 5 de la catégorie selon
-Fevad/Médiamétrie 2025, avec Amazon), plus Electro Dépôt, Ubaldi et LDLC. Amazon est désactivé : ses conditions
-d'utilisation interdisent la collecte automatisée ; il viendra par l'affiliation.
+Familles : **électroménager** (lave-linge, sèche-linge, lave-vaisselle, réfrigérateurs, congélateurs, fours, plaques,
+hottes, cuisinières), **ameublement** (canapés, fauteuils, lits, armoires, tables, buffets, meubles TV, commodes),
+**literie** (matelas, sommiers). Un titre qui commence par un accessoire (housse, pieds, filtre…) ou un prix sous
+100 € n'entre pas au catalogue (`collect/retailers.py` : `FAMILIES`, `MIN_PRICE`).
 
-### Constituer la base (sur votre machine, avec accès au web)
+Enseignes actives : Boulanger, Electro Dépôt, Ubaldi, Cdiscount, But, IKEA, Maisons du Monde, La Redoute, Vente-unique.
+Désactivées, avec la raison dans `collect/retailers.py` : Conforama (défi Cloudflare sur tout le site, prix chargés par le
+navigateur), Darty (anti-robot signalé contre les adresses de centres de données ; à vérifier avec `diagnose darty`),
+Amazon (conditions d'utilisation). Un site qui bloque est signalé, jamais forcé.
+
+### Constituer la base (sur le serveur)
 1. Dans `collect/retailers.py`, remplacez `USER_AGENT` par le nom de votre robot, une page qui le décrit et une adresse de contact.
-2. `python collect.py discover all --per 20` → pages produit trouvées dans les plans de site (`urls/<enseigne>.json`).
-3. `python collect.py diagnose all --n 20` → `reports/diagnostic.md` : par enseigne, pages lues / avec prix / avec EAN /
-   bloquées, et un verdict **garder** (≥ 80 % de pages avec prix), **règle de site à écrire** ou **abandonner**.
-   Le détail page par page est dans `reports/diagnostic-<enseigne>.csv`.
-4. Pour une enseigne « règle à écrire » : `python collect.py rules <site> '{"price": "sélecteur CSS du prix"}'`, puis relancer le diagnostic.
-5. `python collect.py build all` → première lecture : produits rapprochés par EAN puis par titre ; `python collect.py review` pour les cas douteux.
-6. `python collect.py estimate` → durée de la passe de nuit. En production, la passe est lancée par `cli.py daily`
-   (voir « Exploitation ») ; ne pas planifier aussi `collect.py nightly`, qui relirait tout une seconde fois.
-   Chaque passe écrit `reports/AAAA-MM-JJ.md` : réussite par enseigne (⚠ sous 80 %), plus fortes baisses, « plus bas 30 jours » relevés.
+2. `python collect.py discover all --per 40` → fiches trouvées dans les plans de site (`urls/<enseigne>.json`).
+3. `python collect.py diagnose all --n 20` → `reports/diagnostic.md` : par enseigne, pages lues / avec prix / avec prix
+   barré / avec EAN / bloquées (et par quelle protection), d'où vient chaque donnée, et un verdict **garder**
+   (≥ 80 % de pages avec prix), **règle de site à écrire** ou **abandonner**. Détail page par page : `reports/diagnostic-<enseigne>.csv`.
+4. Une page qui résiste : `python collect.py explain <adresse>` montre ce que chaque source a lu et pourquoi une donnée
+   a été écartée ; puis `python collect.py rules <site> '{"price": "…", "list_price": "…"}'` et on relance le diagnostic.
+5. `python collect.py sample all --n 5` enregistre des pages brutes dans `samples/` : compressé et joint, ce dossier permet
+   de régler l'extraction hors ligne sur vos vraies pages.
+6. `python collect.py build all` → première lecture : produits rapprochés par EAN puis par titre ; `python collect.py review`.
+7. `python collect.py estimate` → durée de la passe de nuit. En production, la passe est lancée par `cli.py daily`
+   (voir « Exploitation ») ; ne pas planifier aussi `collect.py nightly`.
 
 ### Ce que fait la passe de nuit
-- Une requête par page et par jour, en respectant robots.txt et au moins 5 s entre deux requêtes vers un même site ; les sites tournent en parallèle.
-- Requêtes conditionnelles (ETag / Last-Modified) : une page inchangée n'est pas retéléchargée.
-- Seuls les **changements** de prix sont enregistrés ; les fortes variations sont relues une fois pour confirmation.
-- La mention légale « prix le plus bas des 30 derniers jours » est relevée quand elle figure sur la page : elle amorce l'historique.
-- Une enseigne bloquée ou dont la page a changé apparaît en ⚠ dans le rapport : on la corrige ou on la retire (pas de proxies payants).
-- Ordre de grandeur : 7 enseignes × 14 catégories × 20 pages ≈ 2 000 offres ; ~280 par site × 5 s ≈ **25 minutes** par nuit.
+- Une requête par page et par jour, en respectant robots.txt (y compris Crawl-delay) et au moins 5 s entre deux requêtes
+  vers un même site ; les sites tournent en parallèle.
+- Requêtes conditionnelles (ETag / Last-Modified) ; seuls les **changements** de prix sont enregistrés ; les fortes
+  variations sont relues une fois pour confirmation.
+- La mention légale « prix le plus bas des 30 derniers jours » est relevée quand elle figure sur la page.
+- Rapport du matin : réussite par enseigne (⚠ sous 80 %), passe interrompue, chute du prix barré lu, plus fortes baisses.
 
-### Testé (sur de faux sites locaux, l'environnement de développement n'a pas accès au web)
-`tests/test_collect.py` : découverte (robots.txt → index → plan compressé, page panier interdite écartée), diagnostic
-(site JSON-LD gardé, site en microdonnées gardé, site anti-robot « abandonner (bloqué) »), rapprochement (même EAN chez
-deux enseignes → un seul produit), deux nuits (304 sans changement ; baisse 1 299 € → 999 € enregistrée en une seule
-ligne ; « plus bas 30 jours » relevé ; rapport). **Les taux réels par enseigne restent à mesurer avec l'étape 3.**
+### Coût de fonctionnement
+- Volume : 9 enseignes × leurs catégories × 40 fiches ≈ 4 200 fiches ; le site le plus chargé (But ou Cdiscount 
+  760 fiches × 5 s) fixe la durée de la passe : ~63 min par nuit. CPU : ~0 1 s par page  soit ~8 min par nuit.
+  Base : quelques dizaines de Mo par an (seuls les changements sont écrits).
+- Serveur : le plus petit suffit. Hetzner CX23 : 5,49 € HT + 0,50 € d'IPv4 = **5,99 € HT par mois** (tarifs d'août 2026).
+- E-mails de connexion : Brevo gratuit jusqu'à 300 e-mails par jour (SMTP autorisé, mention Brevo dans le message).
+- Nom de domaine : quelques euros par an. Aucun proxy, aucune API payante, aucune IA à l'usage.
+
+### Testé
+Sans accès au web depuis l'environnement de développement : faux sites locaux (`tests/test_collect.py`,
+`tests/test_extraction.py`), corpus publics et pages-pièges (`tests/corpus/`, `tests/pages.py`). **Les taux réels par
+enseigne restent à mesurer avec `diagnose` depuis le serveur.**
 
 
 ## Limites connues
-- Pas de date de fin d'offre dans les données collectées : l'app n'affiche pas « fin dans X jours ».
+- Date de fin d'offre : relevée quand la page la déclare (`priceValidUntil`), pas encore affichée dans l'app.
 - Les favoris et marques choisis avant connexion ne sont pas repris : la connexion est demandée avant l'action.
-- Les taux de lecture réels par enseigne restent à mesurer sur le web (étape « diagnose »).
+- Les taux de lecture réels par enseigne restent à mesurer sur le web (étape « diagnose ») ; les modèles d'adresse de
+  fiche d'IKEA, Maisons du Monde, Vente-unique et Ubaldi sont des points de départ, confirmés par `discover`.
+- Pas de navigateur : un site dont les prix n'existent qu'après exécution du JavaScript reste illisible (Conforama).
+- Les flux marchands (affiliation) seraient la source la plus solide et la moins chère ; le moteur sait déjà les lire
+  (format Google Merchant), mais l'affiliation est écartée au départ.

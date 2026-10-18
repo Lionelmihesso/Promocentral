@@ -1,55 +1,92 @@
-"""Enseignes suivies — Tech + Électroménager.
+"""Enseignes et catégories suivies — Électroménager, Ameublement, Literie : des achats chers, où une remise compte.
 
-Sélection : top 5 de la catégorie « produits électroniques et électroménager » (Fevad/Médiamétrie 2025 : Amazon,
-Boulanger, Cdiscount, Fnac, Darty), plus deux spécialistes de l'électroménager (Electro Dépôt, Ubaldi) et un spécialiste
-tech (LDLC).
+Choix des enseignes : spécialistes en ligne de ces familles en France ; But et Cdiscount vendent les trois, ce qui limite
+le nombre de sites à lire (et donc le coût). `product_url` et les plans de site sont des POINTS DE DÉPART :
+`python collect.py discover <enseigne>` puis `python collect.py diagnose <enseigne>` mesurent depuis le serveur ce qui
+marche (lecture, prix, prix barré, EAN, blocage) et tranchent : garder / règle à écrire / abandonner.
 
-Amazon est désactivé : ses conditions d'utilisation interdisent la collecte automatisée ; il viendra plus tard par son
-programme d'affiliation (API produits).
-
-`product_url` et les plans de site sont des POINTS DE DÉPART : ils sont à confirmer avec `python collect.py discover`
-puis `python collect.py diagnose`, qui mesurent ce qui marche vraiment. Les plans de site sont d'abord lus dans
-robots.txt (lignes « Sitemap: ») ; `sitemaps` ne sert que de complément.
+Constats publics relevés le 18/10/2026 (à confirmer par le diagnostic) :
+- Conforama : défi Cloudflare sur tout le domaine et prix chargés après coup par le navigateur (description d'un outil de
+  collecte du commerce, Apify). Désactivé : sans navigateur la page n'a pas de prix, et on ne force pas un défi anti-robot.
+- Darty : anti-robot qui bloque les adresses de centres de données (même source). Désactivé par défaut ;
+  `python collect.py diagnose darty` pour vérifier depuis votre serveur.
+- But : l'EAN figure dans l'adresse des fiches (/produits/<EAN>/…) ; prix barré, pourcentage et fin de promotion visibles.
+- Boulanger : vendeurs tiers sur certaines fiches (« vendu & expédié par … ») : le vendeur est enregistré.
+- La Redoute : prix membres affichés à côté du prix public (jamais pris pour le prix public).
+- Electro Dépôt : prix au format « 279€98 » ; une adresse de fiche relevée menait à une page liste (reconnue : rien
+  n'est enregistré, l'offre est retirée).
+Amazon : collecte automatisée interdite par ses conditions d'utilisation.
 """
 
 RETAILERS = {
-    "boulanger": {"name": "Boulanger", "home": "https://www.boulanger.com", "enabled": True,
+    "boulanger": {"name": "Boulanger", "home": "https://www.boulanger.com", "enabled": True, "families": ["electromenager"],
                   "product_url": r"/ref/\d+", "sitemaps": []},
+    "electrodepot": {"name": "Electro Dépôt", "home": "https://www.electrodepot.fr", "enabled": True, "families": ["electromenager"],
+                     "product_url": r"^https?://[^/]+/[a-z0-9-]*\d[a-z0-9-]*\.html$", "sitemaps": []},
+    "ubaldi": {"name": "Ubaldi", "home": "https://www.ubaldi.com", "enabled": True, "families": ["electromenager"],
+               "product_url": r"/[a-z0-9-]+-\d+\.php$", "sitemaps": []},
     "cdiscount": {"name": "Cdiscount", "home": "https://www.cdiscount.com", "enabled": True,
-                  "product_url": r"/f-\d+-[a-z0-9]+\.html", "sitemaps": []},
-    "fnac": {"name": "Fnac", "home": "https://www.fnac.com", "enabled": True,
-             "product_url": r"/a\d+/", "sitemaps": []},
-    "darty": {"name": "Darty", "home": "https://www.darty.com", "enabled": True,
+                  "families": ["electromenager", "ameublement", "literie"], "product_url": r"/f-\d+-[a-z0-9]+\.html", "sitemaps": []},
+    "but": {"name": "But", "home": "https://www.but.fr", "enabled": True, "families": ["electromenager", "ameublement", "literie"],
+            "product_url": r"/produits/\d{8,14}/[^/]+\.html", "sitemaps": []},
+    "ikea": {"name": "IKEA", "home": "https://www.ikea.com", "enabled": True, "families": ["ameublement", "literie"],
+             "product_url": r"/fr/fr/p/[a-z0-9-]+-s?\d{8}/?$", "sitemaps": []},
+    "maisonsdumonde": {"name": "Maisons du Monde", "home": "https://www.maisonsdumonde.com", "enabled": True,
+                       "families": ["ameublement", "literie"], "product_url": r"/FR/fr/p/[^/]+\.htm", "sitemaps": []},
+    "laredoute": {"name": "La Redoute", "home": "https://www.laredoute.fr", "enabled": True, "families": ["ameublement", "literie"],
+                  "product_url": r"/ppdp/prod-\d+\.aspx", "sitemaps": []},
+    "venteunique": {"name": "Vente-unique", "home": "https://www.vente-unique.com", "enabled": True,
+                    "families": ["ameublement", "literie"], "product_url": r"/p/[a-z0-9-]+", "sitemaps": []},
+    "darty": {"name": "Darty", "home": "https://www.darty.com", "enabled": False, "families": ["electromenager"],
+              "disabled_reason": "anti-robot signalé bloquant les adresses de centres de données : vérifier avec diagnose",
               "product_url": r"/nav/achat/.+\.html", "sitemaps": []},
-    "electrodepot": {"name": "Electro Dépôt", "home": "https://www.electrodepot.fr", "enabled": True,
-                     "product_url": r"\.html$", "sitemaps": []},
-    "ubaldi": {"name": "Ubaldi", "home": "https://www.ubaldi.com", "enabled": True,
-               "product_url": r"\.php$|/[a-z0-9-]+-\d+\.php", "sitemaps": []},
-    "ldlc": {"name": "LDLC", "home": "https://www.ldlc.com", "enabled": True,
-             "product_url": r"/fiche/[A-Z0-9]+\.html", "sitemaps": []},
-    "amazon": {"name": "Amazon", "home": "https://www.amazon.fr", "enabled": False,
-               "disabled_reason": "Collecte automatisée interdite par les conditions d'utilisation : passer par l'affiliation",
+    "conforama": {"name": "Conforama", "home": "https://www.conforama.fr", "enabled": False,
+                  "families": ["electromenager", "ameublement", "literie"],
+                  "disabled_reason": "défi Cloudflare sur tout le site et prix chargés par le navigateur : illisible sans forcer",
+                  "product_url": r"/p/\d+", "sitemaps": []},
+    "amazon": {"name": "Amazon", "home": "https://www.amazon.fr", "enabled": False, "families": [],
+               "disabled_reason": "collecte automatisée interdite par les conditions d'utilisation",
                "product_url": r"/dp/[A-Z0-9]{10}", "sitemaps": []},
 }
 
-# Catégories de départ et mots repérables dans l'adresse des pages produit (le titre de la page sert ensuite à confirmer)
+# Familles suivies → catégories (la catégorie finale vient du titre de la fiche : listener/normalize.py)
+FAMILIES = {
+    "electromenager": ["lave_linge", "lave_linge_sechant", "seche_linge", "lave_vaisselle", "refrigerateur", "congelateur",
+                       "four", "plaque_cuisson", "hotte", "cuisiniere"],
+    "ameublement": ["canape", "fauteuil", "lit", "armoire", "table", "buffet", "meuble_tv", "commode"],
+    "literie": ["matelas", "sommier"],
+}
+FAMILY_OF = {c: f for f, cats in FAMILIES.items() for c in cats}
+# En dessous, c'est presque toujours un accessoire (filtre, housse, pieds…) : la fiche n'entre pas au catalogue.
+# Un produit déjà suivi qui passe sous ce seuil reste suivi (c'est peut-être une bonne affaire).
+MIN_PRICE = {"electromenager": 100.0, "ameublement": 100.0, "literie": 100.0}
+
+# Mots repérables dans l'adresse des fiches (tri de départ ; le titre de la fiche confirme ensuite)
 CATEGORY_URL_HINTS = {
-    "televiseur": ["televiseur", "tv-oled", "tv-qled", "tv-led", "television", "-tv-"],
-    "ordinateur_portable": ["ordinateur-portable", "pc-portable", "macbook", "laptop"],
-    "smartphone": ["smartphone", "iphone", "galaxy-s", "telephone-portable"],
-    "casque_audio": ["casque", "ecouteurs", "airpods"],
-    "enceinte": ["enceinte", "barre-de-son"],
-    "tablette": ["tablette", "ipad"],
-    "lave_linge": ["lave-linge"],
+    "lave_linge": ["lave-linge", "machine-a-laver"],
+    "seche_linge": ["seche-linge"],
     "lave_vaisselle": ["lave-vaisselle"],
-    "refrigerateur": ["refrigerateur", "frigo", "congelateur"],
-    "four": ["four-encastrable", "four-multifonction", "four-pyrolyse"],
-    "micro_ondes": ["micro-ondes"],
-    "aspirateur": ["aspirateur"],
-    "robot_aspirateur": ["robot-aspirateur", "aspirateur-robot"],
-    "machine_cafe": ["machine-a-cafe", "expresso", "cafetiere"],
+    "refrigerateur": ["refrigerateur", "frigo"],
+    "congelateur": ["congelateur"],
+    "four": ["four-encastrable", "four-multifonction", "four-pyrolyse", "four-pyrolytique", "four-vapeur", "four-a-chaleur"],
+    "plaque_cuisson": ["plaque-induction", "plaque-de-cuisson", "table-de-cuisson", "table-induction", "plaque-vitroceramique",
+                       "plaque-gaz"],
+    "hotte": ["hotte"],
+    "cuisiniere": ["cuisiniere"],
+    "canape": ["canape", "sofa", "clic-clac", "banquette-convertible"],
+    "fauteuil": ["fauteuil"],
+    "lit": ["cadre-de-lit", "lit-coffre", "lit-double", "lit-adulte", "lit-90", "lit-140", "lit-160", "lit-180", "lit-mezzanine",
+            "lit-superpose"],
+    "armoire": ["armoire", "dressing", "penderie"],
+    "table": ["table-a-manger", "table-de-salle-a-manger", "table-extensible", "table-de-repas"],
+    "buffet": ["buffet", "bahut", "vaisselier", "enfilade"],
+    "meuble_tv": ["meuble-tv", "banc-tv", "meuble-television"],
+    "commode": ["commode"],
+    "matelas": ["matelas"],
+    "sommier": ["sommier"],
 }
 
 USER_AGENT = "DealsBot/0.1 (+https://deals.example/robot ; contact : robot@deals.example)"   # à remplacer par votre page et votre adresse
-MIN_INTERVAL_S = 5.0     # au moins 5 s entre deux requêtes vers un même site
+MIN_INTERVAL_S = 5.0     # au moins 5 s entre deux requêtes vers un même site (davantage si son robots.txt le demande)
 KEEP_THRESHOLD = 0.80    # une enseigne est gardée si ≥ 80 % de ses pages donnent un prix
+BREAKER = 5              # passe de nuit : 5 refus de suite sur un site → on arrête ce site pour la nuit
