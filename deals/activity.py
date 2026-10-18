@@ -24,7 +24,8 @@ class Activity:
             raise NotFound("produit inconnu")
         on = bool(body.get("on", True))
         if on:
-            self.s.x("INSERT OR IGNORE INTO saves(user_id, product_id, created_at) VALUES (?,?,?)", (uid, pid, self.clock()))
+            self.s.x("INSERT OR IGNORE INTO saves(user_id, product_id, created_at, price) "
+                     "VALUES (?,?,?,(SELECT price FROM catalog WHERE product_id=?))", (uid, pid, self.clock(), pid))
         else:
             self.s.x("DELETE FROM saves WHERE user_id=? AND product_id=?", (uid, pid))
         return {"product_id": pid, "saved": on}

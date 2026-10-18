@@ -3,7 +3,7 @@ import unittest
 from datetime import date, timedelta
 
 from deals.judge import judge
-from deals.publish import daily_best, day_start
+from deals.publish import daily_best, day_start, low_days
 
 TODAY = date(2026, 10, 18)
 
@@ -46,6 +46,13 @@ class Judge(unittest.TestCase):
         self.assertFalse(judge(600, 800, [], TODAY, lowest_30d=600).deal)  # pas sous son propre plus bas 30 jours
         self.assertTrue(judge(600, 800, [], TODAY, lowest_30d=790).verified)
 
+    def test_verdict_carries_its_proof(self):                              # ce que la fiche explique
+        v = judge(850, 1000, days(30, 1000), TODAY)
+        self.assertEqual((v.proof, v.ref), ("historique", 1000))
+        v = judge(600, 800, [], TODAY, lowest_30d=790)
+        self.assertEqual((v.proof, v.ref), ("plus_bas_30j", 790))
+        self.assertEqual(judge(529.99, 879.99, [], TODAY).proof, "")       # crue sans preuve : rien à montrer
+
     def test_promo_started_days_ago_is_judged_against_before(self):
         history = days(20, 1000, TODAY - timedelta(days=6)) + days(5, 800)   # promo commencée il y a 5 jours
         self.assertTrue(judge(800, 1000, history, TODAY).verified)
@@ -60,6 +67,13 @@ class DailyBest(unittest.TestCase):
         b = [{"first_seen": t(0), "last_seen": t(5), "price": 480, "availability": "out_of_stock"}]
         self.assertEqual(daily_best([a, b], d0, TODAY), [(d0 + timedelta(days=k), p) for k, p in
                                                        [(0, 500), (1, 500), (2, 500), (3, 450), (4, 450), (5, 450)]])
+
+    def test_lowest_price_streak(self):                                   # « prix le plus bas relevé depuis n jours »
+        h = [(TODAY - timedelta(days=k), 500) for k in range(20, 0, -1)]
+        self.assertEqual(low_days(h, 450, TODAY), 20)
+        h[-8] = (h[-8][0], 440)                                           # 440 € il y a 8 jours
+        self.assertEqual(low_days(h, 450, TODAY), 7)
+        self.assertEqual(low_days([], 450, TODAY), 0)
 
     def test_stale_prices_stop_counting(self):
         d0 = TODAY - timedelta(days=10)

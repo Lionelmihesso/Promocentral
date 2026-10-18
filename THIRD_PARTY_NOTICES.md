@@ -1,7 +1,8 @@
 # Code et données de tiers
 
-Tout est sous licence permissive (BSD-3-Clause) : réutilisation autorisée, à condition de conserver les mentions
-ci-dessous. Aucune dépendance à installer : le code repris est embarqué et n'utilise que la bibliothèque standard.
+Tout est sous licence permissive (BSD-3-Clause pour le code, SIL Open Font License 1.1 pour la police) : réutilisation
+autorisée, à condition de conserver les mentions ci-dessous. Aucune dépendance à installer : le code repris est embarqué
+et n'utilise que la bibliothèque standard.
 
 | Élément | Où | Origine | Ce qui est repris |
 |---|---|---|---|
@@ -10,6 +11,7 @@ ci-dessous. Aucune dépendance à installer : le code repris est embarqué et n'
 | extruct (tests) | `tests/corpus/jsonld_cases.json` | même dépôt, `tests/test_jsonld.py` et `tests/samples/*.invalid` | cas de test |
 | price-parser (tests) | `tests/corpus/price_strings.json` | github.com/scrapinghub/price-parser, `tests/test_price_parsing.py`, révision 6718bfe (2026-10-06) | 1 040 chaînes de prix réelles (le code n'est pas repris : notre lecteur fait déjà 99,6 % sur ce corpus) |
 | Protego (tests) | `tests/corpus/robots_spec.json` | `tests/test_on_google_spec.py` | cas de la spécification robots.txt |
+| Manrope (police) | `web/fonts/manrope-latin.woff`, intégrée à `web/app.html` | github.com/google/fonts, `ofl/manrope`, révision 47d54ca (2026-10-16) ; dessin de Mikhail Sharanda | police variable 200-800 réduite aux caractères latins (licence : `web/fonts/OFL-Manrope.txt`) |
 
 ## Protego — BSD-3-Clause
 

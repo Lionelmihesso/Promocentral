@@ -13,7 +13,7 @@ d'octobre 2026, mesures avant / après : [`docs/AUDIT.md`](docs/AUDIT.md).
 
 ## Commandes
 ```
-python deals.py demo                         app sur http://127.0.0.1:8000/ avec 90 jours de marché simulé
+python deals.py demo                         app sur http://127.0.0.1:8000/ : 84 nuits de marché simulé, 48 produits
 python deals.py serve                        l'app et /api/r/ (en production derrière Caddy, voir deploy/)
 python deals.py nightly                      la nuit : collecte → rapport du matin → publication du catalogue
 python deals.py publish                      republier le catalogue sans relire le web
@@ -22,7 +22,7 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures du produit
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (35, ~8 s)
+python -m unittest discover -s tests -t .    tests (38, ~8 s)
 python -m bench.extraction | bench.deals_truth | bench.scale      mesures (extraction, vraies remises, charge)
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
@@ -30,7 +30,9 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 `deploy/deals.env.example`). Les commandes qui lisent les sites exigent `DEALS_USER_AGENT` (nom du robot, contact).
 
 ## API `/api/r/` (contrat de l'app)
-Lecture ouverte : `today?category=&q=`, `categories`, `brands`, `brand/<nom>`, `item/<id>`, `out/<offer_id>?from=`.
+Lecture ouverte : `today?category=&q=&feed=new|ending`, `categories`, `brands`, `brand/<nom>`, `item/<id>`, `out/<offer_id>?from=`.
+Chaque produit porte sa preuve (`verified`, `proof`, `usual`), sa nouveauté (`new`, `since`), sa fin (`ends`, `ending`),
+son plus bas prix relevé (`low_days`) ; `today` renvoie les compteurs du jour (`counts`) ; `saves` le prix au moment du favori.
 Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`.
 Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`, `auth/logout`.
 
@@ -39,17 +41,28 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
   historique hors promotion (au moins 14 jours observés), la mention légale « prix le plus bas des 30 derniers jours »,
   ou un « prix barré » inchangé depuis 60 jours (c'est alors le prix). Fausse remise : 10 points de plus que la remise
   réelle, sauf si celle-ci dépasse 30 %. Une fiche reste consultable, sans remise affichée (`deals/judge.py`).
+- **La preuve est montrée** : sur la fiche, le prix habituel relevé (ou le plus bas 30 jours affiché par l'enseigne), le
+  plus bas prix relevé depuis n jours, depuis quand la remise court, jusqu'à quand l'enseigne la déclare. Une remise
+  annoncée mais non retenue est expliquée.
+- **Depuis hier** : les remises apparues depuis la publication précédente et celles qui finissent dans 3 jours ou moins.
 - **Classement** : remise en %, × 1,5 si la marque est suivie par la personne connectée. Rien d'autre.
 - **Produits similaires** : même catégorie, caractéristiques proches (taille, capacité, classe énergie) ; à défaut, prix le plus proche.
 - **Recherche** : insensible aux accents, à la casse et aux tirets, synonymes courants (frigo, sofa, congélo…).
 - **Connexion au moment de l'action** (favori, suivre), jamais à l'entrée. Lien à usage unique valable 15 min ; 5 liens
   par adresse et par heure, 20 par adresse IP, plafond quotidien global ; même réponse qu'un compte existe ou non ;
   seuls les hachages des jetons sont stockés.
+- **Favoris** : le prix du jour où le favori a été posé est gardé ; une baisse se voit dans la liste et sur l'onglet.
 - **Clics sortants** : `out/<offer_id>` trace le clic (avec ou sans compte) et ne redirige que vers l'adresse d'une
   offre connue. C'est la mesure du produit (`python deals.py metrics`).
 - **Fraîcheur** : toutes les offres sont relues chaque nuit tant que la passe tient dans le budget (4 h) ; sinon, par
   ordre de valeur (deal en cours, favori, clic récent, puis le plus ancien relu). Un prix non relu depuis 3 jours n'est
   plus montré.
+
+## Interface
+
+Une page (`web/src/App.jsx` → `web/app.html`, police Manrope incluse, aucune requête vers un tiers) : téléphone d'abord,
+deux colonnes sur ordinateur. Pictogrammes de catégorie dessinés pour l'app (pas de photo en V1), contrastes et zones à
+toucher aux normes WCAG AA. Revue en tant qu'utilisateur, décisions et mesures avant / après : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 

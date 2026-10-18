@@ -3,7 +3,8 @@
 Ce que le produit promet, vérifié une fois : un vrai deal est visible dès le premier jour ; un accessoire n'entre pas au
 catalogue ; un même EAN chez deux enseignes = un produit ; une page inchangée n'est pas retéléchargée ; une fiche devenue
 page liste ou montrant un autre produit est retirée sans rien enregistrer ; un site qui refuse est laissé tranquille ;
-l'app lit le catalogue publié (classement, filtres, fiche, marque, favoris, marques suivies, clic sortant tracé).
+l'app lit le catalogue publié (classement, filtres, « depuis hier », preuve, fiche, marque, favoris et leur prix suivi,
+marques suivies, clic sortant tracé).
 """
 import json
 import tempfile
@@ -11,6 +12,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from datetime import timedelta
 from pathlib import Path
 
 from deals import config
@@ -106,9 +108,12 @@ class Flow(unittest.TestCase):
         self.assertEqual(self.get("brand/Inconnue")[0], 404)
         self.assertEqual([p["brand"] for p in self.get("today?q=lave%20linge")[1]["products"]], ["Bosch"])
         self.assertEqual([p["category"] for p in self.get("today?category=matelas")[1]["products"]], ["matelas"])
+        self.assertEqual(today["counts"]["new"], 2)                                     # première publication : tout est nouveau
 
     def test_3_second_night(self):
-        CATALOG["a"]["1002"].update(price=999, strike=1299, omnibus="1 199,00 €")     # promo sur le canapé
+        tomorrow = self.market.today() + timedelta(days=1)
+        CATALOG["a"]["1002"].update(price=999, strike=1299, omnibus="1 199,00 €",        # promo sur le canapé, finit dans 2 jours
+                                    until=(tomorrow + timedelta(days=2)).isoformat())
         STATE["listing"].add("1003")                                                   # la fiche matelas renvoie vers une liste
         STATE["other"]["2003"] = {**CATALOG["b"]["2003"], "title": "Réfrigérateur américain Samsung RS68", "gtin": EAN["frigo2"]}
         stats = self.crawler.nightly(["a", "b"])
@@ -119,12 +124,17 @@ class Flow(unittest.TestCase):
         self.assertEqual(self.store.q("SELECT COUNT(*) n FROM prices p JOIN offers o ON o.id=p.offer_id WHERE o.url LIKE '%2003.html'", one=True)["n"], 1)
         name = report.write(stats, Path(self.tmp, "reports"))
         self.assertIn("1 299,00 € → 999,00 €", Path(self.tmp, "reports", f"{name}.md").read_text(encoding="utf-8"))
-        publish(self.store, self.market.today(), self.market.clock())
+        publish(self.store, tomorrow, self.market.clock() + 86400)                     # publication du lendemain matin
         names = [p["name"] for p in self.get("today")[1]["products"]]
         self.assertIn("Canapé d'angle convertible", names)                              # la promo du jour apparaît
         self.assertNotIn("Matelas mousse 140x190 Integral 3", names)                    # la fiche retirée disparaît
         canape = next(p for p in self.get("today")[1]["products"] if p["brand"] == "Oslo")
         self.assertEqual((canape["pct"], canape["was"]), (23, 1299.0))                  # « plus bas 30 jours » cohérent : remise confirmée
+        self.assertEqual((canape["proof"], canape["usual"], canape["new"], canape["ending"]), ("plus_bas_30j", 1199.0, True, True))
+        st, news, _ = self.get("today?feed=new")                                        # depuis hier : seule la promo du jour
+        self.assertEqual(([p["brand"] for p in news["products"]], news["counts"]["new"], news["counts"]["ending"]), (["Oslo"], 1, 1))
+        lave = next(p for p in self.get("today")[1]["products"] if p["brand"] == "Bosch")
+        self.assertFalse(lave["new"])                                                   # en remise depuis la veille
 
     def test_4_people(self):
         mia, lea = self.session("mia@test.local"), self.session("lea@test.local")
@@ -137,7 +147,8 @@ class Flow(unittest.TestCase):
         self.assertTrue(all(p["score"] == p["pct"] * (1.5 if p["brand"] == last["brand"] else 1) for p in after))
         self.assertEqual(self.get("follows", lea)[1]["brands"], [])                     # chacun ses marques
         self.post("save", {"product_id": last["id"]}, mia)
-        self.assertEqual([p["id"] for p in self.get("saves", mia)[1]["products"]], [last["id"]])
+        saves = self.get("saves", mia)[1]["products"]
+        self.assertEqual([(p["id"], p["saved_price"]) for p in saves], [(last["id"], last["price"])])   # prix suivi depuis le favori
         self.assertEqual(self.get("saves", lea)[1]["products"], [])
         self.assertEqual(self.get("saves")[0], 401)
 

@@ -17,6 +17,8 @@ Constats publics relevés le 18/10/2026 (à confirmer par le diagnostic) :
   n'est enregistré, l'offre est retirée).
 Amazon : collecte automatisée interdite par ses conditions d'utilisation.
 """
+from ..extract.categories import FAMILIES, FAMILY_OF  # noqa: F401  familles suivies (taxonomie partagée avec l'app)
+
 
 RETAILERS = {
     "boulanger": {"name": "Boulanger", "home": "https://www.boulanger.com", "enabled": True, "families": ["electromenager"],
@@ -49,14 +51,6 @@ RETAILERS = {
                "product_url": r"/dp/[A-Z0-9]{10}", "sitemaps": []},
 }
 
-# Familles suivies → catégories (la catégorie finale vient du titre de la fiche : extract/categories.py)
-FAMILIES = {
-    "electromenager": ["lave_linge", "lave_linge_sechant", "seche_linge", "lave_vaisselle", "refrigerateur", "congelateur",
-                       "four", "plaque_cuisson", "hotte", "cuisiniere"],
-    "ameublement": ["canape", "fauteuil", "lit", "armoire", "table", "buffet", "meuble_tv", "commode"],
-    "literie": ["matelas", "sommier"],
-}
-FAMILY_OF = {c: f for f, cats in FAMILIES.items() for c in cats}
 # En dessous, c'est presque toujours un accessoire (filtre, housse, pieds…) : la fiche n'entre pas au catalogue.
 # Un produit déjà suivi qui passe sous ce seuil reste suivi (c'est peut-être une bonne affaire).
 MIN_PRICE = {"electromenager": 100.0, "ameublement": 100.0, "literie": 100.0}

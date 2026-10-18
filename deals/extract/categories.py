@@ -45,6 +45,15 @@ CATEGORIES = [
     ("montre_connectee", ["montre connectee", "apple watch", "galaxy watch", "smartwatch"]),
     ("enceinte", ["enceinte bluetooth", "enceinte connectee", "enceinte portable", "barre de son", "soundbar"]),
 ]
+# Familles suivies → catégories (périmètre de la collecte, regroupement dans l'app)
+FAMILIES = {
+    "electromenager": ["lave_linge", "lave_linge_sechant", "seche_linge", "lave_vaisselle", "refrigerateur", "congelateur",
+                       "four", "plaque_cuisson", "hotte", "cuisiniere"],
+    "ameublement": ["canape", "fauteuil", "lit", "armoire", "table", "buffet", "meuble_tv", "commode"],
+    "literie": ["matelas", "sommier"],
+}
+FAMILY_OF = {c: f for f, cats in FAMILIES.items() for c in cats}
+
 # Un titre qui COMMENCE par un accessoire n'est pas le produit (« Housse de canapé », « Pieds de lit », « Filtre hotte ») ;
 # « Lit coffre avec tête de lit » reste un lit.
 ACCESSORY = re.compile(r"^(?:housse|protege|protection|alese|surmatelas|sur-matelas|drap|oreiller|couette|piece|filtre|"

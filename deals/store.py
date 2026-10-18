@@ -1,4 +1,4 @@
-"""Base SQLite : un fichier, le schéma complet ici (source unique du modèle de données), une version.
+"""Base SQLite : un fichier, le schéma ici et nulle part ailleurs (source unique du modèle de données), une version.
 
 Concurrence par construction : mode WAL (une lecture ne bloque jamais), une connexion par fil, des transactions
 courtes — une par page relue, une par action d'une personne, une pour publier le catalogue. Le serveur web et la passe
@@ -7,12 +7,16 @@ de nuit partagent le fichier sans verrou applicatif.
   store = Store("deals.sqlite")
   store.q(sql, args, one=False) → lignes (dict)       store.x(sql, args) → id inséré       store.many(sql, lignes)
   with store.tx(): …                                  écritures groupées, tout ou rien
+
+Schéma = SCHEMA (version 1) puis les MIGRATIONS dans l'ordre. Une base neuve suit exactement le même chemin qu'une base
+existante : chaque migration est donc exécutée par chaque test. Création et migrations se font dans une seule
+transaction (deux processus qui démarrent ensemble : un seul migre, l'autre attend puis trouve la base à jour).
 """
 import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -68,6 +72,30 @@ CREATE TABLE clicks (
   offer_id INTEGER NOT NULL, merchant TEXT, source TEXT);
 CREATE INDEX clicks_day ON clicks(day);
 """
+MIGRATIONS = {
+    2: [  # catalogue : nouveauté, fin d'offre, plus bas prix relevé, preuve de la remise ; favoris : prix au moment du choix
+        "ALTER TABLE catalog ADD COLUMN since TEXT",                            # jour où la remise en cours a commencé
+        "ALTER TABLE catalog ADD COLUMN ends TEXT",                             # fin déclarée par l'enseigne
+        "ALTER TABLE catalog ADD COLUMN low_days INTEGER NOT NULL DEFAULT 0",   # prix le plus bas relevé depuis n jours
+        "ALTER TABLE catalog ADD COLUMN usual REAL",                            # prix de référence de la preuve
+        "ALTER TABLE catalog ADD COLUMN proof TEXT",                            # historique | plus_bas_30j | permanent
+        "ALTER TABLE catalog ADD COLUMN fake INTEGER NOT NULL DEFAULT 0",       # remise affichée, jugée fausse
+        "ALTER TABLE catalog ADD COLUMN n_offers INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE catalog ADD COLUMN tracked INTEGER NOT NULL DEFAULT 0",    # jours depuis la première lecture
+        "ALTER TABLE saves ADD COLUMN price REAL",                              # prix du catalogue quand le favori est posé
+    ],
+}
+
+
+def statements(script):
+    """Découpe un script SQL en instructions (un « ; » dans un commentaire ou une chaîne ne coupe pas)."""
+    out, buf = [], ""
+    for line in script.splitlines(keepends=True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            out.append(buf.strip())
+            buf = ""
+    return [st for st in out if st.strip(" ;\n")]
 
 
 class Store:
@@ -76,14 +104,27 @@ class Store:
         self._local = threading.local()
         c = self.conn()
         c.execute("PRAGMA journal_mode=WAL")
-        version = c.execute("PRAGMA user_version").fetchone()[0]
-        if version == 0:
-            if c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]:
-                raise RuntimeError(f"{self.path} : base d'une version antérieure de DEALS (sans numéro de schéma) ; "
-                                   "repartir d'une base neuve")
-            c.executescript(SCHEMA + f"\nPRAGMA user_version={SCHEMA_VERSION};")
-        elif version > SCHEMA_VERSION:
-            raise RuntimeError(f"{self.path} : schéma v{version}, plus récent que ce code (v{SCHEMA_VERSION})")
+        c.execute("BEGIN IMMEDIATE")
+        try:
+            version = c.execute("PRAGMA user_version").fetchone()[0]
+            if version == 0:
+                if c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]:
+                    raise RuntimeError(f"{self.path} : base d'une version antérieure de DEALS (sans numéro de schéma) ; "
+                                       "repartir d'une base neuve")
+                for st in statements(SCHEMA):
+                    c.execute(st)
+                version = 1
+            if version > SCHEMA_VERSION:
+                raise RuntimeError(f"{self.path} : schéma v{version}, plus récent que ce code (v{SCHEMA_VERSION})")
+            while version < SCHEMA_VERSION:
+                version += 1
+                for st in MIGRATIONS[version]:
+                    c.execute(st)
+            c.execute(f"PRAGMA user_version={version}")
+            c.execute("COMMIT")
+        except BaseException:
+            c.execute("ROLLBACK")
+            raise
 
     def conn(self):
         """Connexion du fil courant (créée à la demande)."""

@@ -1,7 +1,7 @@
 """DEALS — une seule ligne de commande.
 
   python deals.py serve [--port 8000]                l'app et son API (en production, derrière Caddy)
-  python deals.py demo [--port 8000] [--days 90]     l'app sur un marché simulé (base temporaire)
+  python deals.py demo [--port 8000]                 l'app sur un marché simulé (base temporaire)
   python deals.py nightly                            la nuit : collecte → publication → rapport du matin
   python deals.py publish                            republier le catalogue sans relire le web
   python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
@@ -57,10 +57,7 @@ def main(argv=None):
     ap.add_argument("--db", default=settings.db)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("serve", "demo"):
-        s = sub.add_parser(name)
-        s.add_argument("--port", type=int, default=settings.port)
-        if name == "demo":
-            s.add_argument("--days", type=int, default=90)
+        sub.add_parser(name).add_argument("--port", type=int, default=settings.port)
     sub.add_parser("nightly")
     sub.add_parser("publish")
     for name in ("discover", "diagnose", "sample", "build"):
@@ -84,10 +81,10 @@ def main(argv=None):
                  "(voir deploy/deals.env.example). Les enseignes doivent savoir qui les lit.")
 
     if a.cmd == "demo":
-        from .demo import build
+        from .demo import FIRST_NIGHT, LAST_NIGHT, build
         store = Store(os.path.join(tempfile.mkdtemp(prefix="deals-demo-"), "demo.sqlite"))
-        print(f"Marché simulé : {a.days} jours d'historique…")
-        build(store, days=a.days)
+        print(f"Marché simulé : {(LAST_NIGHT - FIRST_NIGHT).days + 1} nuits de collecte et de publication…")
+        build(store)
         return _serve(store, settings, a.port)
     if a.cmd == "backup":
         print(backup(settings.db, a.dest, a.keep))

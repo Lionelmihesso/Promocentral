@@ -26,6 +26,9 @@ PERMANENT = 60         # jours au même prix « barré » : c'est le prix
 LEVEL = 0.01           # même épisode de prix : à 1 % près
 
 
+PROOF = {"historique": "historique", "plus bas 30 jours affiché": "plus_bas_30j", "prix barré permanent": "permanent"}
+
+
 @dataclass(frozen=True)
 class Verdict:
     deal: bool
@@ -33,6 +36,8 @@ class Verdict:
     was: float | None = None     # prix barré montré
     verified: bool = False       # confrontée à une preuve
     reason: str = ""
+    ref: float | None = None     # prix de référence de la preuve retenue (prix habituel relevé, plus bas 30 jours affiché)
+    proof: str = ""              # historique | plus_bas_30j | permanent ; vide sans preuve
 
 
 def episode_start(history, price, today):
@@ -71,7 +76,8 @@ def judge(price, was, history, today, lowest_30d=None):
         evidence.append(("plus bas 30 jours affiché", lowest_30d))
     if not evidence:
         return Verdict(True, round(displayed * 100), was, False, "remise de l'enseigne, sans preuve contraire")
-    real, source = min((1 - price / ref, name) for name, ref in evidence)
+    real, source, ref = min((1 - price / ref, name, ref) for name, ref in evidence)
     if displayed - max(real, 0) >= FAKE_GAP and real < BIG:
-        return Verdict(False, reason=f"fausse remise : affichée {displayed:.0%}, réelle {max(real, 0):.0%} ({source})")
-    return Verdict(True, round(displayed * 100), was, True, f"remise confirmée ({source})")
+        return Verdict(False, reason=f"fausse remise : affichée {displayed:.0%}, réelle {max(real, 0):.0%} ({source})",
+                       ref=ref, proof=PROOF[source])
+    return Verdict(True, round(displayed * 100), was, True, f"remise confirmée ({source})", ref=ref, proof=PROOF[source])

@@ -38,6 +38,8 @@ def product_html(site, item):
     title = item["title"]
     if site == "a":
         offer = {"@type": "Offer", "price": str(item["price"]), "priceCurrency": "EUR", "availability": "https://schema.org/InStock"}
+        if item.get("until"):
+            offer["priceValidUntil"] = item["until"]
         if item.get("strike"):
             offer["priceSpecification"] = [{"@type": "UnitPriceSpecification", "priceType": "https://schema.org/StrikethroughPrice",
                                             "price": item["strike"], "priceCurrency": "EUR"}]
