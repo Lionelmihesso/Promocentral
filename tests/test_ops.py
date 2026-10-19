@@ -66,7 +66,7 @@ class Ops(unittest.TestCase):
         s = Store(path)
         self.assertEqual(s.q("PRAGMA user_version", one=True)["user_version"], store.SCHEMA_VERSION)
         row = s.q("SELECT * FROM catalog", one=True)
-        self.assertEqual((row["name"], row["low_days"], row["fake"], row["since"]), ("x", 0, 0, None))
+        self.assertEqual((row["name"], row["since"], row["ends"]), ("x", None, None))
         s.close()
 
     def test_hot_backup(self):

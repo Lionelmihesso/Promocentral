@@ -1,11 +1,10 @@
 """Publication du catalogue du jour : calculé une fois après la collecte, écrit d'un bloc, lu ensuite sans calcul.
 
 Pour chaque produit : la meilleure offre disponible et fraîche (prix relu il y a moins de 3 jours), le verdict de
-judge.py (vraie remise, fausse remise ou pas de remise) et sa preuve, les offres par enseigne, trois produits similaires
-(même catégorie, caractéristiques proches ; à défaut, prix le plus proche). Et ce qui fait revenir : depuis quand la
-remise court (nouvelle depuis la publication d'hier ?), quand l'enseigne dit qu'elle finit, depuis combien de jours le
-prix n'avait pas été aussi bas. Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un catalogue
-complet au suivant, jamais un état intermédiaire.
+judge.py (vraie remise, fausse remise ou pas de remise), depuis quand la remise court et jusqu'à quand l'enseigne la
+déclare (montrés dans la fiche), les offres par enseigne, trois produits similaires (même catégorie, caractéristiques
+proches ; à défaut, prix le plus proche). Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un
+catalogue complet au suivant, jamais un état intermédiaire.
 """
 import json
 import re
@@ -54,16 +53,6 @@ def daily_best(offer_intervals, first, last):
     return out
 
 
-def low_days(history, price, today):
-    """Le prix du jour est le plus bas relevé depuis n jours (0 : un prix plus bas a été relevé la veille)."""
-    n = 0
-    for d, p in reversed(history):
-        if p < price - 0.005:
-            break
-        n = (today - d).days
-    return n
-
-
 def similarity(a, b):
     """Similarité déterministe sur les caractéristiques ; même catégorie obligatoire."""
     if not a["category"] or a["category"] != b["category"]:
@@ -99,7 +88,7 @@ def _similar(items):
 
 def publish(store, today, now):
     """Recalcule et remplace le catalogue publié. → statistiques de publication."""
-    products = {r["id"]: r for r in store.q("SELECT id, title, brand, category, attributes, created_at FROM products")}
+    products = {r["id"]: r for r in store.q("SELECT id, title, brand, category, attributes FROM products")}
     before = {r["product_id"]: r for r in store.q("SELECT product_id, pct, since FROM catalog")}
     offers = store.q("SELECT id, product_id, merchant FROM offers WHERE product_id IS NOT NULL AND status NOT IN ('gone', 'out_of_scope')")
     since = day_start(today - timedelta(days=LOOKBACK + 1)) - FRESH_S
@@ -124,7 +113,7 @@ def publish(store, today, now):
             pct = round((1 - r["price"] / r["was"]) * 100) if r["was"] and r["was"] > r["price"] else 0
             catalog_offers.append((pid, o["id"], o["merchant"], r["price"], r["was"] if pct else None, pct, r["availability"], rank))
         best_o, best = fresh[0]
-        verdict, history = None, []
+        verdict = None
         if best["availability"] != "out_of_stock":
             history = daily_best([intervals[o["id"]] for o in offs], today - timedelta(days=LOOKBACK), today - timedelta(days=1))
             verdict = judge(best["price"], best["was"], history, today, best["lowest_30d"])
@@ -132,20 +121,17 @@ def publish(store, today, now):
         deal = bool(verdict and verdict.deal)
         fake = bool(verdict and not verdict.deal and verdict.reason.startswith("fausse"))
         prev = before.get(pid)
-        since = ((prev["since"] if prev and prev["pct"] > 0 and prev["since"] else day) if deal else None)
+        deal_since = (prev["since"] if prev and prev["pct"] > 0 and prev["since"] else day) if deal else None
         ends = best["valid_until"] if deal and (best["valid_until"] or "") >= day else None
-        tracked = max(0, (today - datetime.fromtimestamp(p["created_at"], timezone.utc).date()).days)
         stats["products"] += 1
         stats["deals"] += deal
         stats["verified"] += bool(deal and verdict.verified)
         stats["fake"] += fake
-        stats["new"] += since == day
+        stats["new"] += deal_since == day
         catalog.append((pid, display_name(p["title"], p["brand"]), p["title"], p["brand"], p["category"], best["price"],
                         verdict.was if deal else None, verdict.pct if deal else 0, best_o["merchant"], best_o["id"],
                         int(bool(deal and verdict.verified)), haystack(p["title"], p["brand"], best_o["merchant"], p["category"]),
-                        day, since, ends, low_days(history, best["price"], today) if verdict else 0,
-                        verdict.ref if verdict and (deal or fake) else None, (verdict.proof or None) if verdict and (deal or fake) else None,
-                        int(fake), len(fresh), tracked))
+                        day, deal_since, ends))
         published.append({"id": pid, "category": p["category"], "brand": p["brand"], "price": best["price"],
                           "attributes": json.loads(p["attributes"] or "{}")})
 
@@ -159,8 +145,7 @@ def publish(store, today, now):
         c.execute("DELETE FROM catalog_offers")
         c.execute("DELETE FROM similar")
         c.executemany("INSERT INTO catalog(product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, "
-                      "search, published_on, since, ends, low_days, usual, proof, fake, n_offers, tracked) "
-                      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
+                      "search, published_on, since, ends) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
         c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank) "
                       "VALUES (?,?,?,?,?,?,?,?)", catalog_offers)
         c.executemany("INSERT INTO similar(product_id, other_id, rank) VALUES (?,?,?)", similar)

@@ -3,19 +3,15 @@
 Chaque lecture = une ou deux requêtes indexées ; seuls l'ordre (marque suivie × 1,5) et les signets dépendent de la
 personne connectée. La recherche est insensible aux accents, à la casse et aux tirets ; chaque mot cherché doit
 commencer un mot du produit (titre, marque, enseigne, catégorie) ; quelques synonymes du langage courant.
-Depuis hier : « nouvelles » = remises apparues depuis la publication précédente ; « finissent bientôt » = fin déclarée
-par l'enseigne dans 3 jours ou moins.
 """
 import re
 import unicodedata
-from datetime import date
 
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
 
 FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
-ENDING_DAYS = 3
 FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
 CATEGORY_LABEL = {
     "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchants", "seche_linge": "Sèche-linge",
@@ -53,22 +49,6 @@ def haystack(title, brand, merchant, category):
                                 (category or "").replace("_", " ")])) + " "
 
 
-def days_between(a, b):
-    try:
-        return (date.fromisoformat(b) - date.fromisoformat(a)).days
-    except (TypeError, ValueError):
-        return None
-
-
-def is_new(r):
-    return bool(r["pct"] > 0 and r["since"] and r["since"] == r["published_on"])
-
-
-def is_ending(r):
-    left = days_between(r["published_on"], r["ends"]) if r["pct"] > 0 else None
-    return left is not None and 0 <= left <= ENDING_DAYS
-
-
 def matches(search, toks):
     """Chaque mot doit commencer un mot du produit ; un synonyme de plusieurs mots (« lave linge ») est cherché tel quel."""
     return all((t in search) if " " in t else (f" {t}" in search) for t in toks)
@@ -87,35 +67,24 @@ class Catalog:
     @staticmethod
     def _card(r, followed, saved):
         return {"id": r["product_id"], "title": r["title"], "name": r["name"], "brand": r["brand"], "category": r["category"],
-                "category_label": CATEGORY_LABEL.get(r["category"], r["category"]), "family": FAMILY_OF.get(r["category"]),
-                "price": r["price"], "was": r["was"], "pct": r["pct"], "merchant": r["merchant"], "n_offers": r["n_offers"],
-                "verified": bool(r["verified"]), "proof": r["proof"], "usual": r["usual"], "fake": bool(r["fake"]),
-                "since": r["since"], "new": is_new(r), "ends": r["ends"], "ending": is_ending(r), "low_days": r["low_days"],
-                "tracked": r["tracked"], "published_on": r["published_on"], "followed": r["brand"] in followed,
-                "saved": r["product_id"] in saved}
+                "category_label": CATEGORY_LABEL.get(r["category"], r["category"]), "price": r["price"], "was": r["was"],
+                "pct": r["pct"], "merchant": r["merchant"], "since": r["since"], "ends": r["ends"], "published_on": r["published_on"],
+                "followed": r["brand"] in followed, "saved": r["product_id"] in saved}
 
-    def today(self, uid=None, category=None, q=None, feed=None):
-        """Remises du jour, classées ; feed = new | ending (depuis hier). counts : nouvelles, finissent bientôt, vérifiées,
-        fausses remises écartées, plus forte économie en euros (sur la sélection de catégorie)."""
+    def today(self, uid=None, category=None, q=None):
         followed, saved = self._personal(uid)
         where, args = (" AND category=?", (category,)) if category else ("", ())
         toks = tokens(q) if q else []
-        # 1. colonnes légères pour compter, filtrer et classer ; 2. lignes complètes du seul haut de liste
-        light = "product_id, pct, brand, since, ends, published_on, verified, fake, was, price" + (", search" if toks else "")
-        rows = self.s.q(f"SELECT {light} FROM catalog WHERE (pct > 0 OR fake = 1){where}", args)
-        deals = [r for r in rows if r["pct"] > 0]
-        counts = {"new": sum(map(is_new, deals)), "ending": sum(map(is_ending, deals)), "verified": sum(r["verified"] for r in deals),
-                  "fake": len(rows) - len(deals), "max_saving": max((round(r["was"] - r["price"]) for r in deals if r["was"]), default=0)}
-        published = rows[0]["published_on"] if rows else self.s.q("SELECT MAX(published_on) d FROM catalog", one=True)["d"]
-        keep = {"new": is_new, "ending": is_ending}.get(feed, lambda r: True)
-        hits = [r for r in deals if (not toks or matches(r["search"], toks)) and keep(r)]
+        # colonnes légères pour filtrer et classer, lignes complètes pour le seul haut de liste montré
+        rows = self.s.q("SELECT product_id, pct, brand" + (", search" if toks else "") + " FROM catalog WHERE pct > 0" + where, args)
+        hits = [r for r in rows if not toks or matches(r["search"], toks)]
         score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
         hits.sort(key=lambda r: (-score(r), r["product_id"]))
         top = hits[:TODAY_LIMIT]
         full = {r["product_id"]: r for r in self.s.q(f"SELECT * FROM catalog WHERE product_id IN ({','.join('?' * len(top))})",
                                                      [r["product_id"] for r in top])} if top else {}
         cards = [{**self._card(full[r["product_id"]], followed, saved), "score": score(r)} for r in top]
-        return {"products": cards, "total": len(hits), "signed_in": uid is not None, "counts": counts, "published_on": published}
+        return {"products": cards, "total": len(hits), "signed_in": uid is not None}
 
     def categories(self):
         rows = self.s.q("SELECT category, COUNT(*) n FROM catalog WHERE pct > 0 GROUP BY category")

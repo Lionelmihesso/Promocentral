@@ -1,14 +1,14 @@
-/* DEALS — application grand public, branchée sur /api/r/. Refonte visuelle v43 (sur la base de la maquette v41/v42).
+/* DEALS — application grand public, branchée sur /api/r/. Interface v44 : minimaliste, sans friction.
 
-   Ce que l'utilisateur doit saisir en trois secondes : combien de vraies remises aujourd'hui, ce qui a changé depuis hier,
-   pourquoi croire chaque remise. Principes gardés des maquettes : le produit est l'entrée (l'enseigne n'en est qu'un
-   attribut), un deal est le même pour tout le monde, pas d'image (V1), favori = signet sur chaque ligne, marques suivies,
-   connexion demandée au moment de l'action. Ajouts : « Depuis hier » (v42) branché sur de vraies données, preuve de
-   chaque remise, économie en euros, pictogrammes de catégorie, prix d'un favori suivi depuis qu'on l'a gardé,
-   mise en page large sur ordinateur, police servie avec la page (aucune requête vers un tiers). */
+   Une liste se lit en un regard : marque, produit, prix, remise. Rien d'autre. La qualité est implicite (l'app ne montre
+   que de vraies remises) : aucune mention « vérifiée ». Les durées (depuis quand, jusqu'à quand) ne sont que dans la
+   fiche, avec l'offre à un geste. Principes gardés des maquettes : le produit est l'entrée, un deal est le même pour
+   tout le monde, pas d'image (V1), le signet sur chaque ligne, les marques suivies, la connexion demandée au moment de
+   l'action. Gardé de la v43 : catégories sur l'accueil, pictogrammes dans Explorer, baisse de prix d'un favori,
+   deux colonnes sur ordinateur, police servie avec la page, contrastes et zones à toucher aux normes. */
 import { useState, useEffect } from "react";
 
-/* ---------------------------------------------------------------- pictogrammes (dessins originaux, 24 × 24, trait) */
+/* ---------------------------------------------------------------- pictogrammes de catégorie (dessins originaux, 24 × 24) */
 const C = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
 const WASHER = ["M5.5 3h13A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3z",
   "M4 7.5h16", "M7 5.3h.01", "M10 5.3h4", C(12, 14.2, 4.3)];
@@ -51,43 +51,37 @@ const UI = {
   back: ["M14.5 5.5L8 12l6.5 6.5"],
   ext: ["M9 15l6.5-6.5", "M10 8.5h5.5V14"],
   check: ["M5.5 12.5l4 4 9-9"],
-  clock: [C(12, 12, 8.5), "M12 7.5V12l3 2"],
-  down: ["M4.5 7.5l5.5 5.5 3.5-3.5 6 6", "M19.5 11v4.5H15"],
-  spark: ["M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"],
-  info: [C(12, 12, 8.5), "M12 11v5", "M12 8h.01"],
-  shield: ["M12 3.5l7 2.8v5.2c0 4.4-2.9 7.7-7 9.5-4.1-1.8-7-5.1-7-9.5V6.3z", "M9 12l2.2 2.2 4.3-4.4"],
   x: ["M7 7l10 10", "M17 7L7 17"],
   tag: ["M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3-8.7 8.7z", "M8 7.5h.01"],
   today: ["M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3-8.7 8.7z", "M9.5 14.5l4.5-4.5", "M10 10.2h.01", "M13.6 14h.01"],
   compass: [C(12, 12, 8.5), "M15.5 8.5l-2 5-5 2 2-5z"],
   plus: ["M12 5v14", "M5 12h14"],
+  mark: ["M6 3h12v18l-6-4-6 4z"],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
   fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-  {(Array.isArray(d) ? d : [d]).map((p, i) => <path key={i} d={p} />)}{fill && <path d={fill} fill="currentColor" stroke="none" />}</svg>;
+  {d.map((p, i) => <path key={i} d={p} />)}{fill && <path d={d[0]} fill="currentColor" stroke="none" />}</svg>;
 const CatIcon = ({ cat, size }) => <Icon d={CAT[cat] || UI.tag} size={size} sw={1.6} />;
-const Mark = ({ on, size = 20 }) => <Icon d="M6 3h12v18l-6-4-6 4z" size={size} fill={on ? "M6 3h12v18l-6-4-6 4z" : null} />;
+const Mark = ({ on, size = 20 }) => <Icon d={UI.mark} size={size} fill={on} />;
 
 /* ---------------------------------------------------------------- formats */
 const eur = n => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " €";
 const iso = d => new Date(`${d}T12:00:00`);
 const dayLabel = d => new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" }).format(iso(d));
 const daysBetween = (a, b) => Math.round((iso(b) - iso(a)) / 86400000);
-const lowLabel = n => n >= 85 ? "3 mois" : n >= 56 ? "2 mois" : n >= 28 ? "1 mois" : `${n} jours`;
-const localToday = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
 const FAMILY = { electromenager: "Électroménager", ameublement: "Ameublement", literie: "Literie" };
 
-/* Un seul signal par ligne, du plus utile au moins utile : fin proche, nouveauté, plus bas prix, vérification. */
-function signal(p, published) {
-  published = p.published_on || published;
-  const left = p.ends && published ? daysBetween(published, p.ends) : null;
-  if (left !== null && left >= 0 && left <= 3) return { k: "end", icon: UI.clock, t: left === 0 ? "Finit aujourd'hui" : left === 1 ? "Finit demain" : `Finit dans ${left} j` };
-  if (p.new) return { k: "new", icon: UI.spark, t: "Nouveau" };
-  if (p.low_days >= 28) return { k: "low", icon: UI.down, t: `Plus bas depuis ${lowLabel(p.low_days)}` };
-  if (p.verified) return { k: "ok", icon: UI.check, t: "Vérifiée" };
-  return null;
+/* Durées : seulement dans la fiche, en une ligne. */
+function timing(p) {
+  if (!(p.pct > 0) || !p.published_on) return null;
+  const parts = [];
+  if (p.since) {
+    const n = daysBetween(p.since, p.published_on);
+    parts.push(n <= 0 ? "En remise depuis aujourd'hui" : `En remise depuis ${n} jour${n > 1 ? "s" : ""}`);
+  }
+  if (p.ends && daysBetween(p.published_on, p.ends) >= 0) parts.push(`${parts.length ? "jusqu'au" : "Jusqu'au"} ${dayLabel(p.ends)}`);
+  return parts.length ? parts.join(", ") : null;
 }
-const Sig = ({ s }) => s ? <span className={`sig ${s.k}`}><Icon d={s.icon} size={13} sw={2.2} />{s.t}</span> : null;
 
 async function api(path, body) {
   const r = await fetch(`/api/r/${path}`, {
@@ -106,7 +100,7 @@ const withIn = (set, id) => { const n = new Set(set); n.add(id); return n; };
 
 const CSS = `
 .d{--ink:#101112;--paper:#FFFFFF;--tint:#F3F3F1;--tint2:#EAEAE6;--mid:#5E6166;--soft:#6B6E73;--icon:#8A8D92;--line:#E7E7E4;
-  --red:#FF4D1A;--red-strong:#D63A0D;--red-ink:#C2330B;--red-soft:#FFEAE2;--good:#1F7A52;--good-soft:#E4F3EA;
+  --red:#FF4D1A;--red-strong:#D63A0D;--red-ink:#C2330B;--red-soft:#FFEAE2;--good:#1F7A52;
   font-family:Manrope,-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);background:var(--paper);min-height:100vh;
   font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
 .d *{box-sizing:border-box}.d button{font:inherit;color:inherit;cursor:pointer}.d input{font:inherit}
@@ -115,145 +109,86 @@ const CSS = `
 .d .app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--paper);position:relative;padding-bottom:92px}
 .d .pad{padding:0 16px}
 .d .eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid)}
-/* en-tête */
 .d .top{display:flex;justify-content:space-between;align-items:center;height:54px;padding:0 16px}
 .d .logo{font-weight:800;font-size:21px;letter-spacing:-.045em;border:0;background:none;min-height:44px;padding:0 6px;margin-left:-6px}.d .logo b{color:var(--red)}
-.d .fresh{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--mid);background:var(--tint);border-radius:999px;padding:7px 11px}
-.d .fresh .dot{width:7px;height:7px;border-radius:50%;background:var(--good)}
 .d .tabs{display:none}
-/* résumé du jour */
-.d .intro{padding:4px 16px 0}
+.d .intro{padding:6px 16px 0}
 .d h1{font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1.08;margin:0}
 .d h1 em{font-style:normal;color:var(--red)}
-.d .sub{display:flex;flex-wrap:wrap;gap:4px 12px;margin:6px 0 0;font-size:13.5px;font-weight:700;color:var(--mid)}
-.d .sub span{display:inline-flex;align-items:center;gap:5px}.d .sub .ok{color:var(--good)}.d .sub .no{color:var(--red-ink)}
-.d .sbar{display:flex;align-items:center;gap:10px;background:var(--tint);border-radius:16px;padding:0 6px 0 14px;height:50px;margin:12px 16px 0;color:var(--mid)}
+.d .sbar{display:flex;align-items:center;gap:10px;background:var(--tint);border-radius:16px;padding:0 6px 0 14px;height:50px;margin:14px 16px 0;color:var(--mid)}
 .d .sbar input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:var(--ink);height:100%}
 .d .sbar input::placeholder{color:var(--soft)}
 .d .sx{border:0;background:none;color:var(--mid);width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px}
-/* depuis hier */
-.d .since{margin:10px 16px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.d .since button{border:0;background:var(--tint);border-radius:16px;min-height:50px;padding:6px 12px;text-align:left;display:flex;align-items:center;gap:10px}
-.d .since button b{font-size:24px;font-weight:800;letter-spacing:-.04em;line-height:1;min-width:16px}
-.d .since button span{font-size:12.5px;font-weight:700;color:var(--mid);line-height:1.2}
-.d .since button.on{background:var(--ink)}.d .since button.on b,.d .since button.on span{color:#fff}
-.d .since button.hot.on{background:var(--red-strong)}
-.d .since button:disabled{cursor:default;opacity:.55}
-/* catégories */
-.d .cats{display:flex;gap:8px;overflow-x:auto;padding:10px 16px 2px;scrollbar-width:none}
+.d .cats{display:flex;gap:8px;overflow-x:auto;padding:12px 16px 2px;scrollbar-width:none}
 .d .cats::-webkit-scrollbar{display:none}
-.d .cats button{flex:0 0 auto;display:flex;align-items:center;gap:7px;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 15px 0 12px;font-size:14px;font-weight:700;white-space:nowrap}
-.d .cats button small{font-size:12px;font-weight:700;color:var(--soft)}
-.d .cats button.on{background:var(--ink);color:#fff}.d .cats button.on small{color:#C9CBCE}
-/* le plus intéressant */
-.d .hero{margin:12px 16px 0;width:calc(100% - 32px);background:var(--ink);color:#fff;border-radius:24px;padding:15px 18px 12px;cursor:pointer;display:block;border:0;text-align:left}
-.d .hero .head{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:24px}
+.d .cats button{flex:0 0 auto;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14px;font-weight:700;white-space:nowrap}
+.d .cats button.on{background:var(--ink);color:#fff}
+.d .hero{margin:14px 16px 0;width:calc(100% - 32px);background:var(--ink);color:#fff;border-radius:24px;padding:18px 18px 20px;cursor:pointer;display:block;border:0;text-align:left}
 .d .hero .eyebrow{color:#9EA1A6}
-.d .hero .ico{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;color:#fff}
-.d .hero .brand{font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#9EA1A6;margin-top:4px}
-.d .hero .t{font-size:21px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-top:3px}
-.d .hero .row{display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px;gap:10px}
-.d .hero .price{font-size:36px;font-weight:800;letter-spacing:-.05em;line-height:.95}
-.d .hero .price s{display:block;font-size:14px;font-weight:600;color:#9EA1A6;letter-spacing:0;margin-top:6px}
-.d .hero .pct{font-size:34px;font-weight:800;letter-spacing:-.05em;color:var(--red);line-height:.9}
-.d .hero .save{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12);display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:13.5px;font-weight:700;color:#D7D9DC}
-.d .hero .save span+span::before{content:"·";margin-right:8px;color:#7D8086}
-.d .hero .save b{color:#fff}
-.d .hero .sig{background:rgba(255,255,255,.1);color:#fff}.d .hero .sig.low{background:rgba(123,211,166,.18);color:#9BE3BE}
-.d .hero .sig.end{background:rgba(255,77,26,.22);color:#FFB49E}
-/* listes */
-.d .sechead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 16px 6px}
+.d .hero .brand{font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#9EA1A6;margin-top:12px}
+.d .hero .t{font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-top:3px}
+.d .hero .row{display:flex;justify-content:space-between;align-items:flex-end;margin-top:16px;gap:10px}
+.d .hero .price{font-size:40px;font-weight:800;letter-spacing:-.05em;line-height:.9}
+.d .hero .pct{font-size:32px;font-weight:800;letter-spacing:-.05em;color:var(--red);line-height:.9}
+.d .sechead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:22px 16px 6px}
 .d .sechead h2{font-size:19px;font-weight:800;letter-spacing:-.03em;margin:0}
-.d .linkbtn{border:0;background:var(--tint);border-radius:999px;min-height:40px;padding:0 14px;font-size:13px;font-weight:800;color:var(--ink)}
-.d .prow{display:grid;grid-template-columns:40px 1fr auto 44px;gap:0 12px;align-items:center;width:100%;border-top:1px solid var(--line);padding:10px 6px 10px 16px;text-align:left;cursor:pointer;background:var(--paper)}
+.d .prow{display:grid;grid-template-columns:1fr auto 44px;gap:0 12px;align-items:center;width:100%;border-top:1px solid var(--line);padding:12px 6px 12px 16px;text-align:left;cursor:pointer;background:var(--paper)}
 .d .prow:last-child{border-bottom:1px solid var(--line)}
-.d .prow .ico{width:40px;height:40px;border-radius:12px;background:var(--tint);display:flex;align-items:center;justify-content:center;color:var(--ink);align-self:start;margin-top:2px}
 .d .prow .txt{min-width:0}
 .d .prow .brand{display:block;font-size:11.5px;font-weight:800;color:var(--mid);text-transform:uppercase;letter-spacing:.07em}
 .d .prow .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16px;font-weight:700;letter-spacing:-.02em;margin-top:2px;line-height:1.22}
-.d .prow .meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:5px;font-size:12.5px;font-weight:600;color:var(--mid)}
-.d .prow .meta .m{white-space:nowrap}
-.d .prow .p{text-align:right;align-self:start;margin-top:1px}
+.d .prow .drop{display:block;margin-top:4px;font-size:13px;font-weight:800;color:var(--good)}
+.d .prow .p{text-align:right}
 .d .prow .p b{display:block;font-size:18px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
-.d .prow .p s{display:block;font-size:12.5px;font-weight:600;color:var(--soft);margin-top:2px}
 .d .prow .p i{display:inline-block;font-style:normal;font-size:12px;font-weight:800;color:#fff;background:var(--red-strong);border-radius:7px;padding:3px 7px;margin-top:5px}
-.d .rfav{border:0;background:none;width:44px;height:44px;border-radius:12px;color:var(--icon);display:flex;align-items:center;justify-content:center;align-self:start}
+.d .rfav{border:0;background:none;width:44px;height:44px;border-radius:12px;color:var(--icon);display:flex;align-items:center;justify-content:center}
 .d .rfav.on{color:var(--red-ink)}
 .d .tagl{display:inline-block;font-size:10.5px;font-weight:800;color:var(--red-ink);text-transform:uppercase;letter-spacing:.06em;margin-left:6px}
-.d .sig{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;border-radius:7px;padding:3px 7px 3px 6px;background:var(--tint2);color:var(--ink);white-space:nowrap}
-.d .sig.new{background:var(--ink);color:#fff}
-.d .sig.end{background:var(--red-soft);color:var(--red-ink)}
-.d .sig.low{background:var(--good-soft);color:var(--good)}
-.d .sig.ok{background:none;padding:0;color:var(--good)}
-.d .drop{color:var(--good);font-weight:800}.d .rise{color:var(--mid);font-weight:700}
 .d .empty{padding:28px 16px;color:var(--mid)}
 .d .err{color:var(--red-ink);font-size:14px;font-weight:700;margin-top:10px}
-/* fiche */
-.d .back{border:0;background:none;min-height:44px;padding:0 16px 0 10px;margin-top:6px;font-size:14px;font-weight:800;color:var(--mid);display:flex;align-items:center;gap:4px}
+.d .back{border:0;background:none;min-height:44px;padding:0 16px 0 10px;font-size:14px;font-weight:800;color:var(--mid);display:flex;align-items:center;gap:4px}
 .d .pcard{margin:4px 16px 0;background:var(--ink);color:#fff;border-radius:28px;padding:20px}
 .d .phead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
-.d .pcard .ico{width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center}
-.d .pcard .brand{font-size:12px;font-weight:800;color:#9EA1A6;text-transform:uppercase;letter-spacing:.08em;margin-top:16px}
-.d .pcard .t{font-size:26px;font-weight:800;letter-spacing:-.035em;line-height:1.1;margin-top:6px}
-.d .pcard .deal{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:22px}
+.d .pcard .brand{font-size:12px;font-weight:800;color:#9EA1A6;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.d .pcard .t{font-size:26px;font-weight:800;letter-spacing:-.035em;line-height:1.1;margin-top:8px}
+.d .pcard .deal{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:24px}
 .d .pcard .pct{font-size:68px;font-weight:800;letter-spacing:-.065em;line-height:.82;color:var(--red)}
 .d .pcard .price{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1;text-align:right}
 .d .pcard .price s{display:block;font-size:14px;font-weight:600;color:#9EA1A6;letter-spacing:0;margin-top:6px}
-.d .pcard .save{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.12);font-size:15px;font-weight:800}
-.d .pcard .save span{color:#9EA1A6;font-weight:700}
+.d .pcard .when{margin-top:16px;font-size:13.5px;font-weight:700;color:#B5B8BC}
 .d .pcard .buy{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;min-height:50px;border-radius:16px;background:#fff;color:var(--ink);font-size:15px;font-weight:800;text-decoration:none}
 .d .fav{flex:0 0 auto;border:0;background:rgba(255,255,255,.12);color:#fff;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .d .fav.on{background:var(--red-strong)}
-.d .proof{margin:12px 16px 0;background:var(--tint);border-radius:22px;padding:16px}
-.d .proof h3{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;letter-spacing:-.02em;margin:0}
-.d .proof h3 .i{color:var(--good)}.d .proof.warn h3 .i{color:var(--mid)}.d .proof.bad h3 .i{color:var(--red-ink)}
-.d .proof ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:9px}
-.d .proof li{display:grid;grid-template-columns:20px 1fr;gap:8px;font-size:14px;line-height:1.35;color:var(--ink)}
-.d .proof li .i{margin-top:1px;color:var(--mid)}.d .proof li.g .i{color:var(--good)}.d .proof li.r .i{color:var(--red-ink)}
-.d .proof li small{display:block;color:var(--mid);font-size:12.5px;font-weight:600;margin-top:1px}
 .d .offers{padding:0 16px}
-.d .offer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.d .offer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
 .d .offer:first-child{border-top:1px solid var(--line)}
 .d .offer .m{font-size:16px;font-weight:800;letter-spacing:-.02em}
 .d .offer .e{font-size:12.5px;color:var(--mid);margin-top:2px;font-weight:700}
 .d .offer .r{display:flex;align-items:center;gap:12px}
-.d .offer .r b{font-size:19px;font-weight:800;letter-spacing:-.03em;text-align:right}
-.d .offer .r b s{display:block;font-size:12px;font-weight:600;color:var(--soft)}
+.d .offer .r b{font-size:18px;font-weight:800;letter-spacing:-.03em}
 .d .offer .go{display:flex;align-items:center;gap:4px;min-height:44px;border:0;background:var(--tint);border-radius:12px;padding:0 12px;font-size:13.5px;font-weight:800;text-decoration:none;color:var(--ink)}
-.d .offer.best .go{background:var(--ink);color:#fff}
-.d .offer .tag{font-size:11px;font-weight:800;color:var(--good);text-transform:uppercase;letter-spacing:.06em}
-/* explorer */
 .d .seg{display:flex;background:var(--tint);border-radius:14px;padding:4px;margin:14px 16px 0}
 .d .seg button{flex:1;border:0;background:none;min-height:40px;font-size:14px;font-weight:800;color:var(--mid);border-radius:11px}
 .d .seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .d .fam{padding:20px 16px 0}.d .fam h2{font-size:15px;font-weight:800;margin:0 0 10px;letter-spacing:-.01em}
 .d .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.d .tile{border:0;background:var(--tint);border-radius:18px;padding:10px 12px;text-align:left;display:flex;align-items:center;gap:10px;min-height:64px}
-.d .tile .ico{width:38px;height:38px;border-radius:12px;background:var(--paper);display:flex;align-items:center;justify-content:center}
-.d .tile .lbl{min-width:0}.d .tile b{display:block;font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
-.d .tile small{display:block;font-size:12.5px;font-weight:700;color:var(--mid);margin-top:2px}
+.d .tile{border:0;background:var(--tint);border-radius:18px;padding:10px 12px;text-align:left;display:flex;align-items:center;gap:10px;min-height:60px;font-size:15px;font-weight:800;letter-spacing:-.02em}
+.d .tile .ico{width:38px;height:38px;border-radius:12px;background:var(--paper);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .d .brands{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px 16px 0}
-.d .bcard{border:0;background:var(--tint);border-radius:18px;min-height:64px;padding:12px 14px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px}
-.d .bcard b{font-size:16px;font-weight:800;letter-spacing:-.02em}
-.d .bcard span{font-size:12.5px;color:var(--mid);font-weight:700;white-space:nowrap}
-.d .bcard.liked{background:var(--red-soft)}.d .bcard.liked span{color:var(--red-ink)}
+.d .bcard{border:0;background:var(--tint);border-radius:18px;min-height:56px;padding:10px 14px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px;font-weight:800;letter-spacing:-.02em}
+.d .bcard.liked{background:var(--red-soft);color:var(--red-ink)}
 .d .more{border:1px dashed #C9C9C3;background:none;border-radius:16px;min-height:48px;font-size:14px;font-weight:800;color:var(--mid);width:100%}
-.d .pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:4px 16px 0}
-.d .pagehead .ico{width:48px;height:48px;border-radius:15px;background:var(--tint);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.d .pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:4px 16px 16px}
 .d .pill{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:0;background:var(--ink);color:#fff;border-radius:999px;min-height:44px;padding:0 16px;font-size:14px;font-weight:800}
 .d .pill.on{background:var(--red-soft);color:var(--red-ink)}
-/* favoris */
 .d .login{margin:16px 16px 0;background:var(--tint);border-radius:22px;padding:20px}
-.d .login h3{font-size:19px;font-weight:800;letter-spacing:-.03em;margin:8px 0 0}
+.d .login h3{font-size:19px;font-weight:800;letter-spacing:-.03em;margin:0}
 .d .login p{color:var(--mid);margin:8px 0 0;font-size:14px}
-.d .login ul{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:8px;font-size:14px;font-weight:600}
-.d .login li{display:flex;gap:8px;align-items:center}.d .login li .i{color:var(--good)}
 .d .cta{display:block;width:100%;margin-top:16px;border:0;background:var(--ink);color:#fff;border-radius:16px;min-height:50px;font-size:15px;font-weight:800}
 .d .cta:disabled{opacity:.5}
-.d .ghost{border:0;background:none;color:var(--mid);font-size:14px;font-weight:800;min-height:44px;padding:0 16px;margin-top:8px;display:block}
+.d .ghost{border:0;background:none;color:var(--mid);font-size:14px;font-weight:800;min-height:44px;padding:0 16px;margin-top:12px;display:block}
 .d .chips{display:flex;gap:8px;overflow-x:auto;padding:0 16px 2px;scrollbar-width:none}
-.d .chips button{flex:0 0 auto;border:0;background:var(--red-soft);color:var(--red-ink);border-radius:999px;min-height:40px;padding:0 14px;font-size:14px;font-weight:800}
-/* feuille de connexion, notification */
+.d .chips button{flex:0 0 auto;border:0;background:var(--red-soft);color:var(--red-ink);border-radius:999px;min-height:44px;padding:0 16px;font-size:14px;font-weight:800}
 .d .sheet-wrap{position:fixed;inset:0;background:rgba(16,17,18,.4);display:flex;align-items:flex-end;justify-content:center;z-index:10}
 .d .sheet{width:100%;max-width:480px;background:var(--paper);border-radius:26px 26px 0 0;padding:24px 20px 32px}
 .d .sheet h2{font-size:22px;font-weight:800;letter-spacing:-.03em;margin:8px 0 0;line-height:1.15}
@@ -265,9 +200,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
 .d-nav button{position:relative;border:0;background:none;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:800;color:var(--soft);border-radius:16px}
 .d-nav button.on{color:var(--ink);background:var(--tint)}
 .d-nav .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--good);color:#fff;font-size:11px;line-height:18px;padding:0 5px}
-@media (prefers-reduced-motion:no-preference){.d .prow,.d .hero,.d .tile,.d .bcard{transition:background-color .15s}}
 @media (hover:hover){.d .prow:hover{background:#FAFAF8}.d .tile:hover,.d .bcard:hover{background:var(--tint2)}}
-/* ordinateur : deux colonnes, navigation en haut */
 @media (min-width:1000px){
   .d .app{max-width:1180px;padding:0 32px 48px}
   .d .top{height:72px;padding:0;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);z-index:6}
@@ -276,20 +209,21 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .tabs button.on{background:var(--tint);color:var(--ink)}
   nav.d-nav{display:none}
   .d .toast{bottom:32px}
-  .d .home{display:grid;grid-template-columns:340px minmax(0,1fr);gap:40px;align-items:start;padding-top:28px}
+  .d .home{display:grid;grid-template-columns:320px minmax(0,1fr);gap:40px;align-items:start;padding-top:28px}
   .d .side{position:sticky;top:100px}
-  .d .side .intro,.d .side .sbar,.d .side .since,.d .side .cats{margin-left:0;margin-right:0;padding-left:0;padding-right:0}
+  .d .side .intro,.d .side .sbar,.d .side .cats{margin-left:0;margin-right:0;padding-left:0;padding-right:0}
   .d .side .cats{flex-wrap:wrap;overflow:visible}
   .d h1{font-size:34px}
-  .d .main .hero{margin:0;width:100%;padding:26px 28px}
-  .d .main .hero .t{font-size:26px}.d .main .hero .price{font-size:46px}.d .main .hero .pct{font-size:44px}
+  .d .main .hero{margin:0;width:100%;padding:26px 28px 28px}
+  .d .main .hero .t{font-size:26px}.d .main .hero .price{font-size:48px}.d .main .hero .pct{font-size:44px}
   .d .main .sechead{padding-left:0;padding-right:0}
   .d .list{display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
   .d .list .prow{padding-left:4px}
   .d .list .prow:last-child{border-bottom:0}
   .d .item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start;padding-top:12px}
-  .d .item .pcard,.d .item .proof{margin-left:0;margin-right:0}
+  .d .item .pcard{margin-left:0;margin-right:0}
   .d .item .offers,.d .item .sechead{padding-left:0;padding-right:0}
+  .d .item .sechead:first-child{padding-top:0}
   .d .item .prow{padding-left:4px}
   .d .narrow{max-width:760px;margin:0 auto;padding-top:20px}
   .d .tiles{grid-template-columns:repeat(4,1fr)}.d .brands{grid-template-columns:repeat(4,1fr)}
@@ -332,43 +266,14 @@ function LoginSheet({ message, onClose, onDone }) {
   </div>;
 }
 
-/* Pourquoi croire cette remise : la preuve retenue par le moteur, dite en clair. */
-function Proof({ p, best, published }) {
-  const facts = [];
-  if (p.fake) {
-    return <div className="proof bad"><h3><Icon d={UI.x} size={18} sw={2.2} />Remise annoncée non retenue</h3><ul>
-      <li className="r"><Icon d={UI.info} size={18} />
-        <span>{best && best.pct ? `L'enseigne affiche −${best.pct} %` : "L'enseigne affiche une remise"}, mais le prix actuel n'est pas plus bas que le prix habituel{p.usual ? ` relevé (${eur(p.usual)})` : ""}.
-          <small>Nous relevons ce prix chaque nuit ; une remise qui ne fait pas baisser le prix n'est pas montrée comme un deal.</small></span></li></ul></div>;
-  }
-  if (!(p.pct > 0)) return null;
-  if (p.proof === "historique") facts.push(["g", UI.check, `Prix habituel relevé : ${eur(p.usual)}`, "Relevé chaque nuit chez les enseignes suivies, avant cette remise."]);
-  else if (p.proof === "plus_bas_30j") facts.push(["g", UI.check, `Plus bas prix des 30 derniers jours affiché par l'enseigne : ${eur(p.usual)}`, "Mention légale obligatoire en cas de remise ; le prix actuel est en dessous."]);
-  else facts.push(["", UI.info, "Remise annoncée par l'enseigne", p.tracked < 14 ? `Produit suivi depuis ${p.tracked || "moins d'un"} jour${p.tracked > 1 ? "s" : ""} : la vérification sur notre historique demande 14 jours.` : "Aucun relevé ne la contredit."]);
-  if (p.low_days >= 14) facts.push(["g", UI.down, `Prix le plus bas relevé depuis ${lowLabel(p.low_days)}`, null]);
-  if (p.since && published) {
-    const n = daysBetween(p.since, published);
-    facts.push(["", UI.spark, n <= 0 ? "Remise apparue depuis hier" : `En remise depuis ${n} jour${n > 1 ? "s" : ""}`, n > 0 ? `Depuis le ${dayLabel(p.since)}` : null]);
-  }
-  if (p.ends && published) {
-    const left = daysBetween(published, p.ends);
-    if (left >= 0) facts.push([left <= 3 ? "r" : "", UI.clock, left === 0 ? "L'offre finit aujourd'hui" : `Offre valable jusqu'au ${dayLabel(p.ends)}`, left > 0 && left <= 3 ? `Plus que ${left} jour${left > 1 ? "s" : ""}` : null]);
-  }
-  return <div className={`proof ${p.verified ? "" : "warn"}`}>
-    <h3><Icon d={p.verified ? UI.shield : UI.info} size={20} />{p.verified ? "Pourquoi c'est un vrai deal" : "D'où vient cette remise"}</h3>
-    <ul>{facts.map(([k, icon, t, s], i) => <li key={i} className={k}><Icon d={icon} size={18} /><span>{t}{s && <small>{s}</small>}</span></li>)}</ul>
-  </div>;
-}
-
 export default function App() {
   const [tab, setTab] = useState("today");
   const [view, setView] = useState(null);          // null | { kind: "item", id } | { kind: "brand", name } | { kind: "cat", key, label }
-  const [cat, setCat] = useState("");              // filtre de catégorie de l'accueil ; "" = tout
-  const [feed, setFeed] = useState("");            // "" | "new" | "ending" : filtre « Depuis hier »
+  const [cat, setCat] = useState("");              // catégorie choisie sur l'accueil ; "" = tout
   const [mode, setMode] = useState("cat");         // Explorer : cat | brand
   const [q, setQ] = useState("");
-  const [today, setToday] = useState(null);        // réponse de /today (liste classée par l'API, compteurs)
-  const [catList, setCatList] = useState(null);    // page catégorie d'Explorer
+  const [today, setToday] = useState(null);
+  const [list, setList] = useState(null);          // liste d'une catégorie d'Explorer, ou résultats de recherche d'Explorer
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [moreBrands, setMoreBrands] = useState(false);
@@ -420,23 +325,20 @@ export default function App() {
     api("brands").then(setBrands).catch(() => {});
   }, [version]);
 
-  // accueil : remises du jour (catégorie, recherche, « depuis hier »), avec un court délai pendant la saisie
   useEffect(() => {
     if (view || tab !== "today") return;
     const t = setTimeout(() => {
       const params = new URLSearchParams();
       if (cat) params.set("category", cat);
       if (q.trim()) params.set("q", q.trim());
-      if (feed) params.set("feed", feed);
       api(`today?${params}`).then(d => { setToday(d); setError(null); }).catch(() => setError("Impossible de charger les produits."));
     }, q ? 200 : 0);
     return () => clearTimeout(t);
-  }, [tab, cat, q, feed, view, version]);
+  }, [tab, cat, q, view, version]);
 
-  // Explorer : recherche libre (liste) quand une saisie est en cours
   useEffect(() => {
     if (view || tab !== "explore" || !q.trim()) return;
-    const t = setTimeout(() => api(`today?q=${encodeURIComponent(q.trim())}`).then(d => setCatList(d)).catch(() => {}), 200);
+    const t = setTimeout(() => api(`today?q=${encodeURIComponent(q.trim())}`).then(setList).catch(() => {}), 200);
     return () => clearTimeout(t);
   }, [tab, q, view]);
 
@@ -444,21 +346,20 @@ export default function App() {
     if (!view) return;
     if (view.kind === "item") api(`item/${view.id}`).then(setItem).catch(() => setError("Produit introuvable."));
     if (view.kind === "brand") api(`brand/${encodeURIComponent(view.name)}`).then(setBrandPage).catch(() => setError("Marque introuvable."));
-    if (view.kind === "cat") api(`today?category=${encodeURIComponent(view.key)}`).then(setCatList).catch(() => setError("Catégorie introuvable."));
+    if (view.kind === "cat") api(`today?category=${encodeURIComponent(view.key)}`).then(setList).catch(() => setError("Catégorie introuvable."));
   }, [view, version]);
 
   useEffect(() => { window.scrollTo(0, 0); }, [view, tab]);
 
   const isSaved = id => saved.has(id);
   const isFollowed = b => followed.has(b);
-  const published = today?.published_on || item?.published_on || null;
 
   const toggleSave = async (id, e) => {
     if (e) e.stopPropagation();
     if (!session.email) return askLogin("Connectez-vous pour garder ce produit");
     const on = !saved.has(id);
     setSaved(s => on ? withIn(s, id) : withOut(s, id));
-    try { await api("save", { product_id: id, on }); flash(on ? "Gardé dans vos favoris" : "Retiré de vos favoris"); }
+    try { await api("save", { product_id: id, on }); }
     catch (ex) {
       setSaved(s => on ? withOut(s, id) : withIn(s, id));
       if (ex.status === 401) askLogin("Connectez-vous pour garder ce produit");
@@ -482,73 +383,61 @@ export default function App() {
     flash("Vous êtes déconnecté");
   };
 
-  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatList(null); setTab(t); setQ(""); setFeed(""); };
+  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setList(null); setTab(t); setQ(""); };
   const open = id => setView({ kind: "item", id });
-  const drops = (savedList || []).filter(p => p.saved_price && p.price < p.saved_price - 0.5).length;
-
-  const fav = p => <button className={`rfav ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
-    aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
-    <Mark on={isSaved(p.id)} size={21} /></button>;
-
-  const change = p => {
-    if (!p.saved_price) return null;
-    const d = Math.round(p.saved_price - p.price);
-    if (d >= 1) return <span className="drop">↓ {eur(d)} depuis votre favori</span>;
-    if (d <= -1) return <span className="rise">+{eur(-d)} depuis votre favori</span>;
-    return <span>Prix inchangé depuis votre favori</span>;
-  };
+  const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
+  const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
 
   const row = p => <div key={p.id} className="prow" role="button" tabIndex={0} onClick={() => open(p.id)}
     onKeyDown={e => { if (e.key === "Enter") open(p.id); }}>
-    <span className="ico"><CatIcon cat={p.category} size={22} /></span>
     <span className="txt">
       <span className="brand">{p.brand}{isFollowed(p.brand) ? <span className="tagl">suivie</span> : ""}</span>
       <span className="t">{p.name || p.title}</span>
-      <span className="meta">{p.saved_price ? change(p) : <Sig s={p.pct > 0 ? signal(p, published) : null} />}<span className="m">{p.merchant}</span></span>
+      {dropOf(p) >= 1 && <span className="drop">Baisse de {eur(dropOf(p))}</span>}
     </span>
-    <span className="p"><b>{eur(p.price)}</b>{p.pct > 0 && p.was && <s>{eur(p.was)}</s>}{p.pct > 0 && <i>−{p.pct} %</i>}</span>
-    {fav(p)}</div>;
+    <span className="p"><b>{eur(p.price)}</b>{p.pct > 0 && <i>−{p.pct} %</i>}</span>
+    <button className={`rfav ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
+      aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
+      <Mark on={isSaved(p.id)} size={21} /></button></div>;
 
-  const searchBar = placeholder => <label className="sbar"><Icon d={UI.search} size={19} />
-    <input value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} aria-label="Rechercher" enterKeyHint="search" />
+  const searchBar = <label className="sbar"><Icon d={UI.search} size={19} />
+    <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher un produit ou une marque" aria-label="Rechercher" enterKeyHint="search" />
     {q && <button className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label>;
 
-  const fresh = published ? (published === localToday() ? "Prix relevés cette nuit" : `Prix relevés le ${dayLabel(published)}`) : "…";
-  const tabsList = [["today", "Aujourd'hui", UI.today], ["explore", "Explorer", UI.compass], ["saved", "Favoris", "M6 3h12v18l-6-4-6 4z"]];
+  const back = (label, onClick) => <button className="back" onClick={onClick}><Icon d={UI.back} size={18} sw={2.2} />{label}</button>;
+  const tabsList = [["today", "Aujourd'hui", UI.today], ["explore", "Explorer", UI.compass], ["saved", "Favoris", UI.mark]];
+  const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 
   let body;
   if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
-    const saving = item.pct > 0 && item.was ? Math.round(item.was - item.price) : 0;
+    const when = timing(item);
     body = <>
-      <button className="back" onClick={() => { setView(null); setItem(null); }}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>
+      {back("Retour", () => { setView(null); setItem(null); })}
       <div className="item">
-        <div>
-          <div className="pcard">
-            <div className="phead">
-              <span className="ico"><CatIcon cat={item.category} size={24} /></span>
-              <button className={`fav ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
-                aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Mark on={isSaved(item.id)} size={22} /></button>
-            </div>
+        <div className="pcard">
+          <div className="phead">
             <div className="brand">{item.brand} · {item.category_label}</div>
-            <div className="t">{item.name || item.title}</div>
-            <div className="deal">{item.pct > 0 ? <div className="pct">−{item.pct}%</div> : <div />}
-              <div className="price">{eur(item.price)}{item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div></div>
-            {saving > 0 && <div className="save">{eur(saving)} d'économie <span>· chez {item.merchant}</span></div>}
-            {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=item`} target="_blank" rel="noopener">
-              Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
+            <button className={`fav ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
+              aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Mark on={isSaved(item.id)} size={22} /></button>
           </div>
-          <Proof p={item} best={best} published={item.published_on} />
+          <div className="t">{item.name || item.title}</div>
+          <div className="deal">{item.pct > 0 ? <div className="pct">−{item.pct}%</div> : <div />}
+            <div className="price">{eur(item.price)}{item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div></div>
+          {when && <div className="when">{when}</div>}
+          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=item`} target="_blank" rel="noopener">
+            Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
         </div>
         <div>
-          <div className="sechead"><h2>{item.offers.length > 1 ? `${item.offers.length} enseignes` : "1 enseigne"}</h2><span className="eyebrow">meilleure en premier</span></div>
-          <div className="offers">
-            {item.offers.map(o => <div key={o.offer_id} className={`offer ${o.best ? "best" : ""}`}>
-              <div><div className="m">{o.merchant}</div>{o.best && <div className="tag">Meilleure offre</div>}
-                {o.availability === "out_of_stock" && <div className="e">Indisponible</div>}</div>
-              <div className="r"><b>{eur(o.price)}{o.was && <s>{eur(o.was)}</s>}</b>
-                <a className="go" href={`/api/r/out/${o.offer_id}?from=item`} target="_blank" rel="noopener">Voir l'offre<Icon d={UI.ext} size={16} sw={2.2} /></a></div></div>)}
-          </div>
+          {item.offers.length > 1 && <>
+            <div className="sechead"><h2>Autres enseignes</h2></div>
+            <div className="offers">
+              {item.offers.filter(o => o !== best).map(o => <div key={o.offer_id} className="offer">
+                <div><div className="m">{o.merchant}</div>{o.availability === "out_of_stock" && <div className="e">Indisponible</div>}</div>
+                <div className="r"><b>{eur(o.price)}</b>
+                  <a className="go" href={`/api/r/out/${o.offer_id}?from=item`} target="_blank" rel="noopener">Voir<Icon d={UI.ext} size={16} sw={2.2} /></a></div></div>)}
+            </div>
+          </>}
           {item.similar.length > 0 && <>
             <div className="sechead"><h2>Produits similaires</h2></div>
             <div>{item.similar.map(row)}</div>
@@ -559,71 +448,46 @@ export default function App() {
   } else if (view?.kind === "brand" && brandPage) {
     const on = isFollowed(brandPage.brand);
     body = <div className="narrow">
-      <button className="back" onClick={() => { setView(null); setBrandPage(null); }}><Icon d={UI.back} size={18} sw={2.2} />Explorer</button>
+      {back("Explorer", () => { setView(null); setBrandPage(null); })}
       <div className="pagehead">
         <div><div className="eyebrow">Marque</div><h1>{brandPage.brand}</h1></div>
         <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleFollow(brandPage.brand)} aria-pressed={on}>
           <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Suivie" : "Suivre"}</button>
       </div>
-      <p className="sub pad">Une marque suivie remonte en tête de vos remises du jour.</p>
-      <div className="sechead"><h2>{brandPage.products.length} remise{brandPage.products.length > 1 ? "s" : ""}</h2><span className="eyebrow">par remise</span></div>
       <div>{brandPage.products.map(row)}</div>
     </div>;
   } else if (view?.kind === "cat") {
     body = <div className="narrow">
-      <button className="back" onClick={() => { setView(null); setCatList(null); }}><Icon d={UI.back} size={18} sw={2.2} />Explorer</button>
-      <div className="pagehead"><div><span className="ico"><CatIcon cat={view.key} size={26} /></span><div className="eyebrow">{FAMILY[view.family] || "Catégorie"}</div><h1>{view.label}</h1></div></div>
-      <div className="sechead"><h2>{catList ? `${catList.total} remise${catList.total > 1 ? "s" : ""}` : "…"}</h2><span className="eyebrow">par remise</span></div>
-      <div>{(catList?.products || []).map(row)}</div>
-      {catList && catList.total === 0 && <div className="empty">Aucune remise dans cette catégorie aujourd'hui.</div>}
+      {back("Explorer", () => { setView(null); setList(null); })}
+      <div className="pagehead"><h1>{view.label}</h1></div>
+      <div>{(list?.products || []).map(row)}</div>
+      {list && list.total === 0 && <div className="empty">Aucune remise dans cette catégorie aujourd'hui.</div>}
     </div>;
   } else if (tab === "today") {
-    const c = today?.counts || {};
-    const list = today?.products || [];
-    const hero = !q && !feed && list.length ? list[0] : null;
-    const rest = hero ? list.slice(1) : list;
-    const heroSig = hero && signal(hero, published);
-    const heroSave = hero && hero.was ? Math.round(hero.was - hero.price) : 0;
-    const showSince = !q && (c.new > 0 || c.ending > 0 || feed);
-    const catLabel = categories.find(x => x.key === cat)?.label;
+    const items = today?.products || [];
+    const hero = !q && items.length ? items[0] : null;
+    const rest = hero ? items.slice(1) : items;
     body = <div className="home">
       <div className="side">
-        <div className="intro">
-          {q ? <h1>Résultats</h1> : (() => {
-            const n = today ? today.total : 0, pl = n > 1 ? "s" : "";
-            const what = feed === "new" ? `nouvelle${pl} remise${pl} depuis hier` : feed === "ending" ? `remise${pl} qui ${n > 1 ? "finissent" : "finit"} bientôt`
-              : `remise${pl} ${catLabel ? `en ${catLabel.toLowerCase()}` : "aujourd'hui"}`;
-            return <h1><em>{today ? n : "…"}</em> {what}</h1>;
-          })()}
-          {today && !q && today.total > 0 && <p className="sub">
-            {c.verified > 0 && <span className="ok"><Icon d={UI.shield} size={15} sw={2} />{c.verified >= today.total && !feed && !cat ? "Toutes vérifiées" : `${c.verified} vérifiée${c.verified > 1 ? "s" : ""}`}</span>}
-            {c.fake > 0 && <span className="no"><Icon d={UI.x} size={14} sw={2.4} />{c.fake} fausse{c.fake > 1 ? "s" : ""} promo{c.fake > 1 ? "s" : ""} écartée{c.fake > 1 ? "s" : ""}</span>}
-          </p>}
-        </div>
-        {searchBar("Rechercher un produit ou une marque")}
-        {showSince && <div className="since" role="group" aria-label="Depuis hier">
-          <button className={feed === "new" ? "on" : ""} aria-pressed={feed === "new"} disabled={!c.new && feed !== "new"} onClick={() => setFeed(f => f === "new" ? "" : "new")}>
-            <b>{c.new || 0}</b><span>nouvelle{c.new > 1 ? "s" : ""}<br />depuis hier</span></button>
-          <button className={`hot ${feed === "ending" ? "on" : ""}`} aria-pressed={feed === "ending"} disabled={!c.ending && feed !== "ending"} onClick={() => setFeed(f => f === "ending" ? "" : "ending")}>
-            <b>{c.ending || 0}</b><span>{c.ending > 1 ? "finissent" : "finit"}<br />bientôt</span></button>
-        </div>}
+        <div className="intro">{q ? <h1>{today ? plural(today.total, "résultat") : "…"}</h1>
+          : <h1><em>{today ? today.total : "…"}</em> remise{today && today.total > 1 ? "s" : ""} aujourd'hui</h1>}</div>
+        {searchBar}
         {!q && categories.length > 1 && <div className="cats" role="group" aria-label="Catégories">
           <button className={!cat ? "on" : ""} aria-pressed={!cat} onClick={() => setCat("")}>Tout</button>
-          {categories.map(x => <button key={x.key} className={cat === x.key ? "on" : ""} aria-pressed={cat === x.key} onClick={() => setCat(k => k === x.key ? "" : x.key)}>
-            <CatIcon cat={x.key} size={18} />{x.label}<small>{x.count}</small></button>)}
+          {categories.map(x => <button key={x.key} className={cat === x.key ? "on" : ""} aria-pressed={cat === x.key}
+            onClick={() => setCat(k => k === x.key ? "" : x.key)}>{x.label}</button>)}
         </div>}
       </div>
       <div className="main">
         {hero && <button className="hero" onClick={() => open(hero.id)}>
-          <div className="head"><span className="eyebrow">Le plus intéressant</span>{heroSig ? <Sig s={heroSig} /> : <span className="ico"><CatIcon cat={hero.category} size={20} /></span>}</div>
-          <div className="brand">{hero.brand} · {hero.category_label}</div>
+          <div className="eyebrow">Le plus intéressant</div>
+          <div className="brand">{hero.brand}</div>
           <div className="t">{hero.name || hero.title}</div>
-          <div className="row"><div className="price">{eur(hero.price)}{hero.was && <s>{eur(hero.was)}</s>}</div>{hero.pct > 0 && <div className="pct">−{hero.pct}%</div>}</div>
-          <div className="save">{heroSave > 0 && <span><b>{eur(heroSave)}</b> d'économie</span>}<span>chez {hero.merchant}</span></div>
+          <div className="row"><div className="price">{eur(hero.price)}</div>{hero.pct > 0 && <div className="pct">−{hero.pct}%</div>}</div>
         </button>}
-        <div className="sechead"><h2>{q ? `${today ? today.total : 0} résultat${today && today.total > 1 ? "s" : ""}` : feed === "new" ? "Nouvelles depuis hier" : feed === "ending" ? "Finissent bientôt" : hero ? "Les autres remises" : "Remises"}</h2>
-          {feed ? <button className="linkbtn" onClick={() => setFeed("")}>Tout voir</button> : <span className="eyebrow">par remise</span>}</div>
-        {today && list.length === 0 && <div className="empty">{q ? "Aucune remise ne correspond aujourd'hui. Essayez une marque ou une catégorie." : "Aucune remise dans cette sélection aujourd'hui."}</div>}
+        {hero && rest.length > 0 && <div className="sechead"><h2>Les autres</h2></div>}
+        {q && <div style={{ height: 14 }} />}
+        {today && items.length === 0 && <div className="empty">{q ? "Aucune remise ne correspond aujourd'hui." : "Aucune remise dans cette catégorie aujourd'hui."}</div>}
         <div className="list">{rest.map(row)}</div>
       </div>
     </div>;
@@ -631,49 +495,45 @@ export default function App() {
     const byFam = {};
     categories.forEach(x => { (byFam[x.family || "autres"] = byFam[x.family || "autres"] || []).push(x); });
     body = <div className="narrow">
-      <div className="intro"><h1>Explorer</h1><p className="sub">Les remises du jour par catégorie ou par marque.</p></div>
-      {searchBar("Rechercher un produit ou une marque")}
+      <div className="intro"><h1>Explorer</h1></div>
+      {searchBar}
       {q.trim() ? <>
-        <div className="sechead"><h2>Résultats</h2></div>
-        <div>{(catList?.products || []).map(row)}</div>
-        {catList && catList.total === 0 && <div className="empty">Aucune remise ne correspond aujourd'hui.</div>}
+        <div style={{ height: 14 }} />
+        <div>{(list?.products || []).map(row)}</div>
+        {list && list.total === 0 && <div className="empty">Aucune remise ne correspond aujourd'hui.</div>}
       </> : <>
         <div className="seg"><button className={mode === "cat" ? "on" : ""} onClick={() => setMode("cat")}>Catégories</button>
           <button className={mode === "brand" ? "on" : ""} onClick={() => setMode("brand")}>Marques</button></div>
         {mode === "cat" && Object.keys(FAMILY).concat(["autres"]).filter(f => byFam[f]).map(f => <div key={f} className="fam">
           <h2>{FAMILY[f] || "Autres"}</h2>
-          <div className="tiles">{byFam[f].map(x => <button key={x.key} className="tile" onClick={() => setView({ kind: "cat", key: x.key, label: x.label, family: x.family })}>
-            <span className="ico"><CatIcon cat={x.key} size={21} /></span><span className="lbl"><b>{x.label}</b><small>{x.count} remise{x.count > 1 ? "s" : ""}</small></span></button>)}</div>
+          <div className="tiles">{byFam[f].map(x => <button key={x.key} className="tile" onClick={() => setView({ kind: "cat", key: x.key, label: x.label })}>
+            <span className="ico"><CatIcon cat={x.key} size={21} /></span>{x.label}</button>)}</div>
         </div>)}
         {mode === "cat" && categories.length === 0 && <div className="empty">Aucune remise aujourd'hui.</div>}
         {mode === "brand" && <>
           <div className="brands">{(moreBrands ? brands : brands.slice(0, 8)).map(b =>
             <button key={b.name} className={`bcard ${b.followed ? "liked" : ""}`} onClick={() => setView({ kind: "brand", name: b.name })}>
-              <b>{b.name}</b><span>{b.followed ? "✓ suivie" : `${b.count} remise${b.count > 1 ? "s" : ""}`}</span></button>)}</div>
+              {b.name}{b.followed && <Icon d={UI.check} size={17} sw={2.4} />}</button>)}</div>
           {brands.length > 8 && <div className="pad" style={{ marginTop: 12 }}>
-            <button className="more" onClick={() => setMoreBrands(!moreBrands)}>{moreBrands ? "Voir moins" : `Voir plus · ${brands.length - 8}`}</button></div>}
+            <button className="more" onClick={() => setMoreBrands(!moreBrands)}>{moreBrands ? "Voir moins" : "Voir plus"}</button></div>}
         </>}
       </>}
     </div>;
   } else {
     body = <div className="narrow">
-      <div className="intro"><h1>Favoris</h1>
-        {session.email && savedList && <p className="sub">{drops > 0 ? <span className="ok"><Icon d={UI.down} size={15} sw={2.2} />{drops} favori{drops > 1 ? "s" : ""} en baisse depuis que vous les avez gardés</span> : <span>Vos produits gardés et vos marques suivies.</span>}</p>}</div>
+      <div className="intro"><h1>Favoris</h1></div>
       {!session.checked && <div className="empty">Chargement…</div>}
       {session.checked && !session.email && <div className="login">
-        <div className="eyebrow">Compte</div>
         <h3>Gardez vos favoris et vos marques.</h3>
-        <ul><li><Icon d={UI.down} size={17} sw={2.2} />Voyez quand le prix d'un favori baisse</li>
-          <li><Icon d={UI.check} size={17} sw={2.2} />Vos marques suivies remontent en tête</li>
-          <li><Icon d={UI.shield} size={17} sw={2} />Votre e-mail suffit, aucun mot de passe</li></ul>
+        <p>Votre e-mail suffit, sans mot de passe.</p>
         <button className="cta" onClick={() => askLogin("Connectez-vous pour retrouver vos favoris")}>Me connecter</button>
       </div>}
       {session.email && <>
-        <div className="sechead"><h2>Produits gardés</h2><span className="eyebrow">{savedList ? savedList.length : 0}</span></div>
-        {savedList && savedList.length === 0 && <div className="empty" style={{ paddingTop: 0 }}>Rien pour l'instant. Touchez le signet d'un produit pour suivre son prix.</div>}
+        <div className="sechead"><h2>Produits</h2></div>
+        {savedList && savedList.length === 0 && <div className="empty" style={{ paddingTop: 0 }}>Touchez le signet d'un produit pour le garder ici.</div>}
         <div>{(savedList || []).map(row)}</div>
-        <div className="sechead"><h2>Marques suivies</h2><span className="eyebrow">{followed.size}</span></div>
-        {followed.size === 0 && <div className="empty" style={{ paddingTop: 0 }}>Aucune marque suivie. Ouvrez une marque depuis Explorer.</div>}
+        <div className="sechead"><h2>Marques suivies</h2></div>
+        {followed.size === 0 && <div className="empty" style={{ paddingTop: 0 }}>Suivez une marque depuis Explorer.</div>}
         {followed.size > 0 && <div className="chips">{[...followed].map(b =>
           <button key={b} onClick={() => { setTab("explore"); setMode("brand"); setView({ kind: "brand", name: b }); }}>{b}</button>)}</div>}
         <button className="ghost" onClick={logout}>Se déconnecter</button>
@@ -685,7 +545,6 @@ export default function App() {
     <header className="top">
       <button className="logo" onClick={() => goTab("today")} aria-label="Deals, accueil">Deal<b>s</b></button>
       <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => goTab(k)}><Icon d={d} size={18} />{l}</button>)}</div>
-      <span className="fresh"><span className="dot" />{fresh}</span>
     </header>
     {error && <div className="empty">{error}</div>}
     {body}

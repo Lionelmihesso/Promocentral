@@ -73,16 +73,10 @@ CREATE TABLE clicks (
 CREATE INDEX clicks_day ON clicks(day);
 """
 MIGRATIONS = {
-    2: [  # catalogue : nouveauté, fin d'offre, plus bas prix relevé, preuve de la remise ; favoris : prix au moment du choix
-        "ALTER TABLE catalog ADD COLUMN since TEXT",                            # jour où la remise en cours a commencé
-        "ALTER TABLE catalog ADD COLUMN ends TEXT",                             # fin déclarée par l'enseigne
-        "ALTER TABLE catalog ADD COLUMN low_days INTEGER NOT NULL DEFAULT 0",   # prix le plus bas relevé depuis n jours
-        "ALTER TABLE catalog ADD COLUMN usual REAL",                            # prix de référence de la preuve
-        "ALTER TABLE catalog ADD COLUMN proof TEXT",                            # historique | plus_bas_30j | permanent
-        "ALTER TABLE catalog ADD COLUMN fake INTEGER NOT NULL DEFAULT 0",       # remise affichée, jugée fausse
-        "ALTER TABLE catalog ADD COLUMN n_offers INTEGER NOT NULL DEFAULT 1",
-        "ALTER TABLE catalog ADD COLUMN tracked INTEGER NOT NULL DEFAULT 0",    # jours depuis la première lecture
-        "ALTER TABLE saves ADD COLUMN price REAL",                              # prix du catalogue quand le favori est posé
+    2: [  # fiche : depuis quand la remise court, jusqu'à quand ; favoris : prix au moment du choix (pour montrer une baisse)
+        "ALTER TABLE catalog ADD COLUMN since TEXT",
+        "ALTER TABLE catalog ADD COLUMN ends TEXT",
+        "ALTER TABLE saves ADD COLUMN price REAL",
     ],
 }
 

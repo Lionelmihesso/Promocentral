@@ -1,7 +1,8 @@
 """Contrat de l'app : /api/r/ (inchangé pour l'interface v41).
 
-Lecture ouverte (sans compte) : today?category=&q=&feed=new|ending, categories, brands, brand/<nom>, item/<id>,
-out/<offer_id>?from=. Les champs ajoutés depuis la v41 (preuve, nouveauté, fin, plus bas prix…) ne retirent rien.
+Lecture ouverte (sans compte) : today?category=&q=, categories, brands, brand/<nom>, item/<id>, out/<offer_id>?from=.
+Champs ajoutés depuis la v41, sans rien retirer : since et ends (montrés dans la fiche), saved_price (favoris), family
+(catégories).
 Session requise (sinon 401) : save, saves, brand/follow, follows.
 Connexion : auth/request {email}, auth/verify?token= (pose le cookie, ou renvoie vers /?auth=expired), auth/me, auth/logout.
 """
@@ -43,8 +44,7 @@ class Api:
         uid = lambda r: A.user(r.session)
         need = lambda r: A.require(r.session)
         self.routes = [(m, re.compile(p), f) for m, p, f in [
-            ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None,
-                                                       r.query.get("feed") or None)),
+            ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None)),
             ("GET", r"/api/r/categories", lambda r: C.categories()),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r))),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),

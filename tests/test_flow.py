@@ -3,8 +3,8 @@
 Ce que le produit promet, vérifié une fois : un vrai deal est visible dès le premier jour ; un accessoire n'entre pas au
 catalogue ; un même EAN chez deux enseignes = un produit ; une page inchangée n'est pas retéléchargée ; une fiche devenue
 page liste ou montrant un autre produit est retirée sans rien enregistrer ; un site qui refuse est laissé tranquille ;
-l'app lit le catalogue publié (classement, filtres, « depuis hier », preuve, fiche, marque, favoris et leur prix suivi,
-marques suivies, clic sortant tracé).
+l'app lit le catalogue publié (classement, filtres, fiche avec depuis quand et jusqu'à quand, marque, favoris et leur
+prix suivi, marques suivies, clic sortant tracé).
 """
 import json
 import tempfile
@@ -108,7 +108,7 @@ class Flow(unittest.TestCase):
         self.assertEqual(self.get("brand/Inconnue")[0], 404)
         self.assertEqual([p["brand"] for p in self.get("today?q=lave%20linge")[1]["products"]], ["Bosch"])
         self.assertEqual([p["category"] for p in self.get("today?category=matelas")[1]["products"]], ["matelas"])
-        self.assertEqual(today["counts"]["new"], 2)                                     # première publication : tout est nouveau
+        self.assertTrue(all(p["since"] == p["published_on"] for p in today["products"]))  # première publication : tout commence
 
     def test_3_second_night(self):
         tomorrow = self.market.today() + timedelta(days=1)
@@ -130,11 +130,9 @@ class Flow(unittest.TestCase):
         self.assertNotIn("Matelas mousse 140x190 Integral 3", names)                    # la fiche retirée disparaît
         canape = next(p for p in self.get("today")[1]["products"] if p["brand"] == "Oslo")
         self.assertEqual((canape["pct"], canape["was"]), (23, 1299.0))                  # « plus bas 30 jours » cohérent : remise confirmée
-        self.assertEqual((canape["proof"], canape["usual"], canape["new"], canape["ending"]), ("plus_bas_30j", 1199.0, True, True))
-        st, news, _ = self.get("today?feed=new")                                        # depuis hier : seule la promo du jour
-        self.assertEqual(([p["brand"] for p in news["products"]], news["counts"]["new"], news["counts"]["ending"]), (["Oslo"], 1, 1))
+        self.assertEqual((canape["since"], canape["ends"]), (tomorrow.isoformat(), (tomorrow + timedelta(days=2)).isoformat()))
         lave = next(p for p in self.get("today")[1]["products"] if p["brand"] == "Bosch")
-        self.assertFalse(lave["new"])                                                   # en remise depuis la veille
+        self.assertEqual(lave["since"], self.market.today().isoformat())                 # en remise depuis la veille
 
     def test_4_people(self):
         mia, lea = self.session("mia@test.local"), self.session("lea@test.local")
