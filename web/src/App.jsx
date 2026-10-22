@@ -1,11 +1,14 @@
-/* DEALS — application grand public, branchée sur /api/r/. Interface v44 : minimaliste, sans friction.
+/* DEALS — application grand public, branchée sur /api/r/. Interface v45 : minimaliste, sans friction ; la fiche d'un
+   produit propose ce qui le remplace pour moins cher.
 
    Une liste se lit en un regard : marque, produit, prix, remise. Rien d'autre. La qualité est implicite (l'app ne montre
    que de vraies remises) : aucune mention « vérifiée ». Les durées (depuis quand, jusqu'à quand) ne sont que dans la
-   fiche, avec l'offre à un geste. Principes gardés des maquettes : le produit est l'entrée, un deal est le même pour
-   tout le monde, pas d'image (V1), le signet sur chaque ligne, les marques suivies, la connexion demandée au moment de
-   l'action. Gardé de la v43 : catégories sur l'accueil, pictogrammes dans Explorer, baisse de prix d'un favori,
-   deux colonnes sur ordinateur, police servie avec la page, contrastes et zones à toucher aux normes. */
+   fiche, avec l'offre à un geste. La recherche couvre tout le catalogue suivi (les remises d'abord) : on ouvre le
+   produit qu'on regarde ailleurs, en remise ou non, et sa fiche montre « Moins cher, comparable ». Principes gardés des
+   maquettes : le produit est l'entrée, un deal est le même pour tout le monde, pas d'image (V1), le signet sur chaque
+   ligne, les marques suivies, la connexion demandée au moment de l'action. Gardé de la v43 : catégories sur l'accueil,
+   pictogrammes dans Explorer, baisse de prix d'un favori, deux colonnes sur ordinateur, police servie avec la page,
+   contrastes et zones à toucher aux normes. */
 import { useState, useEffect } from "react";
 
 /* ---------------------------------------------------------------- pictogrammes de catégorie (dessins originaux, 24 × 24) */
@@ -45,6 +48,8 @@ const CAT = {
   matelas: ["M6 8h12a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3z", "M7.5 12h.01", "M12 12h.01", "M16.5 12h.01"],
   sommier: ["M4 8h16a1 1 0 0 1 1 1v4H3V9a1 1 0 0 1 1-1z", "M3 10.5h18", "M5 13v4", "M19 13v4", "M12 13v3"],
   luminaire: ["M8.5 3.5h7l3.5 7.5h-14z", "M12 11v8", "M8.5 20.5h7"],
+  aspirateur: ["M14.5 3h4", "M16.5 3l-1.15 3.1", "M13.73 10.41L10.9 18", C(14.54, 8.25, 2.3), "M6 18h6.7a2 2 0 0 1 2 2v.5H5.5a1.25 1.25 0 0 1 0-2.5z"],
+  robot_aspirateur: [C(12, 12, 8.5), "M6.6 8.8a6.6 6.6 0 0 1 10.8 0", "M12 15h.01"],
 };
 const UI = {
   search: [C(10.5, 10.5, 6.5), "M15.5 15.5L20 20"],
@@ -328,17 +333,17 @@ export default function App() {
   useEffect(() => {
     if (view || tab !== "today") return;
     const t = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (cat) params.set("category", cat);
-      if (q.trim()) params.set("q", q.trim());
-      api(`today?${params}`).then(d => { setToday(d); setError(null); }).catch(() => setError("Impossible de charger les produits."));
+      const params = new URLSearchParams();                   // une recherche porte sur tout le catalogue, remises d'abord
+      if (q.trim()) params.set("q", q.trim()); else if (cat) params.set("category", cat);
+      api(`${q.trim() ? "search" : "today"}?${params}`).then(d => { setToday(d); setError(null); })
+        .catch(() => setError("Impossible de charger les produits."));
     }, q ? 200 : 0);
     return () => clearTimeout(t);
   }, [tab, cat, q, view, version]);
 
   useEffect(() => {
     if (view || tab !== "explore" || !q.trim()) return;
-    const t = setTimeout(() => api(`today?q=${encodeURIComponent(q.trim())}`).then(setList).catch(() => {}), 200);
+    const t = setTimeout(() => api(`search?q=${encodeURIComponent(q.trim())}`).then(setList).catch(() => {}), 200);
     return () => clearTimeout(t);
   }, [tab, q, view]);
 
@@ -384,21 +389,23 @@ export default function App() {
   };
 
   const goTab = t => { setView(null); setItem(null); setBrandPage(null); setList(null); setTab(t); setQ(""); };
-  const open = id => setView({ kind: "item", id });
+  const open = (id, via) => setView({ kind: "item", id, via });    // via : d'où vient la fiche (mesure des clics sortants)
   const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
 
-  const row = p => <div key={p.id} className="prow" role="button" tabIndex={0} onClick={() => open(p.id)}
-    onKeyDown={e => { if (e.key === "Enter") open(p.id); }}>
+  const note = p => p.saving >= 1 ? `${eur(p.saving)} de moins` : dropOf(p) >= 1 ? `Baisse de ${eur(dropOf(p))}` : null;
+  const rowVia = via => p => <div key={p.id} className="prow" role="button" tabIndex={0} onClick={() => open(p.id, via)}
+    onKeyDown={e => { if (e.key === "Enter") open(p.id, via); }}>
     <span className="txt">
       <span className="brand">{p.brand}{isFollowed(p.brand) ? <span className="tagl">suivie</span> : ""}</span>
       <span className="t">{p.name || p.title}</span>
-      {dropOf(p) >= 1 && <span className="drop">Baisse de {eur(dropOf(p))}</span>}
+      {note(p) && <span className="drop">{note(p)}</span>}
     </span>
     <span className="p"><b>{eur(p.price)}</b>{p.pct > 0 && <i>−{p.pct} %</i>}</span>
     <button className={`rfav ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
       aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
       <Mark on={isSaved(p.id)} size={21} /></button></div>;
+  const row = rowVia(null);
 
   const searchBar = <label className="sbar"><Icon d={UI.search} size={19} />
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher un produit ou une marque" aria-label="Rechercher" enterKeyHint="search" />
@@ -412,6 +419,7 @@ export default function App() {
   if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
     const when = timing(item);
+    const source = view.via || "item";
     body = <>
       {back("Retour", () => { setView(null); setItem(null); })}
       <div className="item">
@@ -425,22 +433,26 @@ export default function App() {
           <div className="deal">{item.pct > 0 ? <div className="pct">−{item.pct}%</div> : <div />}
             <div className="price">{eur(item.price)}{item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div></div>
           {when && <div className="when">{when}</div>}
-          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=item`} target="_blank" rel="noopener">
+          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}`} target="_blank" rel="noopener">
             Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
         </div>
         <div>
+          {item.alternatives.length > 0 && <>
+            <div className="sechead"><h2>Moins cher, comparable</h2></div>
+            <div>{item.alternatives.map(rowVia("alternative"))}</div>
+          </>}
           {item.offers.length > 1 && <>
             <div className="sechead"><h2>Autres enseignes</h2></div>
             <div className="offers">
               {item.offers.filter(o => o !== best).map(o => <div key={o.offer_id} className="offer">
                 <div><div className="m">{o.merchant}</div>{o.availability === "out_of_stock" && <div className="e">Indisponible</div>}</div>
                 <div className="r"><b>{eur(o.price)}</b>
-                  <a className="go" href={`/api/r/out/${o.offer_id}?from=item`} target="_blank" rel="noopener">Voir<Icon d={UI.ext} size={16} sw={2.2} /></a></div></div>)}
+                  <a className="go" href={`/api/r/out/${o.offer_id}?from=${source}`} target="_blank" rel="noopener">Voir<Icon d={UI.ext} size={16} sw={2.2} /></a></div></div>)}
             </div>
           </>}
-          {item.similar.length > 0 && <>
+          {item.alternatives.length === 0 && item.similar.length > 0 && <>
             <div className="sechead"><h2>Produits similaires</h2></div>
-            <div>{item.similar.map(row)}</div>
+            <div>{item.similar.map(rowVia("similar"))}</div>
           </>}
         </div>
       </div>
@@ -487,7 +499,7 @@ export default function App() {
         </button>}
         {hero && rest.length > 0 && <div className="sechead"><h2>Les autres</h2></div>}
         {q && <div style={{ height: 14 }} />}
-        {today && items.length === 0 && <div className="empty">{q ? "Aucune remise ne correspond aujourd'hui." : "Aucune remise dans cette catégorie aujourd'hui."}</div>}
+        {today && items.length === 0 && <div className="empty">{q ? "Aucun produit ne correspond." : "Aucune remise dans cette catégorie aujourd'hui."}</div>}
         <div className="list">{rest.map(row)}</div>
       </div>
     </div>;
@@ -500,7 +512,7 @@ export default function App() {
       {q.trim() ? <>
         <div style={{ height: 14 }} />
         <div>{(list?.products || []).map(row)}</div>
-        {list && list.total === 0 && <div className="empty">Aucune remise ne correspond aujourd'hui.</div>}
+        {list && list.total === 0 && <div className="empty">Aucun produit ne correspond.</div>}
       </> : <>
         <div className="seg"><button className={mode === "cat" ? "on" : ""} onClick={() => setMode("cat")}>Catégories</button>
           <button className={mode === "brand" ? "on" : ""} onClick={() => setMode("brand")}>Marques</button></div>

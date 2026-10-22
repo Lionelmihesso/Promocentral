@@ -67,6 +67,8 @@ CATEGORY_URL_HINTS = {
                        "plaque-gaz"],
     "hotte": ["hotte"],
     "cuisiniere": ["cuisiniere"],
+    "robot_aspirateur": ["robot-aspirateur", "aspirateur-robot", "robot-laveur"],
+    "aspirateur": ["aspirateur"],
     "canape": ["canape", "sofa", "clic-clac", "banquette-convertible"],
     "fauteuil": ["fauteuil"],
     "lit": ["cadre-de-lit", "lit-coffre", "lit-double", "lit-adulte", "lit-90", "lit-140", "lit-160", "lit-180", "lit-mezzanine",

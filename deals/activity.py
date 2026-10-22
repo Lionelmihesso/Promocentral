@@ -8,7 +8,9 @@ import time
 from .errors import BadRequest, NotFound
 from .market import utc_day
 
-CLICK_SOURCES = {"item", "hero", "today", "explore", "brand", "similar", "saved"}
+# d'où vient le clic : la fiche (item), ou une fiche ouverte depuis « Moins cher, comparable » (alternative) ou les
+# produits similaires (similar) ; les autres valeurs viennent des versions précédentes de l'app
+CLICK_SOURCES = {"item", "alternative", "similar", "hero", "today", "explore", "brand", "saved"}
 
 
 class Activity:

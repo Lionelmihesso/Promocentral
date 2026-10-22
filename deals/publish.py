@@ -2,22 +2,22 @@
 
 Pour chaque produit : la meilleure offre disponible et fraîche (prix relu il y a moins de 3 jours), le verdict de
 judge.py (vraie remise, fausse remise ou pas de remise), depuis quand la remise court et jusqu'à quand l'enseigne la
-déclare (montrés dans la fiche), les offres par enseigne, trois produits similaires (même catégorie, caractéristiques
-proches ; à défaut, prix le plus proche). Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un
-catalogue complet au suivant, jamais un état intermédiaire.
+déclare (montrés dans la fiche), les offres par enseigne, et, par alternatives.py, jusqu'à trois produits comparables
+moins chers et trois produits comparables au prix le plus proche. Le tout remplace l'ancien catalogue en une
+transaction : l'app passe d'un catalogue complet au suivant, jamais un état intermédiaire.
 """
 import json
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from .alternatives import pick
 from .catalog import haystack
+from .extract import attributes
+from .extract.categories import FAMILY_OF
 from .judge import LOOKBACK, judge
 
 FRESH_S = 3 * 86400          # un prix non relu depuis 3 jours n'est plus montré comme disponible
-SIMILAR = 3
-SIMILAR_MIN = 0.5
-ENERGY = "ABCDEFG"
 
 
 def day_start(d):
@@ -50,39 +50,6 @@ def daily_best(offer_intervals, first, last):
         if best is not None:
             out.append((d, best))
         d += timedelta(days=1)
-    return out
-
-
-def similarity(a, b):
-    """Similarité déterministe sur les caractéristiques ; même catégorie obligatoire."""
-    if not a["category"] or a["category"] != b["category"]:
-        return 0.0
-    A, B = a["attributes"], b["attributes"]
-    keys = set(A) & set(B)
-    if not keys:
-        return 0.6 if a["brand"] == b["brand"] else 0.55
-    diffs = []
-    for k in keys:
-        x, y = A[k], B[k]
-        if k == "energy_class":
-            diffs.append(min(1, abs(ENERGY.index(x) - ENERGY.index(y)) / 3) if x in ENERGY and y in ENERGY else 1)
-        elif isinstance(x, (int, float)) and isinstance(y, (int, float)):
-            diffs.append(min(1, abs(x - y) / max(abs(x), abs(y), 1e-9)))
-        else:
-            diffs.append(0 if x == y else 1)
-    return round(min(0.99, (1 - sum(diffs) / len(diffs)) * 0.95 + (0.05 if a["brand"] == b["brand"] else 0)), 3)
-
-
-def _similar(items):
-    """items : produits publiés d'une catégorie → {produit: [3 similaires]}."""
-    out = {}
-    for a in items:
-        scored = sorted(((similarity(a, b), b["id"]) for b in items if b["id"] != a["id"]), key=lambda x: (-x[0], x[1]))
-        picks = [i for s, i in scored if s >= SIMILAR_MIN][:SIMILAR]
-        if len(picks) < SIMILAR:                       # à défaut : même catégorie, prix le plus proche
-            rest = sorted((b for b in items if b["id"] != a["id"] and b["id"] not in picks), key=lambda b: (abs(b["price"] - a["price"]), b["id"]))
-            picks += [b["id"] for b in rest[:SIMILAR - len(picks)]]
-        out[a["id"]] = picks
     return out
 
 
@@ -132,21 +99,29 @@ def publish(store, today, now):
                         verdict.was if deal else None, verdict.pct if deal else 0, best_o["merchant"], best_o["id"],
                         int(bool(deal and verdict.verified)), haystack(p["title"], p["brand"], best_o["merchant"], p["category"]),
                         day, deal_since, ends))
-        published.append({"id": pid, "category": p["category"], "brand": p["brand"], "price": best["price"],
-                          "attributes": json.loads(p["attributes"] or "{}")})
+        published.append({"id": pid, "category": p["category"], "family": FAMILY_OF.get(p["category"]), "brand": p["brand"],
+                          "price": best["price"], "in_stock": best["availability"] != "out_of_stock",
+                          "attrs": {**attributes(p["title"]), **json.loads(p["attributes"] or "{}")}})
 
     by_cat = defaultdict(list)
     for item in published:
         if item["category"]:
             by_cat[item["category"]].append(item)
-    similar = [(pid, other, rank) for items in by_cat.values() for pid, picks in _similar(items).items() for rank, other in enumerate(picks)]
+    cheaper_rows, similar = [], []
+    for items in by_cat.values():
+        for a in items:
+            cheap, near = pick(a, items)
+            cheaper_rows += [(a["id"], b["id"], rank) for rank, b in enumerate(cheap)]
+            similar += [(a["id"], b["id"], rank) for rank, b in enumerate(near)]
     with store.tx() as c:
         c.execute("DELETE FROM catalog")
         c.execute("DELETE FROM catalog_offers")
         c.execute("DELETE FROM similar")
+        c.execute("DELETE FROM alternatives")
         c.executemany("INSERT INTO catalog(product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, "
                       "search, published_on, since, ends) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
         c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank) "
                       "VALUES (?,?,?,?,?,?,?,?)", catalog_offers)
         c.executemany("INSERT INTO similar(product_id, other_id, rank) VALUES (?,?,?)", similar)
+        c.executemany("INSERT INTO alternatives(product_id, other_id, rank) VALUES (?,?,?)", cheaper_rows)
     return stats

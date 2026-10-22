@@ -106,7 +106,8 @@ def main(argv=None):
         api.handle(Request("POST", "/api/r/save", body={"product_id": d["id"]}, session=session))
     brand, cat, pid = deals[0]["brand"], deals[0]["category"], deals[0]["id"]
     routes = [("today", "/api/r/today", {}, ""), ("today?category", "/api/r/today", {"category": cat}, ""),
-              ("today?q", "/api/r/today", {"q": "lave linge 9 kg"}, ""), ("categories", "/api/r/categories", {}, ""),
+              ("today?q", "/api/r/today", {"q": "lave linge 9 kg"}, ""), ("search?q", "/api/r/search", {"q": "lave linge 9 kg"}, ""),
+              ("categories", "/api/r/categories", {}, ""),
               ("brands", "/api/r/brands", {}, ""), ("brand/<nom>", f"/api/r/brand/{brand}", {}, ""),
               ("item/<id>", f"/api/r/item/{pid}", {}, ""), ("today (connecté)", "/api/r/today", {}, session),
               ("saves (connecté)", "/api/r/saves", {}, session)]

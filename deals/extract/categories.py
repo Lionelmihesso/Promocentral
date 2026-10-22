@@ -39,7 +39,8 @@ CATEGORIES = [
     ("smartphone", ["smartphone", "iphone", "telephone portable"]),
     ("ordinateur_portable", ["ordinateur portable", "pc portable", "laptop", "macbook", "notebook"]),
     ("casque_audio", ["casque audio", "casque bluetooth", "ecouteurs", "headphones", "earbuds"]),
-    ("robot_aspirateur", ["robot aspirateur", "aspirateur robot", "robot laveur", "roomba"]),
+    ("robot_aspirateur", ["robot aspirateur", "robots aspirateurs", "aspirateur robot", "aspirateurs robots", "robot laveur",
+                          "roomba"]),
     ("aspirateur", ["aspirateur", "vacuum"]),
     ("tablette", ["tablette tactile", "ipad", "galaxy tab"]),
     ("montre_connectee", ["montre connectee", "apple watch", "galaxy watch", "smartwatch"]),
@@ -48,7 +49,7 @@ CATEGORIES = [
 # Familles suivies → catégories (périmètre de la collecte, regroupement dans l'app)
 FAMILIES = {
     "electromenager": ["lave_linge", "lave_linge_sechant", "seche_linge", "lave_vaisselle", "refrigerateur", "congelateur",
-                       "four", "plaque_cuisson", "hotte", "cuisiniere"],
+                       "four", "plaque_cuisson", "hotte", "cuisiniere", "robot_aspirateur", "aspirateur"],
     "ameublement": ["canape", "fauteuil", "lit", "armoire", "table", "buffet", "meuble_tv", "commode"],
     "literie": ["matelas", "sommier"],
 }
@@ -58,7 +59,8 @@ FAMILY_OF = {c: f for f, cats in FAMILIES.items() for c in cats}
 # « Lit coffre avec tête de lit » reste un lit.
 ACCESSORY = re.compile(r"^(?:housse|protege|protection|alese|surmatelas|sur-matelas|drap|oreiller|couette|piece|filtre|"
                        r"joint|tuyau|pied|pieds|poignee|kit|support|accessoire|coussin|plaid|tete de lit|cache|rallonge|bac|"
-                       r"panier|grille|ampoule|resistance|courroie|thermostat|carte|module|lot de|set de|nettoyant|detartrant)\b")
+                       r"panier|grille|ampoule|resistance|courroie|thermostat|carte|module|lot de|set de|nettoyant|detartrant|brosse|batterie|"
+                       r"sacs?|chargeur|embout)\b")
 
 ATTR_PATTERNS = {
     "energy_class": re.compile(r"(?:classe(?: energetique| energie)?|energie|energy class)\s*:?\s*([a-g])\b"),
@@ -69,7 +71,19 @@ ATTR_PATTERNS = {
     "screen_in": re.compile(r"\b(\d{2,3})\s*(?:\"|''|pouces|po|inch)"),
     "storage_gb": re.compile(r"\b(\d{2,4})\s*(?:go|gb)\b"),
     "bed_width_cm": re.compile(r"\b(1[2-9]0)\s*x\s*(?:19|20)0\b"),
+    "bed_size": re.compile(r"\b((?:2\s*x\s*)?\d{2,3}\s*x\s*\d{3})\b"),  # « 160x200 », « 2x80x200 » : literie de même taille seulement
     "seats": re.compile(r"\b(\d{1,2})\s*places\b"),
+    "volume_l": re.compile(r"\b(\d{2,3})\s*l\b"),
+    "zones": re.compile(r"\b(\d)\s*foyers?\b"),
+    "autonomy_min": re.compile(r"\b(\d{2,3})\s*min\b"),
+}
+# Fonctions d'usage lues dans le titre : une alternative doit les avoir aussi (un aspirateur sans fil ne se remplace pas
+# par un aspirateur à fil, ni une plaque à induction par une plaque gaz).
+FEATURES = {
+    "sans_fil": re.compile(r"\bsans fil\b"), "balai": re.compile(r"\bbalai\b"), "traineau": re.compile(r"\btraineau\b"),
+    "laveur": re.compile(r"\blaveur\b"), "convertible": re.compile(r"\bconvertible\b"), "angle": re.compile(r"\bd'?angle\b"),
+    "induction": re.compile(r"\binduction\b"), "encastrable": re.compile(r"\bencastrable\b"),
+    "americain": re.compile(r"\bamericain\b"), "electrique": re.compile(r"\belectrique\b"),
 }
 PROP_ALIASES = {
     "classe energetique": "energy_class", "classe d'efficacite energetique": "energy_class", "energy class": "energy_class",
@@ -88,16 +102,24 @@ def categorize(title=None, declared=None):
     if ACCESSORY.match(plain(title).strip()):
         return None, "accessory"
     for text, src in ((declared, "declared"), (title, "title")):
-        t = plain(text).strip()
+        t = _words(text)
         if not t:
             continue
-        for slug, kws in CATEGORIES:                 # d'abord le début du titre : « Lit coffre … avec sommier » est un lit
+        for slug, kws in _KEYWORDS:                  # d'abord le début du titre : « Lit coffre … avec sommier » est un lit
             if any(t.startswith(k) for k in kws):
                 return slug, src
-        for slug, kws in CATEGORIES:
+        for slug, kws in _KEYWORDS:
             if any(k in t for k in kws):
                 return slug, src
     return None, None
+
+
+def _words(s):
+    """Sans accents, minuscules, tirets lus comme des espaces : « Robot-aspirateur » (catégorie déclarée) = « robot aspirateur »."""
+    return " ".join(plain(s).replace("-", " ").split())
+
+
+_KEYWORDS = [(slug, [_words(k) for k in kws]) for slug, kws in CATEGORIES]
 
 
 def _num(v):
@@ -130,5 +152,9 @@ def attributes(title=None, properties=None):
             continue
         m = rx.search(t)
         if m:
-            out[key] = m.group(1).upper() if key == "energy_class" else _num(m.group(1))
+            out[key] = m.group(1).upper() if key == "energy_class" else re.sub(r"\s+", "", m.group(1)) if key == "bed_size" \
+                else _num(m.group(1))
+    features = sorted(f for f, rx in FEATURES.items() if rx.search(t))
+    if features:
+        out["features"] = features
     return out

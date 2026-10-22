@@ -1,5 +1,5 @@
 """Exploitation : la passe de nuit et le serveur partagent la base sans se gêner ; la sauvegarde à chaud est cohérente ;
-la démo se construit avec la vraie chaîne."""
+une base ancienne est migrée sur place ; la démo se construit avec la vraie chaîne, alternatives moins chères comprises."""
 import multiprocessing as mp
 import sqlite3
 import tempfile
@@ -9,7 +9,7 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from deals import config, demo, store
+from deals import config, demo, sim, store
 from deals.api import Api, Request
 from deals.backup import backup
 from deals.store import Store
@@ -67,6 +67,7 @@ class Ops(unittest.TestCase):
         self.assertEqual(s.q("PRAGMA user_version", one=True)["user_version"], store.SCHEMA_VERSION)
         row = s.q("SELECT * FROM catalog", one=True)
         self.assertEqual((row["name"], row["since"], row["ends"]), ("x", None, None))
+        self.assertEqual(s.q("SELECT COUNT(*) n FROM alternatives", one=True)["n"], 0)          # version 3
         s.close()
 
     def test_hot_backup(self):
@@ -85,8 +86,16 @@ class Ops(unittest.TestCase):
         market, clock = demo.build(s, nights=20)
         api = Api(s, config.load({}), clock=clock)
         self.assertEqual(api.handle(Request("GET", "/api/r/categories")).status, 200)
-        self.assertEqual(s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"], 48)      # les 48 produits de la vitrine
-        self.assertEqual(s.q("SELECT COUNT(*) n FROM runs", one=True)["n"], 21)         # une nuit par jour
+        self.assertEqual(s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"], len(sim.SHOWCASE))   # toute la vitrine
+        self.assertEqual(s.q("SELECT COUNT(*) n FROM runs", one=True)["n"], 21)                     # une nuit par jour
+        v15 = s.q("SELECT product_id, price FROM catalog WHERE title LIKE '%V15%'", one=True)      # l'aspirateur haut de gamme
+        item = api.handle(Request("GET", f"/api/r/item/{v15['product_id']}")).body
+        alts = item["alternatives"]
+        self.assertEqual(len(alts), 3)
+        self.assertTrue(all(a["category"] == "aspirateur" and "sans fil" in a["title"] and a["price"] <= 0.9 * v15["price"]
+                            and a["saving"] == round(v15["price"] - a["price"]) for a in alts))
+        self.assertEqual(len({a["brand"] for a in alts}), 3)
+        self.assertNotIn("Agile", " ".join(a["title"] for a in alts))                               # 30 min : pas un remplaçant
         s.close()
 
 

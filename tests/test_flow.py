@@ -3,8 +3,8 @@
 Ce que le produit promet, vérifié une fois : un vrai deal est visible dès le premier jour ; un accessoire n'entre pas au
 catalogue ; un même EAN chez deux enseignes = un produit ; une page inchangée n'est pas retéléchargée ; une fiche devenue
 page liste ou montrant un autre produit est retirée sans rien enregistrer ; un site qui refuse est laissé tranquille ;
-l'app lit le catalogue publié (classement, filtres, fiche avec depuis quand et jusqu'à quand, marque, favoris et leur
-prix suivi, marques suivies, clic sortant tracé).
+l'app lit le catalogue publié (classement, filtres, recherche dans tout le catalogue, fiche avec depuis quand et jusqu'à
+quand, marque, favoris et leur prix suivi, marques suivies, clic sortant tracé).
 """
 import json
 import tempfile
@@ -103,11 +103,18 @@ class Flow(unittest.TestCase):
         self.assertNotIn("url", item["offers"][0])                          # l'app passe par le clic tracé
         st, _, headers = self.get(f"out/{item['offers'][0]['offer_id']}?from=item")
         self.assertEqual((st, headers["Location"]), (302, self.sites.url("a", "1001")))
+        self.get(f"out/{item['offers'][1]['offer_id']}?from=alternative")                 # fiche ouverte depuis « moins cher »
+        self.assertEqual([r["source"] for r in self.store.q("SELECT source FROM clicks ORDER BY rowid")], ["item", "alternative"])
         self.assertEqual(self.get("out/999999")[0], 404)
         self.assertEqual(self.get("brand/Bosch")[1]["brand"], "Bosch")
         self.assertEqual(self.get("brand/Inconnue")[0], 404)
         self.assertEqual([p["brand"] for p in self.get("today?q=lave%20linge")[1]["products"]], ["Bosch"])
         self.assertEqual([p["category"] for p in self.get("today?category=matelas")[1]["products"]], ["matelas"])
+        found = self.get("search?q=site")[1]["products"]                                # tout le catalogue : remises d'abord
+        self.assertEqual([(p["brand"], p["pct"]) for p in found],
+                         [("Bultex", 40), ("Bosch", 19), ("Nils", 0), ("Samsung", 0), ("Oslo", 0)])
+        self.assertEqual(self.get("search?q=")[1]["products"], [])
+        self.assertEqual(item["alternatives"], [])                                       # rien de comparable ici
         self.assertTrue(all(p["since"] == p["published_on"] for p in today["products"]))  # première publication : tout commence
 
     def test_3_second_night(self):

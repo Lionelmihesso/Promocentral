@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -77,6 +77,10 @@ MIGRATIONS = {
         "ALTER TABLE catalog ADD COLUMN since TEXT",
         "ALTER TABLE catalog ADD COLUMN ends TEXT",
         "ALTER TABLE saves ADD COLUMN price REAL",
+    ],
+    3: [  # fiche : alternatives comparables moins chères (alternatives.py), écrites avec le catalogue
+        "CREATE TABLE alternatives (product_id INTEGER NOT NULL, other_id INTEGER NOT NULL, rank INTEGER NOT NULL, "
+        "PRIMARY KEY (product_id, other_id))",
     ],
 }
 

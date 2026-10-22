@@ -80,6 +80,22 @@ class Catalog:
         hits = [r for r in rows if not toks or matches(r["search"], toks)]
         score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
         hits.sort(key=lambda r: (-score(r), r["product_id"]))
+        return self._page(hits, score, uid, followed, saved)
+
+    def search(self, uid=None, q=None):
+        """Tout le catalogue suivi, pas seulement les remises : c'est l'entrée « je regarde ce produit » (sa fiche montre
+        ses alternatives moins chères). Les remises d'abord, puis le reste, du moins cher au plus cher."""
+        toks = tokens(q) if q else []
+        if not toks:
+            return {"products": [], "total": 0, "signed_in": uid is not None}
+        followed, saved = self._personal(uid)
+        hits = [r for r in self.s.q("SELECT product_id, pct, brand, price, search FROM catalog") if matches(r["search"], toks)]
+        score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
+        hits.sort(key=lambda r: (r["pct"] <= 0, -score(r), r["price"], r["product_id"]))
+        return self._page(hits, score, uid, followed, saved)
+
+    def _page(self, hits, score, uid, followed, saved):
+        """Lignes complètes et cartes pour le seul haut de liste montré."""
         top = hits[:TODAY_LIMIT]
         full = {r["product_id"]: r for r in self.s.q(f"SELECT * FROM catalog WHERE product_id IN ({','.join('?' * len(top))})",
                                                      [r["product_id"] for r in top])} if top else {}
@@ -115,7 +131,10 @@ class Catalog:
                   for o in self.s.q("SELECT * FROM catalog_offers WHERE product_id=? ORDER BY rank", (product_id,))]
         similar = self.s.q("SELECT c.* FROM similar s JOIN catalog c ON c.product_id=s.other_id WHERE s.product_id=? ORDER BY s.rank",
                            (product_id,))
+        cheaper = self.s.q("SELECT c.* FROM alternatives a JOIN catalog c ON c.product_id=a.other_id WHERE a.product_id=? "
+                           "ORDER BY a.rank", (product_id,))
         return {**self._card(r, followed, saved), "offers": offers, "similar": [self._card(x, followed, saved) for x in similar],
+                "alternatives": [{**self._card(x, followed, saved), "saving": round(r["price"] - x["price"])} for x in cheaper],
                 "signed_in": uid is not None}
 
     def saves(self, uid):

@@ -1,8 +1,9 @@
 """Démo : la vraie chaîne (collecte → marché → publication) sur le marché simulé, nuit après nuit.
 
-48 produits des trois familles, trois enseignes fictives par produit, une nuit de collecte par jour du 1er octobre au
-23 décembre 2025 (Black Friday compris) ; la dernière nuit est un jour ordinaire d'avant Noël : des remises qui
-commencent, d'autres qui finissent, des fausses promos écartées.
+59 produits des trois familles, trois enseignes fictives par produit, une nuit de collecte par jour du 1er octobre au
+14 décembre 2025 (Black Friday compris) ; la dernière nuit est un jour ordinaire de décembre : des remises qui
+commencent, d'autres qui finissent, des fausses promos écartées. L'aspirateur balai haut de gamme (Zephyr V15) n'y est
+pas en remise, mais trois modèles comparables coûtent bien moins cher, dont un en remise.
 """
 from datetime import date, timedelta
 
@@ -13,7 +14,7 @@ from .publish import publish
 
 SIM_RETAILER = {"sim": {"name": "Simulé", "home": "https://sim", "enabled": True, "families": ["electromenager", "ameublement", "literie"],
                         "product_url": ".", "sitemaps": []}}
-FIRST_NIGHT, LAST_NIGHT = date(2025, 10, 1), date(2025, 12, 23)
+FIRST_NIGHT, LAST_NIGHT = date(2025, 10, 1), date(2025, 12, 14)
 HORIZON = 200                     # jours simulés : fixe, pour que le même départ donne toujours le même marché
 
 

@@ -85,6 +85,18 @@ SHOWCASE = [
     ("sommier", "Sommier tapissier {brand} 160x200 lattes", 399, "Dormea"),
     ("sommier", "Sommier électrique {brand} relaxation 2x80x200", 1190, "Solenne"),
     ("sommier", "Sommier {brand} à lattes 140x190 pieds inclus", 249, "Dormea"),
+    # de quoi comparer : l'aspirateur haut de gamme et ses alternatives, et des équivalents moins chers ailleurs
+    ("aspirateur", "Aspirateur balai sans fil {brand} V15 Detect 60 min", 699, "Zephyr"),
+    ("aspirateur", "Aspirateur balai sans fil {brand} V8 Origin 40 min", 399, "Zephyr"),
+    ("aspirateur", "Aspirateur balai sans fil {brand} X5 Animal 50 min", 349, "Brava"),
+    ("aspirateur", "Aspirateur balai sans fil {brand} Flex 45 min", 259, "Kessler"),
+    ("aspirateur", "Aspirateur balai sans fil {brand} Agile 30 min", 179, "Helio"),
+    ("aspirateur", "Aspirateur traîneau sans sac {brand} Silence 750 W", 229, "Ostra"),
+    ("robot_aspirateur", "Robot aspirateur laveur {brand} S8 navigation laser", 549, "Ostra"),
+    ("robot_aspirateur", "Robot aspirateur laveur {brand} R5 navigation laser", 329, "Brava"),
+    ("lave_linge", "Lave-linge hublot {brand} Eco 9 kg 1200 tr/min classe A", 479, "Helio"),
+    ("lave_vaisselle", "Lave-vaisselle {brand} 60 cm 14 couverts 42 dB classe B", 579, "Kessler"),
+    ("canape", "Canapé d'angle convertible {brand} Nordic 5 places", 899, "Lumen"),
 ]
 SHOWCASE_MERCHANTS = ["Électro Plus", "Maison & Co", "Rapido", "Grand Bazar"]
 
