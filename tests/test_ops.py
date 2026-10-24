@@ -68,6 +68,7 @@ class Ops(unittest.TestCase):
         row = s.q("SELECT * FROM catalog", one=True)
         self.assertEqual((row["name"], row["since"], row["ends"]), ("x", None, None))
         self.assertEqual(s.q("SELECT COUNT(*) n FROM alternatives", one=True)["n"], 0)          # version 3
+        self.assertIsNone(row["specs"])                                                          # version 4
         s.close()
 
     def test_hot_backup(self):

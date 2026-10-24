@@ -54,6 +54,7 @@ const CAT = {
 const UI = {
   search: [C(10.5, 10.5, 6.5), "M15.5 15.5L20 20"],
   back: ["M14.5 5.5L8 12l6.5 6.5"],
+  next: ["M9.5 5.5L16 12l-6.5 6.5"],
   ext: ["M9 15l6.5-6.5", "M10 8.5h5.5V14"],
   check: ["M5.5 12.5l4 4 9-9"],
   x: ["M7 7l10 10", "M17 7L7 17"],
@@ -128,24 +129,32 @@ const CSS = `
 .d .cats::-webkit-scrollbar{display:none}
 .d .cats button{flex:0 0 auto;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14px;font-weight:700;white-space:nowrap}
 .d .cats button.on{background:var(--ink);color:#fff}
-.d .hero{margin:14px 16px 0;width:calc(100% - 32px);background:var(--ink);color:#fff;border-radius:24px;padding:18px 18px 20px;cursor:pointer;display:block;border:0;text-align:left}
-.d .hero .eyebrow{color:#9EA1A6}
-.d .hero .brand{font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#9EA1A6;margin-top:12px}
-.d .hero .t{font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-top:3px}
-.d .hero .row{display:flex;justify-content:space-between;align-items:flex-end;margin-top:16px;gap:10px}
-.d .hero .price{font-size:40px;font-weight:800;letter-spacing:-.05em;line-height:.9}
-.d .hero .pct{font-size:32px;font-weight:800;letter-spacing:-.05em;color:var(--red);line-height:.9}
+.d .pic{flex:0 0 auto;width:48px;height:48px;border-radius:15px;background:var(--tint);color:var(--ink);display:flex;align-items:center;justify-content:center}
+.d .hero{margin:16px 16px 0;width:calc(100% - 32px);background:var(--ink);color:#fff;border-radius:26px;padding:20px;cursor:pointer;display:block;border:0;text-align:left}
+.d .hero .ht{display:flex;align-items:center;gap:14px}
+.d .hero .pic,.d .pcard .pic{width:56px;height:56px;border-radius:17px;background:rgba(255,255,255,.1);color:#fff}
+.d .hero .brand{display:block;font-size:24px;font-weight:800;letter-spacing:-.035em;line-height:1.1}
+.d .hero .kind{display:block;font-size:15px;font-weight:700;color:#9EA1A6;margin-top:3px}
+.d .hero .row{display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px;gap:10px}
+.d .hero .pct{font-size:56px;font-weight:800;letter-spacing:-.06em;color:var(--red);line-height:.85}
+.d .hero .pct small{display:block;font-size:14px;font-weight:700;letter-spacing:0;color:#B5B8BC;line-height:1.2;margin-bottom:6px}
+.d .hero .price{font-size:26px;font-weight:800;letter-spacing:-.04em;line-height:1}
 .d .sechead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:22px 16px 6px}
 .d .sechead h2{font-size:19px;font-weight:800;letter-spacing:-.03em;margin:0}
-.d .prow{display:grid;grid-template-columns:1fr auto 44px;gap:0 12px;align-items:center;width:100%;border-top:1px solid var(--line);padding:12px 6px 12px 16px;text-align:left;cursor:pointer;background:var(--paper)}
+.d .prow{display:grid;grid-template-columns:48px 1fr auto 44px;gap:0 14px;align-items:center;width:100%;border-top:1px solid var(--line);padding:14px 6px 14px 16px;text-align:left;cursor:pointer;background:var(--paper)}
 .d .prow:last-child{border-bottom:1px solid var(--line)}
 .d .prow .txt{min-width:0}
-.d .prow .brand{display:block;font-size:11.5px;font-weight:800;color:var(--mid);text-transform:uppercase;letter-spacing:.07em}
-.d .prow .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16px;font-weight:700;letter-spacing:-.02em;margin-top:2px;line-height:1.22}
-.d .prow .drop{display:block;margin-top:4px;font-size:13px;font-weight:800;color:var(--good)}
-.d .prow .p{text-align:right}
-.d .prow .p b{display:block;font-size:18px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
-.d .prow .p i{display:inline-block;font-style:normal;font-size:12px;font-weight:800;color:#fff;background:var(--red-strong);border-radius:7px;padding:3px 7px;margin-top:5px}
+.d .prow .brand{display:block;font-size:17px;font-weight:800;letter-spacing:-.025em;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d .prow .kind{display:block;margin-top:2px;font-size:14px;font-weight:600;color:var(--mid)}
+.d .prow .drop{display:block;margin-top:2px;font-size:14px;font-weight:800;color:var(--good)}
+.d .prow .p{text-align:right;white-space:nowrap}
+.d .prow .p .off{display:block;font-size:21px;font-weight:800;letter-spacing:-.04em;line-height:1.1;color:var(--red-ink)}
+.d .prow .p .off small{display:block;font-size:11.5px;font-weight:700;letter-spacing:0;color:var(--mid);line-height:1.2}
+.d .prow .p .at{display:block;margin-top:1px;font-size:14px;font-weight:700;color:var(--ink)}
+.d .prow .into{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--icon)}
+.d .ghead{display:flex;align-items:center;gap:14px;padding:4px 16px 16px}
+.d .ghead .kind{font-size:15px;font-weight:600;color:var(--mid);margin-top:3px}
+.d .prow .p .now{display:block;font-size:18px;font-weight:800;letter-spacing:-.03em}
 .d .rfav{border:0;background:none;width:44px;height:44px;border-radius:12px;color:var(--icon);display:flex;align-items:center;justify-content:center}
 .d .rfav.on{color:var(--red-ink)}
 .d .tagl{display:inline-block;font-size:10.5px;font-weight:800;color:var(--red-ink);text-transform:uppercase;letter-spacing:.06em;margin-left:6px}
@@ -153,9 +162,10 @@ const CSS = `
 .d .err{color:var(--red-ink);font-size:14px;font-weight:700;margin-top:10px}
 .d .back{border:0;background:none;min-height:44px;padding:0 16px 0 10px;font-size:14px;font-weight:800;color:var(--mid);display:flex;align-items:center;gap:4px}
 .d .pcard{margin:4px 16px 0;background:var(--ink);color:#fff;border-radius:28px;padding:20px}
-.d .phead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
-.d .pcard .brand{font-size:12px;font-weight:800;color:#9EA1A6;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
-.d .pcard .t{font-size:26px;font-weight:800;letter-spacing:-.035em;line-height:1.1;margin-top:8px}
+.d .phead{display:flex;align-items:center;gap:14px}
+.d .phead .who{flex:1;min-width:0}
+.d .pcard .brand{font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1.05;color:#fff;margin:0}
+.d .pcard .kind{font-size:15px;font-weight:700;color:#9EA1A6;margin-top:4px}
 .d .pcard .deal{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:24px}
 .d .pcard .pct{font-size:68px;font-weight:800;letter-spacing:-.065em;line-height:.82;color:var(--red)}
 .d .pcard .price{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1;text-align:right}
@@ -164,6 +174,10 @@ const CSS = `
 .d .pcard .buy{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;min-height:50px;border-radius:16px;background:#fff;color:var(--ink);font-size:15px;font-weight:800;text-decoration:none}
 .d .fav{flex:0 0 auto;border:0;background:rgba(255,255,255,.12);color:#fff;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .d .fav.on{background:var(--red-strong)}
+.d .desc{padding:0 16px}
+.d .desc p{margin:0;font-size:16px;font-weight:600;line-height:1.35;color:var(--ink)}
+.d .specs{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.d .specs li{background:var(--tint);border-radius:999px;padding:8px 13px;font-size:14px;font-weight:700}
 .d .offers{padding:0 16px}
 .d .offer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
 .d .offer:first-child{border-top:1px solid var(--line)}
@@ -220,14 +234,14 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .side .cats{flex-wrap:wrap;overflow:visible}
   .d h1{font-size:34px}
   .d .main .hero{margin:0;width:100%;padding:26px 28px 28px}
-  .d .main .hero .t{font-size:26px}.d .main .hero .price{font-size:48px}.d .main .hero .pct{font-size:44px}
+  .d .main .hero .brand{font-size:28px}.d .main .hero .price{font-size:32px}.d .main .hero .pct{font-size:64px}
   .d .main .sechead{padding-left:0;padding-right:0}
   .d .list{display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
   .d .list .prow{padding-left:4px}
   .d .list .prow:last-child{border-bottom:0}
   .d .item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start;padding-top:12px}
   .d .item .pcard{margin-left:0;margin-right:0}
-  .d .item .offers,.d .item .sechead{padding-left:0;padding-right:0}
+  .d .item .offers,.d .item .sechead,.d .item .desc{padding-left:0;padding-right:0}
   .d .item .sechead:first-child{padding-top:0}
   .d .item .prow{padding-left:4px}
   .d .narrow{max-width:760px;margin:0 auto;padding-top:20px}
@@ -389,23 +403,60 @@ export default function App() {
   };
 
   const goTab = t => { setView(null); setItem(null); setBrandPage(null); setList(null); setTab(t); setQ(""); };
-  const open = (id, via) => setView({ kind: "item", id, via });    // via : d'où vient la fiche (mesure des clics sortants)
+  // chaque vue garde celle d'où l'on vient : « Retour » y ramène (fiche → groupe → accueil). via : d'où vient la fiche
+  // (mesure des clics sortants).
+  const open = (id, via) => { setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
+  const openGroup = g => setView(v => ({ kind: "group", brand: g.brand, category: g.category, label: g.kind, items: g.items, from: v }));
+  const goBack = () => { setItem(null); setBrandPage(null); setList(null); setView(view?.from || null); };
   const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
 
   const note = p => p.saving >= 1 ? `${eur(p.saving)} de moins` : dropOf(p) >= 1 ? `Baisse de ${eur(dropOf(p))}` : null;
-  const rowVia = via => p => <div key={p.id} className="prow" role="button" tabIndex={0} onClick={() => open(p.id, via)}
-    onKeyDown={e => { if (e.key === "Enter") open(p.id, via); }}>
-    <span className="txt">
+  const said = p => `${p.brand}, ${p.name || p.title}, ${p.pct > 0 ? `moins ${p.pct} %, ` : ""}${eur(p.price)}`;   // lecteur d'écran : le titre complet
+  // Une ligne = pictogramme, marque, catégorie, remise, prix. Les caractéristiques n'apparaissent que pour départager
+  // deux produits de même marque et même catégorie : sous la marque (mode « detail »), ou seules dans la liste d'un
+  // groupe, dont l'en-tête dit déjà la marque et la catégorie (mode « group »).
+  const telling = p => p.specs.slice(0, 2).join(" · ") || p.name || p.kind;
+  const rowOf = (p, via, mode) => <div key={p.id} className="prow" role="button" tabIndex={0} aria-label={said(p)}
+    onClick={() => open(p.id, via)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via); }}>
+    <span className="pic"><CatIcon cat={p.category} size={24} /></span>
+    {mode === "group" ? <span className="txt"><span className="brand">{telling(p)}</span></span> : <span className="txt">
       <span className="brand">{p.brand}{isFollowed(p.brand) ? <span className="tagl">suivie</span> : ""}</span>
-      <span className="t">{p.name || p.title}</span>
-      {note(p) && <span className="drop">{note(p)}</span>}
-    </span>
-    <span className="p"><b>{eur(p.price)}</b>{p.pct > 0 && <i>−{p.pct} %</i>}</span>
+      {note(p) ? <span className="drop">{note(p)}</span> : <span className="kind">{mode === "detail" ? telling(p) : p.kind}</span>}
+    </span>}
+    <span className="p">{p.pct > 0 ? <><b className="off">−{p.pct} %</b><span className="at">{eur(p.price)}</span></>
+      : <b className="now">{eur(p.price)}</b>}</span>
     <button className={`rfav ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
       aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
       <Mark on={isSaved(p.id)} size={21} /></button></div>;
-  const row = rowVia(null);
+  const keyOf = p => `${p.brand}\u0001${p.category}`;
+  const rows = (list, via) => {                                    // produits : départagés s'ils se ressemblent
+    const n = {}; list.forEach(p => { n[keyOf(p)] = (n[keyOf(p)] || 0) + 1; });
+    return list.map(p => rowOf(p, via, n[keyOf(p)] > 1 ? "detail" : null));
+  };
+  // Remises : une ligne par marque × catégorie (« Nordvik · Lit ») ; plusieurs produits → la ligne ouvre leur liste.
+  const groups = list => {
+    const out = [], at = new Map();
+    for (const p of list) {
+      if (!at.has(keyOf(p))) { at.set(keyOf(p), out.length); out.push({ key: keyOf(p), brand: p.brand, category: p.category, kind: p.kind, items: [] }); }
+      out[at.get(keyOf(p))].items.push(p);
+    }
+    return out;
+  };
+  const bestPct = g => Math.max(...g.items.map(p => p.pct));
+  const upTo = g => new Set(g.items.map(p => p.pct)).size > 1;
+  const minPrice = g => Math.min(...g.items.map(p => p.price));
+  const groupLabel = g => `${g.kind} · ${g.items.length} remises`;
+  const groupRow = g => g.items.length === 1 ? rowOf(g.items[0], null, null) :
+    <div key={g.key} className="prow" role="button" tabIndex={0} onClick={() => openGroup(g)}
+      onKeyDown={e => { if (e.key === "Enter") openGroup(g); }}
+      aria-label={`${g.brand}, ${groupLabel(g)}, ${upTo(g) ? "jusqu'à " : ""}moins ${bestPct(g)} %, dès ${eur(minPrice(g))}`}>
+      <span className="pic"><CatIcon cat={g.category} size={24} /></span>
+      <span className="txt"><span className="brand">{g.brand}{isFollowed(g.brand) ? <span className="tagl">suivie</span> : ""}</span>
+        <span className="kind">{groupLabel(g)}</span></span>
+      <span className="p"><b className="off">{upTo(g) && <small>jusqu'à</small>}−{bestPct(g)} %</b><span className="at">dès {eur(minPrice(g))}</span></span>
+      <span className="into" aria-hidden="true"><Icon d={UI.next} size={20} sw={2.2} /></span></div>;
+  const grouped = list => groups(list).map(groupRow);
 
   const searchBar = <label className="sbar"><Icon d={UI.search} size={19} />
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher un produit ou une marque" aria-label="Rechercher" enterKeyHint="search" />
@@ -421,25 +472,28 @@ export default function App() {
     const when = timing(item);
     const source = view.via || "item";
     body = <>
-      {back("Retour", () => { setView(null); setItem(null); })}
+      {back("Retour", goBack)}
       <div className="item">
         <div className="pcard">
           <div className="phead">
-            <div className="brand">{item.brand} · {item.category_label}</div>
+            <span className="pic"><CatIcon cat={item.category} size={28} /></span>
+            <div className="who"><h1 className="brand">{item.brand}</h1><div className="kind">{item.kind}</div></div>
             <button className={`fav ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
               aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Mark on={isSaved(item.id)} size={22} /></button>
           </div>
-          <div className="t">{item.name || item.title}</div>
-          <div className="deal">{item.pct > 0 ? <div className="pct">−{item.pct}%</div> : <div />}
+          <div className="deal">{item.pct > 0 ? <div className="pct">−{item.pct} %</div> : <div />}
             <div className="price">{eur(item.price)}{item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div></div>
           {when && <div className="when">{when}</div>}
           {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}`} target="_blank" rel="noopener">
             Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
         </div>
         <div>
+          <div className="sechead"><h2>Description</h2></div>
+          <div className="desc"><p>{item.name || item.title}</p>
+            {item.specs.length > 0 && <ul className="specs">{item.specs.map(x => <li key={x}>{x}</li>)}</ul>}</div>
           {item.alternatives.length > 0 && <>
             <div className="sechead"><h2>Moins cher, comparable</h2></div>
-            <div>{item.alternatives.map(rowVia("alternative"))}</div>
+            <div>{rows(item.alternatives, "alternative")}</div>
           </>}
           {item.offers.length > 1 && <>
             <div className="sechead"><h2>Autres enseignes</h2></div>
@@ -452,7 +506,7 @@ export default function App() {
           </>}
           {item.alternatives.length === 0 && item.similar.length > 0 && <>
             <div className="sechead"><h2>Produits similaires</h2></div>
-            <div>{item.similar.map(rowVia("similar"))}</div>
+            <div>{rows(item.similar, "similar")}</div>
           </>}
         </div>
       </div>
@@ -460,25 +514,32 @@ export default function App() {
   } else if (view?.kind === "brand" && brandPage) {
     const on = isFollowed(brandPage.brand);
     body = <div className="narrow">
-      {back("Explorer", () => { setView(null); setBrandPage(null); })}
+      {back("Retour", goBack)}
       <div className="pagehead">
         <div><div className="eyebrow">Marque</div><h1>{brandPage.brand}</h1></div>
         <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleFollow(brandPage.brand)} aria-pressed={on}>
           <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Suivie" : "Suivre"}</button>
       </div>
-      <div>{brandPage.products.map(row)}</div>
+      <div>{grouped(brandPage.products)}</div>
+    </div>;
+  } else if (view?.kind === "group") {
+    body = <div className="narrow">
+      {back("Retour", goBack)}
+      <div className="ghead"><span className="pic"><CatIcon cat={view.category} size={26} /></span>
+        <div><h1>{view.brand}</h1><div className="kind">{view.label} · {view.items.length} remises</div></div></div>
+      <div>{view.items.map(p => rowOf(p, null, "group"))}</div>
     </div>;
   } else if (view?.kind === "cat") {
     body = <div className="narrow">
-      {back("Explorer", () => { setView(null); setList(null); })}
+      {back("Retour", goBack)}
       <div className="pagehead"><h1>{view.label}</h1></div>
-      <div>{(list?.products || []).map(row)}</div>
+      <div>{grouped(list?.products || [])}</div>
       {list && list.total === 0 && <div className="empty">Aucune remise dans cette catégorie aujourd'hui.</div>}
     </div>;
   } else if (tab === "today") {
     const items = today?.products || [];
-    const hero = !q && items.length ? items[0] : null;
-    const rest = hero ? items.slice(1) : items;
+    const gs = q ? [] : groups(items);
+    const hero = gs[0];
     body = <div className="home">
       <div className="side">
         <div className="intro">{q ? <h1>{today ? plural(today.total, "résultat") : "…"}</h1>
@@ -491,16 +552,16 @@ export default function App() {
         </div>}
       </div>
       <div className="main">
-        {hero && <button className="hero" onClick={() => open(hero.id)}>
-          <div className="eyebrow">Le plus intéressant</div>
-          <div className="brand">{hero.brand}</div>
-          <div className="t">{hero.name || hero.title}</div>
-          <div className="row"><div className="price">{eur(hero.price)}</div>{hero.pct > 0 && <div className="pct">−{hero.pct}%</div>}</div>
-        </button>}
-        {hero && rest.length > 0 && <div className="sechead"><h2>Les autres</h2></div>}
-        {q && <div style={{ height: 14 }} />}
+        {hero && (one => <button className="hero" onClick={() => one ? open(one.id) : openGroup(hero)}
+          aria-label={one ? said(one) : `${hero.brand}, ${groupLabel(hero)}`}>
+          <span className="ht"><span className="pic"><CatIcon cat={hero.category} size={30} /></span>
+            <span><span className="brand">{hero.brand}</span><span className="kind">{one ? hero.kind : groupLabel(hero)}</span></span></span>
+          <span className="row"><span className="pct">{upTo(hero) && <small>jusqu'à</small>}−{bestPct(hero)} %</span>
+            <span className="price">{one ? eur(one.price) : `dès ${eur(minPrice(hero))}`}</span></span>
+        </button>)(hero.items.length === 1 ? hero.items[0] : null)}
+        <div style={{ height: 14 }} />
         {today && items.length === 0 && <div className="empty">{q ? "Aucun produit ne correspond." : "Aucune remise dans cette catégorie aujourd'hui."}</div>}
-        <div className="list">{rest.map(row)}</div>
+        <div className="list">{q ? rows(items) : gs.slice(1).map(groupRow)}</div>
       </div>
     </div>;
   } else if (tab === "explore") {
@@ -511,7 +572,7 @@ export default function App() {
       {searchBar}
       {q.trim() ? <>
         <div style={{ height: 14 }} />
-        <div>{(list?.products || []).map(row)}</div>
+        <div>{rows(list?.products || [])}</div>
         {list && list.total === 0 && <div className="empty">Aucun produit ne correspond.</div>}
       </> : <>
         <div className="seg"><button className={mode === "cat" ? "on" : ""} onClick={() => setMode("cat")}>Catégories</button>
@@ -543,7 +604,7 @@ export default function App() {
       {session.email && <>
         <div className="sechead"><h2>Produits</h2></div>
         {savedList && savedList.length === 0 && <div className="empty" style={{ paddingTop: 0 }}>Touchez le signet d'un produit pour le garder ici.</div>}
-        <div>{(savedList || []).map(row)}</div>
+        <div>{rows(savedList || [])}</div>
         <div className="sechead"><h2>Marques suivies</h2></div>
         {followed.size === 0 && <div className="empty" style={{ paddingTop: 0 }}>Suivez une marque depuis Explorer.</div>}
         {followed.size > 0 && <div className="chips">{[...followed].map(b =>

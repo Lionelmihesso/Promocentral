@@ -98,7 +98,9 @@ class Flow(unittest.TestCase):
         self.assertEqual([(p["name"], p["pct"]) for p in today["products"]],
                          [("Matelas mousse 140x190 Integral 3", 40), ("Lave-linge hublot Série 6 9 kg", 19)])   # prix barré lu dans le bloc HTML / en JSON-LD
         self.assertEqual(sum(c["count"] for c in self.get("categories")[1]), today["total"])
+        self.assertEqual([p["kind"] for p in today["products"]], ["Matelas", "Lave-linge"])     # la liste : marque et catégorie
         item = self.get(f"item/{today['products'][1]['id']}")[1]
+        self.assertEqual((item["name"], item["specs"]), ("Lave-linge hublot Série 6 9 kg", ["9 kg"]))  # la fiche : la description
         self.assertEqual([(o["merchant"], o["price"], o["best"]) for o in item["offers"]], [("Site A", 649.0, True), ("Site B", 679.0, False)])
         self.assertNotIn("url", item["offers"][0])                          # l'app passe par le clic tracé
         st, _, headers = self.get(f"out/{item['offers'][0]['offer_id']}?from=item")

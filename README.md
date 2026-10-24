@@ -22,7 +22,7 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures du produit
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (43, ~9 s)
+python -m unittest discover -s tests -t .    tests (44, ~9 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.scale     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
@@ -33,7 +33,7 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 Lecture ouverte : `today?category=&q=` (remises du jour), `search?q=` (tout le catalogue suivi, remises d'abord),
 `categories`, `brands`, `brand/<nom>`, `item/<id>`, `out/<offer_id>?from=`.
 Ajoutés depuis la v41, sans rien retirer : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche),
-`saved_price` (favoris), `family` (catégories).
+`kind` et `specs` (cartes : catégorie au singulier, caractéristiques lues), `saved_price` (favoris), `family` (catégories).
 Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`.
 Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`, `auth/logout`.
 
@@ -42,8 +42,10 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
   historique hors promotion (au moins 14 jours observés), la mention légale « prix le plus bas des 30 derniers jours »,
   ou un « prix barré » inchangé depuis 60 jours (c'est alors le prix). Fausse remise : 10 points de plus que la remise
   réelle, sauf si celle-ci dépasse 30 %. Une fiche reste consultable, sans remise affichée (`deals/judge.py`).
-- **Minimaliste** : dans les listes, la marque, le produit, le prix et la remise, rien d'autre. La qualité est
-  implicite ; les durées (depuis quand, jusqu'à quand) ne sont que dans la fiche.
+- **Minimaliste** : dans les listes, le pictogramme de la catégorie, la marque, la catégorie, la remise et le prix,
+  rien d'autre ; une ligne par marque × catégorie (plusieurs produits : « 2 remises, dès 612 € », la ligne ouvre leur
+  liste, départagée par les caractéristiques). Le titre, les caractéristiques (« 160 × 200 cm », « Classe B ») et les
+  durées (depuis quand, jusqu'à quand) ne sont que dans la fiche. La qualité est implicite.
 - **Classement** : remise en %, × 1,5 si la marque est suivie par la personne connectée. Rien d'autre.
 - **Moins cher, comparable** (fiche) : jusqu'à trois produits qui remplacent vraiment celui qu'on regarde et coûtent au
   moins 10 % de moins, disponibles, la plus forte économie d'abord, une marque par ligne, avec l'économie en euros.
@@ -70,8 +72,9 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
 ## Interface
 
 Une page (`web/src/App.jsx` → `web/app.html`, police Manrope incluse, aucune requête vers un tiers) : téléphone d'abord,
-deux colonnes sur ordinateur, minimaliste (une ligne = marque, produit, prix, remise). Pictogrammes de catégorie dans
-Explorer (pas de photo en V1), contrastes et zones à toucher aux normes WCAG AA. Principe, écrans et mesures v41 à v45 :
+deux colonnes sur ordinateur, minimaliste (une ligne = catégorie, marque, remise, prix). Pictogrammes de catégorie sur
+chaque ligne et dans Explorer (pas de photo en V1), contrastes et zones à toucher aux normes WCAG AA. Principe, écrans et
+mesures v41 à v46 :
 [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse

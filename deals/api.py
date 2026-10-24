@@ -3,7 +3,8 @@
 Lecture ouverte (sans compte) : today?category=&q= (remises du jour), search?q= (tout le catalogue suivi, remises
 d'abord), categories, brands, brand/<nom>, item/<id>, out/<offer_id>?from=.
 Champs ajoutés depuis la v41, sans rien retirer : since et ends (fiche), alternatives avec saving (fiche : comparables
-moins chers), saved_price (favoris), family (catégories).
+moins chers), kind et specs (cartes : catégorie au singulier, caractéristiques lues), saved_price (favoris), family
+(catégories).
 Session requise (sinon 401) : save, saves, brand/follow, follows.
 Connexion : auth/request {email}, auth/verify?token= (pose le cookie, ou renvoie vers /?auth=expired), auth/me, auth/logout.
 """

@@ -2,9 +2,10 @@
 
 Pour chaque produit : la meilleure offre disponible et fraîche (prix relu il y a moins de 3 jours), le verdict de
 judge.py (vraie remise, fausse remise ou pas de remise), depuis quand la remise court et jusqu'à quand l'enseigne la
-déclare (montrés dans la fiche), les offres par enseigne, et, par alternatives.py, jusqu'à trois produits comparables
-moins chers et trois produits comparables au prix le plus proche. Le tout remplace l'ancien catalogue en une
-transaction : l'app passe d'un catalogue complet au suivant, jamais un état intermédiaire.
+déclare (montrés dans la fiche), la description (caractéristiques lues), les offres par enseigne, et, par
+alternatives.py, jusqu'à trois produits comparables moins chers et trois produits comparables au prix le plus proche.
+Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un catalogue complet au suivant, jamais un état
+intermédiaire.
 """
 import json
 import re
@@ -12,7 +13,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from .alternatives import pick
-from .catalog import haystack
+from .catalog import haystack, specs
 from .extract import attributes
 from .extract.categories import FAMILY_OF
 from .judge import LOOKBACK, judge
@@ -95,13 +96,13 @@ def publish(store, today, now):
         stats["verified"] += bool(deal and verdict.verified)
         stats["fake"] += fake
         stats["new"] += deal_since == day
+        attrs = {**attributes(p["title"]), **json.loads(p["attributes"] or "{}")}
         catalog.append((pid, display_name(p["title"], p["brand"]), p["title"], p["brand"], p["category"], best["price"],
                         verdict.was if deal else None, verdict.pct if deal else 0, best_o["merchant"], best_o["id"],
                         int(bool(deal and verdict.verified)), haystack(p["title"], p["brand"], best_o["merchant"], p["category"]),
-                        day, deal_since, ends))
+                        day, deal_since, ends, json.dumps(specs(attrs), ensure_ascii=False)))
         published.append({"id": pid, "category": p["category"], "family": FAMILY_OF.get(p["category"]), "brand": p["brand"],
-                          "price": best["price"], "in_stock": best["availability"] != "out_of_stock",
-                          "attrs": {**attributes(p["title"]), **json.loads(p["attributes"] or "{}")}})
+                          "price": best["price"], "in_stock": best["availability"] != "out_of_stock", "attrs": attrs})
 
     by_cat = defaultdict(list)
     for item in published:
@@ -119,7 +120,7 @@ def publish(store, today, now):
         c.execute("DELETE FROM similar")
         c.execute("DELETE FROM alternatives")
         c.executemany("INSERT INTO catalog(product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, "
-                      "search, published_on, since, ends) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
+                      "search, published_on, since, ends, specs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
         c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank) "
                       "VALUES (?,?,?,?,?,?,?,?)", catalog_offers)
         c.executemany("INSERT INTO similar(product_id, other_id, rank) VALUES (?,?,?)", similar)

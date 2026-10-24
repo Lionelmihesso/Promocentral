@@ -63,7 +63,7 @@ ACCESSORY = re.compile(r"^(?:housse|protege|protection|alese|surmatelas|sur-mate
                        r"sacs?|chargeur|embout)\b")
 
 ATTR_PATTERNS = {
-    "energy_class": re.compile(r"(?:classe(?: energetique| energie)?|energie|energy class)\s*:?\s*([a-g])\b"),
+    "energy_class": re.compile(r"(?:classe(?: energetique| energie)?|energie|energy class)\s*:?\s*([a-g]\+{0,3})(?![a-z0-9+])"),
     "width_cm": re.compile(r"\b(\d{2,3})\s*cm\b"),
     "capacity_kg": re.compile(r"\b(\d{1,2}(?:[.,]\d)?)\s*kg\b"),
     "place_settings": re.compile(r"\b(\d{1,2})\s*couverts\b"),
@@ -139,7 +139,7 @@ def attributes(title=None, properties=None):
             continue
         pv = plain(v)
         if key == "energy_class":
-            m = re.search(r"\b([a-g])\b", pv)
+            m = re.search(r"\b([a-g]\+{0,3})(?![a-z0-9+])", pv)              # « A+++ » : les + comptent
             if m:
                 out[key] = m.group(1).upper()
         else:

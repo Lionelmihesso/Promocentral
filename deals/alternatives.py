@@ -14,12 +14,16 @@ marque différente par ligne tant que c'est possible.
 Un produit : dict(id, category, family, brand, price, in_stock, attrs) — attrs = extract.attributes(titre) complété des
 caractéristiques déclarées.
 """
-ENERGY = {c: i for i, c in enumerate("ABCDEFG")}
 CHEAPER = 0.90
 COUNT = 3
 WIDTH_TOLERANCE = {"ameublement": 0.20}          # sinon 6 % : un appareil s'encastre au centimètre près
 NOT_FEWER = {"capacity_kg": 1, "place_settings": 1, "zones": 1}
 SAME_FORM = {"balai", "traineau", "encastrable", "angle", "americain"}    # un canapé droit ne remplace pas un canapé d'angle
+
+
+def energy_rank(c):
+    """Classe énergie → rang comparable : A+++ = -3, A+ = -1, A = 0, B = 1 … G = 6 ; None si inconnue."""
+    return "ABCDEFG".index(c[0]) - c.count("+") if c and c[0] in "ABCDEFG" else None
 
 
 def comparable(a, b):
@@ -47,7 +51,7 @@ def comparable(a, b):
         return False
     if "noise_db" in A and "noise_db" in B and B["noise_db"] > A["noise_db"] + 3:
         return False
-    ea, eb = ENERGY.get(A.get("energy_class")), ENERGY.get(B.get("energy_class"))
+    ea, eb = energy_rank(A.get("energy_class")), energy_rank(B.get("energy_class"))
     if ea is not None and eb is not None and eb > ea + 1:
         return False
     return True

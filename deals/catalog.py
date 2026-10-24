@@ -3,7 +3,12 @@
 Chaque lecture = une ou deux requêtes indexées ; seuls l'ordre (marque suivie × 1,5) et les signets dépendent de la
 personne connectée. La recherche est insensible aux accents, à la casse et aux tirets ; chaque mot cherché doit
 commencer un mot du produit (titre, marque, enseigne, catégorie) ; quelques synonymes du langage courant.
+
+Une carte porte la marque, la catégorie au singulier (`kind`) et les caractéristiques lues (`specs`) : l'app montre
+la marque et la catégorie dans les listes, les caractéristiques seulement pour départager deux produits de même marque
+et catégorie, le titre et les caractéristiques complètes dans la fiche.
 """
+import json
 import re
 import unicodedata
 
@@ -22,6 +27,18 @@ CATEGORY_LABEL = {
     "matelas": "Matelas", "sommier": "Sommiers", "televiseur": "Téléviseurs", "smartphone": "Smartphones",
     "ordinateur_portable": "Ordinateurs portables", "casque_audio": "Casques", "enceinte": "Enceintes", "tablette": "Tablettes",
     "robot_aspirateur": "Robots aspirateurs", "aspirateur": "Aspirateurs", "montre_connectee": "Montres connectées"}
+CATEGORY_ONE = {
+    "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchant", "seche_linge": "Sèche-linge",
+    "lave_vaisselle": "Lave-vaisselle", "refrigerateur": "Réfrigérateur", "congelateur": "Congélateur", "four": "Four",
+    "plaque_cuisson": "Plaque de cuisson", "hotte": "Hotte", "cuisiniere": "Cuisinière", "micro_ondes": "Micro-ondes",
+    "machine_cafe": "Machine à café", "canape": "Canapé", "fauteuil": "Fauteuil", "lit": "Lit", "armoire": "Armoire",
+    "table": "Table", "buffet": "Buffet", "meuble_tv": "Meuble TV", "commode": "Commode", "luminaire": "Luminaire",
+    "matelas": "Matelas", "sommier": "Sommier", "televiseur": "Téléviseur", "smartphone": "Smartphone",
+    "ordinateur_portable": "Ordinateur portable", "casque_audio": "Casque", "enceinte": "Enceinte", "tablette": "Tablette",
+    "robot_aspirateur": "Robot aspirateur", "aspirateur": "Aspirateur", "montre_connectee": "Montre connectée"}
+FEATURE_LABEL = {"sans_fil": "Sans fil", "balai": "Balai", "traineau": "Traîneau", "laveur": "Laveur", "convertible": "Convertible",
+                 "angle": "D'angle", "induction": "Induction", "encastrable": "Encastrable", "americain": "Américain",
+                 "electrique": "Électrique"}
 SYNONYMS = {
     "frigo": "refrigerateur", "refrigerateurs": "refrigerateur", "congelo": "congelateur", "congel": "congelateur",
     "lavevaisselle": "lave vaisselle", "lavelinge": "lave linge", "laver": "lave linge", "induction": "plaque", "plaques": "plaque",
@@ -49,6 +66,25 @@ def haystack(title, brand, merchant, category):
                                 (category or "").replace("_", " ")])) + " "
 
 
+def _num(v):
+    return (f"{v:g}" if isinstance(v, float) else str(v)).replace(".", ",")
+
+
+def specs(attrs):
+    """Caractéristiques de la description de la fiche, chacune lisible seule : « 160 × 200 cm », « 14 couverts »,
+    « Classe B », « Sans fil ». Seulement ce qui a été lu (titre, caractéristiques déclarées), rien de deviné."""
+    a, out = attrs or {}, []
+    if a.get("bed_size"):
+        out.append(a["bed_size"].replace("x", " × ") + " cm")
+    elif a.get("width_cm"):                                   # « 160x200 cm » : la largeur lue serait 200, fausse
+        out.append(f"Largeur {_num(a['width_cm'])} cm")
+    for key, fmt in (("seats", "{} places"), ("capacity_kg", "{} kg"), ("place_settings", "{} couverts"), ("volume_l", "{} L"),
+                     ("zones", "{} foyers"), ("energy_class", "Classe {}"), ("noise_db", "{} dB"), ("autonomy_min", "Autonomie {} min")):
+        if a.get(key):
+            out.append(fmt.format(a[key] if key == "energy_class" else _num(a[key])))
+    return out + [label for f, label in FEATURE_LABEL.items() if f in a.get("features", ())]
+
+
 def matches(search, toks):
     """Chaque mot doit commencer un mot du produit ; un synonyme de plusieurs mots (« lave linge ») est cherché tel quel."""
     return all((t in search) if " " in t else (f" {t}" in search) for t in toks)
@@ -67,7 +103,9 @@ class Catalog:
     @staticmethod
     def _card(r, followed, saved):
         return {"id": r["product_id"], "title": r["title"], "name": r["name"], "brand": r["brand"], "category": r["category"],
-                "category_label": CATEGORY_LABEL.get(r["category"], r["category"]), "price": r["price"], "was": r["was"],
+                "category_label": CATEGORY_LABEL.get(r["category"], r["category"]),
+                "kind": CATEGORY_ONE.get(r["category"], CATEGORY_LABEL.get(r["category"], r["category"])),
+                "specs": json.loads(r["specs"] or "[]"), "price": r["price"], "was": r["was"],
                 "pct": r["pct"], "merchant": r["merchant"], "since": r["since"], "ends": r["ends"], "published_on": r["published_on"],
                 "followed": r["brand"] in followed, "saved": r["product_id"] in saved}
 

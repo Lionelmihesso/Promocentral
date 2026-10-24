@@ -7,6 +7,7 @@ aspirateur à fil à la place d'un sans fil.
 import unittest
 
 from deals.alternatives import comparable, pick
+from deals.catalog import specs
 from deals.extract import attributes, categorize
 from deals.extract.categories import FAMILY_OF
 
@@ -32,6 +33,16 @@ class Categories(unittest.TestCase):
         a = attributes("Lave-vaisselle encastrable 45 cm 10 couverts 44 dB classe D")
         self.assertEqual((a["width_cm"], a["place_settings"], a["noise_db"], a["energy_class"], a["features"]),
                          (45, 10, 44, "D", ["encastrable"]))
+        self.assertEqual(attributes("Four encastrable pyrolyse 71 L classe A+")["energy_class"], "A+")      # un A+ n'est pas un A
+        self.assertEqual(attributes(None, {"Classe énergétique": "A+++ (de A+++ à D)"})["energy_class"], "A+++")
+
+    def test_description_of_the_product_page(self):
+        self.assertEqual(specs(attributes("Lave-vaisselle encastrable 60 cm 14 couverts 42 dB classe B")),
+                         ["Largeur 60 cm", "14 couverts", "Classe B", "42 dB", "Encastrable"])
+        self.assertEqual(specs(attributes("Matelas mousse 160x200 cm")), ["160 × 200 cm"])                  # pas « Largeur 200 cm »
+        self.assertEqual(specs(attributes("Aspirateur balai sans fil V15 60 min")), ["Autonomie 60 min", "Sans fil", "Balai"])
+        self.assertEqual(specs(attributes("Lave-linge 8,5 kg classe A")), ["8,5 kg", "Classe A"])
+        self.assertEqual(specs(attributes("Commode Ella 6 tiroirs")), [])                                    # rien de deviné
 
 
 class Comparable(unittest.TestCase):
@@ -57,6 +68,9 @@ class Comparable(unittest.TestCase):
         self.assertFalse(comparable(lv, enc) or comparable(enc, lv))      # la forme compte dans les deux sens : posable ≠ encastrable
         ll = item(7, "Lave-linge hublot 9 kg classe A Helio", 479)
         self.assertFalse(comparable(ll, item(8, "Lave-linge hublot 7 kg classe A Brava", 349)))                 # 2 kg de moins
+        four = item(9, "Four encastrable pyrolyse 71 L classe A+++ Brava", 699)
+        self.assertTrue(comparable(four, item(10, "Four encastrable pyrolyse 72 L classe A++ Helio", 499)))
+        self.assertFalse(comparable(four, item(11, "Four encastrable pyrolyse 72 L classe A+ Ostra", 449)))    # deux crans
 
     def test_unknown_size_is_not_a_replacement(self):
         frigo = item(1, "Réfrigérateur combiné 60 cm 360 L classe D Helio", 799)

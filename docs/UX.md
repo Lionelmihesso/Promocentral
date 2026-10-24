@@ -1,9 +1,12 @@
-# L'interface de DEALS — minimaliste, sans friction (v45)
+# L'interface de DEALS — minimaliste, sans friction (v46)
 
 ## Principe
 
-Une liste se lit en un regard : **marque, produit, prix, remise**. Rien d'autre sur l'accueil ni dans les listes.
-La qualité est implicite : l'app ne montre que de vraies remises, elle n'a pas à l'écrire (aucune mention « vérifiée »,
+Une liste se lit en un regard : **quelle marque, quelle catégorie, quelle remise**. Une ligne = le pictogramme de la
+catégorie, la marque, la catégorie en un mot, la remise en grand, le prix. Pas de titre de produit, pas de
+caractéristique (taille, capacité, classe énergie) : elles sont dans la fiche, sous « Description ». Une remise par
+marque × catégorie : « Nordvik · Lit · 2 remises, dès 612 € » ouvre la liste de ces produits, départagés par leurs
+caractéristiques (« 160 × 200 cm », « 180 × 200 cm »). La qualité est implicite : l'app ne montre que de vraies remises, elle n'a pas à l'écrire (aucune mention « vérifiée »,
 aucun compteur de fausses promos). Les durées (depuis quand la remise court, jusqu'à quand l'enseigne la déclare) ne
 sont que dans la fiche, en une ligne, à côté du bouton « Voir l'offre ».
 
@@ -15,7 +18,7 @@ suggestion est une promesse : un appareil d'une autre largeur, une literie d'une
 place d'un sans fil n'y apparaissent jamais (règles : `deals/alternatives.py`). Sans produit comparable, la fiche ne
 propose rien plutôt qu'un produit qui ne convient pas.
 
-Gardé des maquettes v27 à v44 : le produit comme entrée (l'enseigne n'est qu'un attribut), un deal identique pour tous,
+Gardé des maquettes v27 à v45 : le produit comme entrée (l'enseigne n'est qu'un attribut), un deal identique pour tous,
 pas d'image en V1, le signet sur chaque ligne, le suivi des marques, la connexion demandée au moment de l'action,
 l'identité visuelle (noir, blanc, orange, Manrope).
 
@@ -23,10 +26,11 @@ l'identité visuelle (noir, blanc, orange, Manrope).
 
 | Écran | Contenu |
 |---|---|
-| Aujourd'hui | « 13 remises aujourd'hui », recherche, catégories (un geste pour filtrer), le plus intéressant, les autres |
-| Recherche | tout le catalogue suivi, les remises d'abord ; un produit sans remise montre son prix seul |
-| Ligne de liste | marque, produit, prix, remise, signet |
-| Fiche | marque · catégorie, produit, remise, prix et prix barré, « En remise depuis 3 jours, jusqu'au ven. 19 déc. », « Voir l'offre chez … » ; **moins cher, comparable** (« 481 € de moins ») ; autres enseignes ; à défaut d'alternative moins chère, produits similaires (comparables, au prix le plus proche) |
+| Aujourd'hui | « 13 remises aujourd'hui », recherche, catégories (un geste pour filtrer), la meilleure remise en grand, puis une ligne par marque × catégorie |
+| Ligne de liste | pictogramme, marque, catégorie, remise (en grand), prix, signet ; plusieurs produits de la même marque et catégorie : « 2 remises », « jusqu'à −17 % », « dès 618 € », et la ligne ouvre leur liste |
+| Liste d'un groupe | en-tête marque · catégorie ; une ligne par produit, départagée par ses caractéristiques |
+| Recherche | tout le catalogue suivi, les remises d'abord ; un produit sans remise montre son prix seul ; deux produits de même marque et catégorie sont départagés par leurs caractéristiques |
+| Fiche | pictogramme, marque, catégorie, remise, prix et prix barré, « En remise depuis 3 jours, jusqu'au ven. 19 déc. », « Voir l'offre chez … » ; **description** (titre complet, caractéristiques lues : « 160 × 200 cm », « 14 couverts », « Classe B ») ; **moins cher, comparable** (« 481 € de moins ») ; autres enseignes ; à défaut d'alternative moins chère, produits similaires. « Retour » ramène à l'écran d'où l'on vient |
 | Explorer | recherche ; catégories par famille (pictogramme et nom) ; marques |
 | Favoris | produits gardés (« Baisse de 64 € » seulement quand le prix a baissé, pastille sur l'onglet), marques suivies |
 
@@ -84,3 +88,27 @@ vérification sur l'accueil, 4 éléments par ligne ; un produit sans remise tro
 montre « Moins cher, comparable » sur le premier écran, chaque ligne au moins 10 % moins chère et son économie égale à
 la différence de prix ; une alternative s'ouvre, et son clic sortant est compté comme venu de « Moins cher,
 comparable » (`deals.py metrics`, par source). Captures : `docs/ux/` (`5-alternatives.png` : v44 et v45 côte à côte).
+
+## Mesures v45 → v46 : « trop de texte, on ne voit pas ce qui se passe »
+
+Mêmes données (démo du 14 décembre), téléphone 390 × 844.
+
+| | v45 | v46 |
+|---|---|---|
+| Mots sur le premier écran de l'accueil | 78 | **60** |
+| Caractères par ligne de produit (accueil) | 62 | **26** |
+| Lignes avec un pictogramme de catégorie | 0 sur 4 | **5 sur 5** |
+| Caractéristiques (taille, capacité…) sur l'accueil | oui (« 160x200 », « 331 L »…) | **aucune** |
+| Lignes pour 13 remises | 13 (deux « Nordvik, lit » à la suite) | **11**, une par marque × catégorie |
+| Produits ou groupes entièrement visibles sans défiler | 4 | 5 |
+| Recherche « aspirateur » : mots sur le premier écran · caractères par ligne | 78 · 52 | **51 · 25** |
+| Fiche avec alternatives : mots sur le premier écran · caractères par alternative | 70 · 67 | **53 · 26** |
+| Fiche d'un deal : mots sur le premier écran | 49 | 53 (la description y est maintenant) |
+| Textes sous le contraste minimal · zones à toucher sous 44 px (tous les écrans) | 0 · 0 | 0 · 0 |
+| Poids de la page | 267 Ko | 271 Ko |
+
+Sur le catalogue synthétique de 3 000 produits, les 759 remises du jour tiennent en 538 lignes (177 groupes de plusieurs
+produits). Le parcours navigateur v46 (19 étapes, deux passages) vérifie en plus : aucun titre ni caractéristique sur
+l'accueil, un pictogramme par ligne, une ligne par marque × catégorie, un groupe qui s'ouvre sur ses produits
+départagés, la description de la fiche, « Retour » qui ramène au groupe puis à l'accueil ; les mêmes contrôles échouent
+sur la v45. Planche : `docs/ux/6-v46.png`.
