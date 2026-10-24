@@ -4,13 +4,16 @@
 un jour sur deux (un prix qui ne bouge pas n'est pas « au plus bas », il est habituel) ; « parmi les plus bas » si
 moins cher qu'au moins 2 jours sur 3 ; « plus cher que d'habitude » si plus cher qu'au moins 2 jours sur 3 ; rien sans
 au moins 14 jours relevés. La Recherche (Catalog.search) filtre par catégorie, budget et remise, même sans mot, et met
-d'abord les produits dont la requête nomme la catégorie ou la marque.
+d'abord les produits dont la requête nomme la catégorie ou la marque ; sans mot ni filtre, elle montre un feed :
+les produits des recherches récentes en tête, puis tout le catalogue, une catégorie à tour de rôle.
 """
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from deals import catalog
 from deals.catalog import Catalog, haystack, position
 from deals.extract import attributes, categorize
 from deals.store import Store
@@ -86,7 +89,26 @@ class Search(unittest.TestCase):
         self.assertEqual(self.ids(q="lave", category="lave_linge", lo=500), [4])
         facet = {c["key"]: c["count"] for c in self.c.search(q="lave", category="lave_linge")["categories"]}
         self.assertEqual(facet, {"lave_linge": 2, "lave_vaisselle": 1, "robot_aspirateur": 1})   # avant le filtre de catégorie
-        self.assertEqual(self.c.search()["products"], [])                # ni mot ni filtre : rien
+
+    def test_feed_shows_the_breadth_of_the_catalog(self):
+        out = self.c.search()                                             # ni mot ni filtre : le feed, jamais vide
+        self.assertEqual(([p["id"] for p in out["products"]], out["total"], out["recent"]), ([4, 5, 1, 3, 2], 5, []))
+        # une catégorie à tour de rôle : d'abord celle qui offre le plus de choix (lave-linge, sa remise d'abord), puis
+        # les autres selon leur meilleur produit ; le second lave-linge au tour suivant
+        self.assertEqual(self.ids(sort="price"), [1, 3, 5, 2, 4])          # un tri choisi s'applique au feed
+        self.assertEqual(self.ids(hi=600), [5, 1, 4, 3, 2])               # un filtre, même s'il garde tout : la pertinence
+        for kw in ({"category": "lave_linge"}, {"lo": 1}, {"hi": 1000}, {"off": 1}):
+            self.assertEqual(self.c.search(recent=["lave"], **kw)["recent"], [], kw)   # les recherches passées : feed seulement
+
+    def test_feed_follows_recent_searches(self):
+        out = self.c.search(recent=["lave", "ostra"])                     # la plus récente d'abord, à tour de rôle, sans doublon
+        self.assertEqual(([p["id"] for p in out["products"]], out["recent"]), ([4, 3, 5, 2, 1], ["lave", "ostra"]))
+        out = self.c.search(recent=["xyzzy", "de la", "zenit"])            # seules comptent celles qui trouvent quelque chose
+        self.assertEqual(([p["id"] for p in out["products"]], out["recent"]), ([5, 4, 1, 3, 2], ["zenit"]))
+        self.assertEqual(self.c.search(recent=["a1", "a2", "a3", "a4", "zenit"])["recent"], [])     # les 4 dernières seulement
+        self.assertEqual(self.ids(q="lave", recent=["ostra"]), [4, 3, 2, 1])   # une requête : les recherches passées n'y font rien
+        with mock.patch.object(catalog, "RECENT_EACH", 2):                # au plus RECENT_EACH par recherche, puis le catalogue
+            self.assertEqual(self.ids(recent=["lave"]), [4, 3, 5, 1, 2])
 
 
 if __name__ == "__main__":

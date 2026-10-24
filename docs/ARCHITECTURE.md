@@ -6,7 +6,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 ```
                     NUIT (deals.py nightly, une fois par jour)                      JOUR (deals.py serve)
 
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v50)
+ sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v51)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
@@ -51,7 +51,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/judge.py` | **pur** : vraie remise ou fausse remise, à partir des preuves disponibles | — | — |
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même usage, pas moins bien) et coûte au moins 10 % de moins | — | — |
 | `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires) et l'écrit d'un bloc | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
-| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`) ; libellés | store, extract (familles) | — |
+| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, et son feed, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`), l'ordre du feed (`lead`, `breadth`) ; libellés | store, extract (familles) | — |
 | `deals/missions.py` | **pur** : une phrase → une mission (`interpret`), ce qui rend un produit comparable (`like`), un produit remplit-il une mission (`matches`) ; les missions d'une personne (lancer, une par cible, lister avec leur état, arrêter) ; la nuit, un e-mail par personne (`notify`) | store, catalog, extract, alternatives (classes énergie), accounts (envoi) | missions |
 | `deals/accounts.py` | connexion par lien magique, sessions, limites d'envoi, SMTP (liens de connexion, e-mails de missions) | store, config | users, login_links, sessions |
 | `deals/activity.py` | favoris, marques suivies, clics sortants, mesures | store | saves, follows, clicks |
@@ -123,12 +123,12 @@ vérifié au démarrage).
 | Lire un prix sans se tromper (prix membre, financement, produit voisin, page liste…) | `extract/offer.py` |
 | Catalogue : familles suivies, accessoires écartés, seuil de 100 € | `collect/retailers.py`, `extract/categories.py` |
 | Alternative : même catégorie ; même usage (taille de literie, largeur, places, forme : balai, traîneau, encastrable, d'angle, américain) ; au moins les mêmes fonctions (sans fil, laveur, convertible, induction, électrique) ; pas moins bien (énergie, capacité, couverts, foyers, volume, autonomie, bruit) ; moins chère = au moins 10 % de moins et disponible ; la plus forte économie d'abord, une marque par ligne | `alternatives.py` |
-| Recherche : tout le catalogue suivi ; filtres catégorie, budget, remise minimale (même sans mot) ; pertinence = la requête nomme la catégorie ou la marque, puis les remises, puis le prix ; ou prix croissant, ou remise | `catalog.py` (`search`) |
+| Recherche : tout le catalogue suivi ; filtres catégorie, budget, remise minimale (même sans mot) ; pertinence = la requête nomme la catégorie ou la marque, puis les remises, puis le prix ; ou prix croissant, ou remise ; sans mot ni filtre, le feed : les produits des 4 dernières recherches (gardées par le navigateur) d'abord, 6 au plus chacune, puis tout le catalogue, une catégorie à tour de rôle | `catalog.py` (`search`, `lead`, `breadth`) |
 | Marque, catégorie : tous leurs produits, les remises d'abord (depuis une fiche, jamais de cul-de-sac) | `catalog.py` |
 | Mission : ce qui est dit est exigé (catégorie, marque, fonctions ; capacité, couverts, foyers, places, volume, autonomie au moins ; taille de literie exacte ; largeur à 6 % près ; bruit au plus ; classe énergie au moins), ce qui ne l'est pas ne l'est pas ; disponible et au prix voulu ; caractéristique inconnue du produit = pas de promesse ; comparable = même catégorie, mêmes fonctions, même taille ou capacité ; une mission par cible, 20 par personne | `missions.py` |
 | E-mail de mission : un par personne et par nuit, seulement le nouveau (jamais deux fois le même produit au même prix, rien de ce qui était visible au lancement), les cinq moins chers par mission, plafond par nuit (`DEALS_MISSION_MAILS`) | `missions.py` |
 | Une remise est réelle sauf preuve du contraire ; preuve = historique hors promotion (≥ 14 jours) ou mention légale « plus bas 30 jours » ; prix barré permanent (≥ 60 jours) = pas un deal | `judge.py` |
-| Interface : un Accueil éditorial (pièces, marques en promo, sélection) et une Recherche (produit, marque, catégorie) ; flux de cartes (visuel, remise, marque, nom, prix) ; durées et verdict de prix seulement dans la fiche ; la qualité est implicite | `web/src/App.jsx`, illustrations `web/src/art.jsx` |
+| Interface : un Accueil éditorial (pièces, marques en promo, sélection) et une Recherche (un champ, trois filtres, un tri, un feed que la saisie adapte) ; flux de cartes (visuel, remise, marque, nom, prix) ; durées et verdict de prix seulement dans la fiche ; la qualité est implicite | `web/src/App.jsx`, illustrations `web/src/art.jsx` |
 | Prix sur 90 jours : meilleur prix disponible de chaque jour, toutes enseignes, calculé à la publication | `publish.py` (`chart`) |
 | Verdict de prix : au plus bas (aucun jour moins cher, plus cher un jour sur deux au moins), parmi les plus bas (moins cher que 2 jours sur 3), plus cher que d'habitude (plus cher que 2 jours sur 3), habituel sinon ; 14 jours relevés au moins ; le point de la jauge = rang du jour | `catalog.py` (`position`) |
 | Fiche : une seule enseigne, la moins chère disponible ; ni description technique ni autres enseignes | `publish.py` (meilleure offre), `web/src/App.jsx` |
@@ -141,12 +141,12 @@ vérifié au démarrage).
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (59 tests, ~9 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Contrats (61 tests, ~10 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |
 | Missions en une phrase | `python -m bench.missions` | 37/37 phrases comprises (dont 12 tournures du quotidien, voir `docs/UX.md`) |
-| Tenue en charge (3 000 produits) | `python -m bench.scale` | publication ~2,8 s par nuit (courbes de 90 jours comprises) · missions de la nuit : 10 000 en ~5,5 s · lectures de l'app ~2 ms (recherche ~7 ms, missions d'une personne ~10 ms) |
+| Tenue en charge (3 000 produits) | `python -m bench.scale` | publication ~2,5 s par nuit (courbes de 90 jours comprises) · missions de la nuit : 10 000 en ~5,2 s · lectures de l'app ~2 ms (recherche ~9 ms, feed de la Recherche ~10 ms, ~17 ms orienté par quatre recherches récentes ; missions d'une personne ~10 ms) |
 
 ## Ce qui a été retiré, et pourquoi
 

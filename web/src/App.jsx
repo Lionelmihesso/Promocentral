@@ -14,6 +14,10 @@
    un tri visibles d'emblée, des résultats en mosaïque ; avant toute recherche, quelques exemples. L'accueil inspire, la
    recherche répond, les missions guettent.
 
+   v51 : la Recherche n'est jamais vide. Un feed est là avant toute saisie (l'étendue du catalogue, une catégorie à tour
+   de rôle, ou « Pour vous » d'après vos dernières recherches, gardées par ce navigateur) ; chaque lettre, filtre ou tri
+   l'adapte sur place, sans écran blanc, et une recherche sans résultat retombe sur le feed.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -65,6 +69,13 @@ const BUDGETS = [["", "Tous les budgets"], ["200", "Moins de 200 €"], ["500", 
 const OFFS = [["", "Toutes"], ["1", "En remise"], ["10", "−10 % et plus"], ["20", "−20 % et plus"]];
 const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Remise"]];
 const NO_FILTERS = { category: "", budget: "", off: "" };
+/* Vos dernières recherches (4, la plus récente d'abord), gardées par ce navigateur seulement : elles orientent le feed
+   de la Recherche (« Pour vous ») ; le serveur ne les garde pas. */
+const RECENT = "deals.recent", RECENT_MAX = 4;
+const recents = {
+  get() { try { const v = JSON.parse(localStorage.getItem(RECENT) || "[]"); return Array.isArray(v) ? v.filter(x => typeof x === "string").slice(0, RECENT_MAX) : []; } catch { return []; } },
+  set(list) { try { localStorage.setItem(RECENT, JSON.stringify(list)); } catch { /* stockage indisponible */ } },
+};
 // L'inspiration par pièce : des catégories regroupées comme on pense son intérieur.
 const ROOMS = [
   { key: "chambre", label: "Chambre", art: "lit", cats: ["lit", "matelas", "sommier", "armoire", "commode"] },
@@ -150,7 +161,7 @@ const CSS = `
 .d .tk{display:inline-flex;align-items:center;gap:7px;padding:0 16px;border-right:1px solid #2E3034}
 .d .tk .dn{color:#FF6A3D;font-weight:700}.d .tk .pc{color:#FF9A70;font-weight:700}
 @keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){.d .run{animation:none}.d .tape{overflow-x:auto}}
+@media (prefers-reduced-motion:reduce){.d .run{animation:none}.d .tape{overflow-x:auto}.d .flow{transition:none}}
 /* titres */
 .d .intro{padding:18px 16px 0}
 .d h1{font-family:var(--serif);font-weight:400;font-size:42px;line-height:1;letter-spacing:-.015em;margin:0}
@@ -285,7 +296,7 @@ const CSS = `
 .d .state{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:14.5px;font-weight:700;color:var(--mid)}
 .d .state i{width:9px;height:9px;border-radius:50%;background:var(--icon);flex:0 0 auto}
 .d .state.ok{color:var(--good)}.d .state.ok i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
-/* recherche : marques en tuiles, catégories par univers */
+/* recherche : un champ, trois filtres, des exemples ou vos recherches sur une ligne, un feed que la saisie adapte */
 .d .sbar.big{height:58px;border-radius:18px;padding-left:18px;margin-top:14px}
 .d .sbar.big input{font-size:17px;font-weight:600}
 .d .filters{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 2px}
@@ -295,6 +306,14 @@ const CSS = `
 .d .tryit{padding:26px 16px 0}
 .d .tryit h3{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);margin:0 0 10px}
 .d .ctags{display:flex;flex-wrap:wrap;gap:8px}
+.d .ctags.row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
+.d .ctags.row::-webkit-scrollbar{display:none}
+.d .ctags.row .ctag{flex:0 0 auto;white-space:nowrap}
+.d .tryit .th{display:flex;align-items:center;justify-content:space-between;margin:-12px 0 -2px}
+.d .tryit .th h3{margin:0}
+.d .forget{border:0;background:none;min-height:44px;padding:0 0 0 12px;font-size:13.5px;font-weight:800;color:var(--mid);text-decoration:underline;text-underline-offset:3px}
+.d .flow{transition:opacity .18s}
+.d .flow.dim{opacity:.45}
 .d .ctag{display:flex;align-items:center;gap:8px;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14.5px;font-weight:700}
 .d .brow{display:flex;align-items:center;gap:10px;width:calc(100% - 32px);margin:16px 16px 0;min-height:56px;border:0;border-radius:16px;background:var(--tint);padding:0 14px 0 16px;text-align:left}
 .d .brow small{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid)}
@@ -363,6 +382,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
   .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
   .d .brow{margin-left:0;margin-right:0;width:100%;max-width:640px}
+  .d .ctags.row{flex-wrap:wrap;margin:0;padding:0}
   .d .mbox,.d .draft,.d .mline{margin-left:0;margin-right:0}
   .d .mline{width:100%;max-width:640px}
   .d .mbox{padding:26px 28px}.d .mbox .mform{max-width:640px}
@@ -551,7 +571,11 @@ export default function App() {
   const [filters, setFilters] = useState(NO_FILTERS);  // Recherche : catégorie, budget maximum, remise minimale
   const [sortBy, setSortBy] = useState("relevance");
   const [picking, setPicking] = useState(null);    // filtre en cours de choix : category | budget | off | sort
-  const [results, setResults] = useState(null);    // Recherche : produits
+  const [results, setResults] = useState(null);    // Recherche : produits trouvés (une requête ou un filtre)
+  const [searching, setSearching] = useState(false);  // une réponse est attendue : les résultats montrés pâlissent
+  const [feed, setFeed] = useState(null);          // Recherche : le feed d'avant toute saisie
+  const [recent, setRecent] = useState(() => recents.get());
+  const seq = useRef(0);                           // seule la réponse à la dernière saisie compte
   const [order, setOrder] = useState("pct");       // pages marque et catégorie : pct | asc | desc
   const [list, setList] = useState(null);          // pièce
   const [item, setItem] = useState(null);
@@ -640,12 +664,21 @@ export default function App() {
     api("today").then(d => { setAll(d); setError(null); }).catch(() => setError("Impossible de charger les remises."));
   }, [version]);
 
+  useEffect(() => {                                                         // le feed de la Recherche, prêt avant d'y aller
+    api(recent.length ? `search?recent=${encodeURIComponent(recent.join("|"))}` : "search").then(setFeed).catch(() => {});
+  }, [recent, version]);
+
   useEffect(() => {                                                         // Recherche : une requête, des filtres, un tri
     const term = q.trim(), any = term || filters.category || filters.budget || filters.off;
-    if (view || tab !== "search" || !any) { setResults(null); return; }
+    const n = ++seq.current;
+    if (view || tab !== "search") return;                                   // une fiche ouverte : les résultats attendent le retour
+    if (!any) { setResults(null); setSearching(false); return; }            // plus rien de tapé : le feed
     const params = new URLSearchParams({ q: term, category: filters.category, max: filters.budget, off: filters.off, sort: sortBy });
     for (const [k, v] of [...params]) if (!v) params.delete(k);
-    const t = setTimeout(() => api(`search?${params}`).then(setResults).catch(() => {}), term ? 200 : 0);
+    setSearching(true);
+    const t = setTimeout(() => api(`search?${params}`)
+      .then(d => { if (n === seq.current) { setResults(d); setSearching(false); } })
+      .catch(() => { if (n === seq.current) setSearching(false); }), term ? 200 : 0);
     return () => clearTimeout(t);
   }, [tab, q, filters, sortBy, view, version]);
 
@@ -700,10 +733,23 @@ export default function App() {
     } catch { /* partage annulé */ }
   };
 
+  // Ce que la personne cherche : sa requête, ou la catégorie choisie ; retenu quand elle ouvre une fiche trouvée, valide
+  // au clavier ou touche un exemple.
+  const intent = q.trim() || (allCats.find(c => c.key === filters.category)?.label || "").toLowerCase();
+  const remember = text => {
+    const t = (text || "").trim();
+    if (t.length < 2) return;
+    setRecent(list => {
+      if (norm(list[0] || "") === norm(t)) return list;
+      const next = [t, ...list.filter(x => norm(x) !== norm(t))].slice(0, RECENT_MAX);
+      recents.set(next); return next;
+    });
+  };
+  const forget = () => { setRecent([]); recents.set([]); };
   const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ("");
-    setFilters(NO_FILTERS); setSortBy("relevance"); };
+    setFilters(NO_FILTERS); setSortBy("relevance"); if (t === tab && !view) window.scrollTo(0, 0); };   // l'onglet déjà ouvert : en haut
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
-  const open = (id, via) => { setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
+  const open = (id, via) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
   const openBrand = name => { setBrandPage(null); setOrder("pct"); setView(v => ({ kind: "brand", name, from: v })); };
   const openCategory = key => { setCatPage(null); setOrder("pct"); setView(v => ({ kind: "category", key, from: v })); };
   const openRoom = room => { setList(null); setView(v => ({ kind: "room", room, from: v })); };
@@ -758,9 +804,10 @@ export default function App() {
   </article>;
   const grid = (items, via) => <Masonry items={items} cols={cols} render={card(via)} />;
 
-  const searchBar = <label className="sbar big"><Icon d={UI.search} size={20} />
+  const searchBar = <form role="search" onSubmit={e => { e.preventDefault(); remember(q); e.currentTarget.querySelector("input")?.blur(); }}>
+    <label className="sbar big"><Icon d={UI.search} size={20} />
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Une marque, un produit, une envie…" aria-label="Rechercher" enterKeyHint="search" />
-    {q && <button className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label>;
+    {q && <button type="button" className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label></form>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
   const tabsList = [["home", "Accueil", UI.home], ["search", "Recherche", UI.search], ["missions", "Missions", UI.target],
     ["saved", "Favoris", UI.heart], ["me", "Profil", UI.user]];
@@ -769,10 +816,10 @@ export default function App() {
   const reachedSaid = reached > 1 ? `${reached} missions atteintes` : reached === 1 ? "1 mission atteinte" : "";
   const tabSaid = (k, l) => k === "missions" && reached ? `${l}, ${reachedSaid}` : k === "saved" && drops ? `${l}, ${plural(drops, "baisse")} de prix` : undefined;
   // « Pas au bon prix ? » : la mission reprend la requête (ou la catégorie choisie) et le budget.
-  const missionWhat = q.trim() || (allCats.find(c => c.key === filters.category)?.label || "").toLowerCase();
+  const missionWhat = intent;
   const missionText = missionWhat && `${missionWhat}${filters.budget ? ` sous ${filters.budget} €` : ""}`;
-  const missionLine = missionWhat.length >= 3 && <button className="mline" onClick={() => goMission(missionText)}>
-    <Icon d={UI.target} size={20} /><span>Pas au bon prix ? <b>Lancer une mission</b></span><Icon d={UI.next} size={18} sw={2.2} /></button>;
+  const missionLine = (none = false) => missionWhat.length >= 3 && <button className="mline" onClick={() => goMission(missionText)}>
+    <Icon d={UI.target} size={20} /><span>{none ? "Pas encore là ?" : "Pas au bon prix ?"} <b>Lancer une mission</b></span><Icon d={UI.next} size={18} sw={2.2} /></button>;
   const composer = (home) => <form className={`mbox ${home ? "feed" : ""}`} onSubmit={e => { e.preventDefault(); home ? goMission(mtext) : parseMission(mtext); }}>
     <div className="k"><i />{home ? "MISSION" : "NOUVELLE MISSION"}</div>
     {home && <><h2>Une envie précise ?</h2><p>Dites-la avec votre prix : on guette chaque nuit et on vous prévient.</p></>}
@@ -913,9 +960,9 @@ export default function App() {
       {items.length > cols * 2 && <div style={{ height: 18 }} />}
       {grid(items.slice(cols * 2))}
     </>;
-  } else if (tab === "search") {                  // répondre à une intention précise : un champ, trois filtres, un tri
+  } else if (tab === "search") {                  // un champ, trois filtres, un tri, et un feed que chaque saisie adapte
     const term = q.trim(), t = norm(term);
-    const active = filters.category || filters.budget || filters.off;
+    const active = filters.category || filters.budget || filters.off, any = term || active;
     const brandHit = t.length >= 2 ? allBrands.find(b => norm(b.name) === t) || allBrands.find(b => norm(b.name).startsWith(t)) : null;
     const catOptions = (results && term ? results.categories : allCats.map(c => ({ key: c.key, label: c.label, count: c.products })))
       .slice().sort((a, b) => a.label.localeCompare(b.label, "fr"));
@@ -930,6 +977,9 @@ export default function App() {
       off: ["Remise", OFFS, filters.off, v => setFilters(f => ({ ...f, off: v }))],
       sort: ["Trier", SORTS, sortBy, setSortBy],
     };
+    const mine = feed?.recent?.length > 0;                // le feed suit vos dernières recherches
+    const feedHead = <div className="sechead"><h2>{mine ? "Pour vous" : "À découvrir"}</h2>
+      <span className="n">{mine ? "D'après vos recherches" : feed ? plural(feed.total, "produit") : ""}</span></div>;
     body = <>
       <div className="pagehead"><h1>Recherche</h1></div>
       {searchBar}
@@ -938,16 +988,25 @@ export default function App() {
         {chip("off", "Remise", filters.off && label(OFFS, filters.off))}
         {active && <button className="fchip clear" onClick={() => setFilters(NO_FILTERS)}><Icon d={UI.x} size={15} sw={2.4} />Effacer</button>}
       </div>
-      {!term && !active ? <div className="tryit"><h3>Essayez</h3>
-        <div className="ctags">{TRY.map(x => <button key={x} className="ctag" onClick={() => setQ(x)}>{x}</button>)}</div></div> : <>
+      {!any && <div className="tryit">{recent.length > 0
+        ? <><div className="th"><h3>Vos recherches</h3><button className="forget" onClick={forget} aria-label="Effacer vos recherches">Effacer</button></div>
+          <div className="ctags row">{recent.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); remember(x); }}>{x}</button>)}</div></>
+        : <><h3>Essayez</h3>
+          <div className="ctags row">{TRY.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); remember(x); }}>{x}</button>)}</div></>}
+      </div>}
+      {!any || !results ? <>{feedHead}<div className={`flow ${any ? "dim" : ""}`}>{grid(feed?.products || [], "feed")}</div></>
+        : results.total === 0 ? <>{/* rien trouvé : on le dit, on propose de guetter, et le feed reste là */}
+          <div className="sechead"><h2>{term ? `Rien pour « ${term} »` : "Rien avec ces filtres"}</h2></div>
+          {missionLine(true)}
+          {feedHead}{grid(feed?.products || [], "feed")}
+        </> : <>
         {brandHit && <button className="brow" onClick={() => openBrand(brandHit.name)} aria-label={`La marque ${brandHit.name}`}>
           <small>Marque</small><b>{brandHit.name}</b><span>{plural(brandHit.products, "produit")}</span><Icon d={UI.next} size={18} sw={2.2} /></button>}
-        <div className="sechead"><h2>{results ? plural(results.total, "produit") : "…"}</h2>
+        <div className="sechead"><h2>{plural(results.total, "produit")}</h2>
           <button className="fchip sort" onClick={() => setPicking("sort")} aria-haspopup="dialog" aria-label={`Trier : ${label(SORTS, sortBy)}`}>
             {label(SORTS, sortBy)}<Icon d={UI.down} size={15} sw={2.4} /></button></div>
-        {missionLine}
-        {results && results.products.length === 0 && <div className="empty">Aucun produit ne correspond.</div>}
-        {grid(results?.products || [], "search")}
+        {missionLine()}
+        <div className={`flow ${searching ? "dim" : ""}`}>{grid(results.products, "search")}</div>
       </>}
       {picking && <ChoiceSheet title={sheets[picking][0]} options={sheets[picking][1]} value={sheets[picking][2]} onPick={sheets[picking][3]}
         onClose={() => setPicking(null)} />}

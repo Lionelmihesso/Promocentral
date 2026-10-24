@@ -12,6 +12,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from datetime import timedelta
 from pathlib import Path
 
@@ -127,7 +128,16 @@ class Flow(unittest.TestCase):
         found = self.get("search?q=site")[1]["products"]                                # tout le catalogue : remises d'abord
         self.assertEqual([(p["brand"], p["pct"]) for p in found],
                          [("Bultex", 40), ("Bosch", 19), ("Nils", 0), ("Samsung", 0), ("Oslo", 0)])
-        self.assertEqual(self.get("search?q=")[1]["products"], [])
+        feed = self.get("search?q=")[1]                                                # ni mot ni filtre : le feed
+        self.assertEqual(([p["brand"] for p in feed["products"]], feed["recent"]),
+                         (["Bultex", "Bosch", "Nils", "Samsung", "Oslo"], []))              # une catégorie chacun : remises d'abord
+        mine = self.get("search?recent=" + quote("canapé|lave linge"))[1]                     # orienté par les recherches récentes
+        self.assertEqual(([p["brand"] for p in mine["products"]][:2], mine["recent"]), (["Oslo", "Bosch"], ["canapé", "lave linge"]))
+        many = self.get("search?recent=" + quote("xyzzy1|xyzzy2|xyzzy3|xyzzy4|canapé"))[1]  # les 4 dernières seulement
+        self.assertEqual((many["products"][0]["brand"], many["recent"]), ("Bultex", []))
+        self.assertEqual(Api._recent({"recent": " |" + "a" * 120 + "| canapé "}), ["a" * 80, "canapé"])
+        withq = self.get("search?recent=" + quote("canapé") + "&q=lave%20linge")[1]          # une requête : elles n'y font rien
+        self.assertEqual(([p["brand"] for p in withq["products"]], withq["recent"]), (["Bosch"], []))
         cheap = self.get("search?q=site&max=700")[1]["products"]                        # budget
         self.assertTrue(cheap and all(p["price"] <= 700 for p in cheap) and len(cheap) < len(found))
         self.assertEqual([p["brand"] for p in self.get("search?off=1")[1]["products"]], ["Bultex", "Bosch"])   # sans mot : remises

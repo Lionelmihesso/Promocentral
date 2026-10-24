@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises, des missions (v50)
+# L'interface de DEALS — un flux vivant de remises, des missions (v51)
 
 ## Principe
 
@@ -17,12 +17,14 @@ regarde** (la recherche couvre tout le catalogue suivi) ; la fiche répond alors
 bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (le verdict de
 prix, règle : `catalog.position`).
 
-**L'accueil inspire, la recherche répond, les missions guettent (v49, v50).** L'**Accueil** est éditorial : le bandeau,
+**L'accueil inspire, la recherche répond, les missions guettent (v49 à v51).** L'**Accueil** est éditorial : le bandeau,
 un titre, les inspirations par pièce, les marques en promo (au même format que les pièces), notre sélection ; aucune
-phrase de remplissage, aucun outil de recherche. La **Recherche** répond à une intention précise, sobrement : un champ,
-trois filtres visibles d'emblée (catégorie, budget, remise), un tri (pertinence, prix, remise), des résultats en
-mosaïque ; avant toute recherche, l'écran reste nu, avec quelques exemples. Une marque tapée s'ouvre en raccourci au-dessus
-des résultats. Les **Missions** guettent une occasion future ; depuis la Recherche, la mission reprend la requête et le
+phrase de remplissage, aucun outil de recherche. La **Recherche** répond à une intention précise : un champ, trois
+filtres visibles d'emblée (catégorie, budget, remise), un tri (pertinence, prix, remise), des résultats en mosaïque. Elle
+n'est jamais vide (v51) : avant toute saisie, un **feed** montre l'étendue du catalogue, une catégorie à tour de rôle (ce
+n'est pas la sélection de l'accueil), ou, après quelques recherches, « **Pour vous** » : leurs produits d'abord ; chaque
+lettre, filtre ou tri adapte ce feed sur place, sans écran blanc, et une recherche sans résultat retombe dessus. Une
+marque tapée s'ouvre en raccourci au-dessus des résultats. Les **Missions** guettent une occasion future ; depuis la Recherche, la mission reprend la requête et le
 budget. Les pages d'une marque et d'une catégorie se trient (remises d'abord, prix croissant, décroissant). La fiche ne garde que ce qui sert la
 décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
 technique et les autres enseignes restent chez l'enseigne.
@@ -52,7 +54,7 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 | Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
 | Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
 | Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » ; **vos missions** : atteinte (les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
-| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Remise** (en remise, −10 %, −20 % et plus) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute recherche, « Essayez » et cinq exemples ; ensuite, la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, remise), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque |
+| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Remise** (en remise, −10 %, −20 % et plus) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute saisie, « Essayez » et cinq exemples sur une ligne (ou « Vos recherches », les quatre dernières, et « Effacer »), puis le **feed** : « À découvrir · 59 produits » (une catégorie à tour de rôle) ou « Pour vous · D'après vos recherches » ; dès qu'on tape ou filtre, le feed devient les résultats : la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, remise), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque ; sans résultat : « Rien pour « xyzzy » », « Pas encore là ? Lancer une mission », et le feed ; l'onglet touché à nouveau remonte en haut |
 | Favoris | produits gardés en mosaïque ; l'onglet compte les baisses de prix ; la cloche de l'en-tête compte les missions atteintes et y mène |
 | Profil | connexion, marques suivies, déconnexion |
 
@@ -267,3 +269,33 @@ filtres, les cinq exemples, aucun bloc), un exemple qui lance la recherche, la m
 lettres, la pertinence de « lave », catégorie et budget sans rien taper (3 produits, tous sous 500 €, les puces
 montrent le choix), le tri par prix, la mission qui reprend catégorie et budget ; et les étapes des versions
 précédentes. Planche : `docs/ux/10-v50.png`.
+
+## Mesures v50 → v51 : un feed dans la Recherche, qui s'adapte à la recherche
+
+Mêmes produits et mêmes prix (démo du 14 décembre), téléphone 390 × 844, sans compte.
+
+| | v50 | v51 |
+|---|---|---|
+| Avant toute saisie : produits montrés · sur le premier écran | 0 · 0 | **59 · 4** |
+| Part du premier écran occupée par des visuels de produits | 0 % | **34 %** |
+| Frappe de « lave-linge » : images sans aucun produit à l'écran | 80 sur 128 | **0 sur 135** |
+| Champ vidé · requête sans résultat (« xyzzy ») : produits montrés | 0 · 0 | **59 · 59** (le feed) |
+| Feed par défaut : catégories dans les 6 premières cartes · cartes communes avec les 6 premières de l'accueil | — | 6 · 3 |
+| Après une recherche (« lave-linge », une fiche ouverte), le champ vidé : les 4 premières cartes | rien | **4 lave-linge**, « Pour vous » |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (24 écrans) | 0 · 0 (28 écrans) |
+
+Le feed, c'est `Catalog.search` sans mot ni filtre : les produits des quatre dernières recherches d'abord (`lead` : la plus
+récente d'abord, une recherche à tour de rôle, six produits au plus chacune), puis tout le catalogue, une catégorie à tour
+de rôle, en commençant par celles qui offrent le plus de choix, la meilleure remise de chacune d'abord (`breadth`) : ce
+n'est pas « Notre sélection » de l'accueil. Les recherches sont retenues par le navigateur (une fiche ouverte depuis les
+résultats, la touche Entrée, un exemple touché), jamais par le serveur ; « Effacer » les oublie. Le feed est chargé avec
+l'app : il est là dès qu'on touche l'onglet. Pendant la frappe, les résultats montrés restent (pâlis) jusqu'à la réponse
+suivante, et une réponse arrivée en retard est ignorée. Un clic sortant depuis le feed est tracé `feed`, depuis des
+résultats `search` : `python deals.py metrics` dit ainsi si l'on cherche vraiment, la mesure qui déciderait de simplifier
+encore la page. Les règles du feed sont vérifiées par mutation, une à une.
+
+Parcours vérifié dans un vrai navigateur (Chromium), 46 étapes, deux passages : le feed avant toute saisie (six catégories
+dans les six premières cartes), aucune image sans produit pendant la frappe, le feed qui revient quand on vide le champ,
+la requête sans résultat (le message, la mission, le feed), les sources tracées (`feed`, `search`), « Pour vous » après
+une recherche puis son oubli, l'onglet qui remonte en haut ; et les étapes des versions précédentes. Planche :
+`docs/ux/11-v51.png`.

@@ -6,11 +6,16 @@ commencer un mot du produit (titre, marque, enseigne, catégorie) ; quelques syn
 
 Une carte porte la marque et la catégorie au singulier (`kind`). La fiche dit où se situe le prix du jour sur les trois
 derniers mois (`position`, pur) ; les caractéristiques techniques et les autres enseignes restent chez l'enseigne.
+
+La Recherche n'est jamais vide : sans mot ni filtre, elle montre un feed (`lead` puis `breadth`, purs) que chaque mot,
+filtre ou tri resserre ou réordonne.
 """
 import json
 import re
 import unicodedata
 from collections import Counter, defaultdict
+from functools import lru_cache
+from itertools import zip_longest
 
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
@@ -19,6 +24,8 @@ FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
 SORTS = ("relevance", "price", "discount")                 # Recherche : pertinence, prix croissant, remise
+RECENT_SEARCHES = 4                                        # feed : les dernières recherches gardées par le navigateur
+RECENT_EACH = 6                                            # feed : produits au plus par recherche récente, en tête
 FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
 CATEGORY_LABEL = {
     "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchants", "seche_linge": "Sèche-linge",
@@ -90,10 +97,54 @@ def position(history, price):
             "usual": sorted(days)[len(days) // 2], "days": len(p) - first}
 
 
+@lru_cache(maxsize=4096)
 def names(category, brand):
-    """Les mots qui nomment un produit sans le décrire : sa catégorie (au pluriel, au singulier) et sa marque."""
+    """Les mots qui nomment un produit sans le décrire : sa catégorie (au pluriel, au singulier) et sa marque (peu de
+    couples catégorie × marque : gardés en mémoire)."""
     return " " + norm(" ".join([CATEGORY_LABEL.get(category or "", ""), CATEGORY_ONE.get(category or "", ""),
                                 (category or "").replace("_", " "), brand or ""])) + " "
+
+
+def relevance(toks, score):
+    """Clé de pertinence : d'abord les produits dont la requête nomme la catégorie ou la marque, puis les remises (score :
+    la remise, × 1,5 pour une marque suivie), puis le prix croissant."""
+    def named(r):
+        n = names(r["category"], r["brand"])
+        return any((t in n) if " " in t else (f" {t}" in n) for t in toks)
+    if not toks:                                           # le feed : aucun mot ne nomme rien
+        return lambda r: (r["pct"] <= 0, -score(r), r["price"], r["product_id"])
+    return lambda r: (not named(r), r["pct"] <= 0, -score(r), r["price"], r["product_id"])
+
+
+def breadth(rows, key):
+    """Feed sans requête : l'étendue du catalogue, une carte par catégorie à tour de rôle ; d'abord les catégories qui
+    offrent le plus de choix, et dans chacune le meilleur produit selon key (la remise, puis le prix)."""
+    by = defaultdict(list)
+    for r in sorted(rows, key=key):
+        by[r["category"]].append(r)
+    queues, out = sorted(by.values(), key=lambda g: (-len(g), key(g[0]))), []
+    while queues:
+        out += [g.pop(0) for g in queues]
+        queues = [g for g in queues if g]
+    return out
+
+
+def lead(rows, recent, score):
+    """Tête du feed : les produits des recherches récentes (la plus récente d'abord), une recherche à tour de rôle, les
+    plus pertinents de chacune, RECENT_EACH au plus par recherche. → (produits, recherches qui ont trouvé quelque chose)"""
+    lists, used = [], []
+    for text in list(recent)[:RECENT_SEARCHES]:
+        toks = tokens(text)
+        hits = sorted((r for r in rows if toks and matches(r["search"], toks)), key=relevance(toks, score))[:RECENT_EACH]
+        if hits:
+            lists.append(hits)
+            used.append(text)
+    out, seen = [], set()
+    for r in (r for turn in zip_longest(*lists) for r in turn if r):
+        if r["product_id"] not in seen:
+            seen.add(r["product_id"])
+            out.append(r)
+    return out, used
 
 
 def matches(search, toks):
@@ -138,16 +189,17 @@ class Catalog:
         r = self.s.q("SELECT value FROM meta WHERE key='published_at'", one=True)
         return float(r["value"]) if r else None
 
-    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance"):
+    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance", recent=()):
         """La Recherche répond à une intention précise, dans tout le catalogue suivi (pas seulement les remises).
 
         Filtres : catégorie, budget (lo ≤ prix ≤ hi), remise minimale (off, en %) ; sans mot, les filtres suffisent.
-        Tri : pertinence (d'abord les produits dont la requête nomme la catégorie ou la marque, puis les remises, puis
-        le prix croissant), prix croissant, ou remise. categories : combien de produits trouvés par catégorie, avant le
-        filtre de catégorie (le filtre propose ce qui existe)."""
+        Tri : pertinence (`relevance`), prix croissant, ou remise. Sans mot ni filtre, la pertinence donne le feed : les
+        produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis tout
+        le catalogue, une catégorie à tour de rôle (`breadth`) ; recent dans la réponse : les recherches qui ont orienté
+        le feed. categories : combien de produits trouvés par catégorie, avant le filtre de catégorie (le filtre propose
+        ce qui existe)."""
         toks = tokens(q) if q else []
-        if not toks and not (category or lo is not None or hi is not None or off):
-            return {"products": [], "total": 0, "categories": [], "signed_in": uid is not None}
+        feed = not toks and not (category or lo is not None or hi is not None or off)
         followed, saved = self._personal(uid)
         found = [r for r in self.s.q("SELECT product_id, pct, brand, price, category, search FROM catalog")
                  if (not toks or matches(r["search"], toks)) and (lo is None or r["price"] >= lo)
@@ -155,18 +207,21 @@ class Catalog:
         facet = Counter(r["category"] for r in found)
         hits = [r for r in found if not category or r["category"] == category]
         score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
+        used = []
         if sort == "price":
             hits.sort(key=lambda r: (r["price"], r["product_id"]))
         elif sort == "discount":
             hits.sort(key=lambda r: (-r["pct"], r["price"], r["product_id"]))
+        elif feed:
+            head, used = lead(hits, recent, score)
+            seen = {r["product_id"] for r in head}
+            hits = head + breadth([r for r in hits if r["product_id"] not in seen], relevance(toks, score))
         else:
-            def named(r):                                  # la requête nomme sa catégorie ou sa marque
-                n = names(r["category"], r["brand"])
-                return any((t in n) if " " in t else (f" {t}" in n) for t in toks)
-            hits.sort(key=lambda r: (not named(r), r["pct"] <= 0, -score(r), r["price"], r["product_id"]))
+            hits.sort(key=relevance(toks, score))
         out = self._page(hits, score, uid, followed, saved)
         out["categories"] = sorted(({"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in facet.items()),
                                    key=lambda c: (-c["count"], c["label"]))
+        out["recent"] = used
         return out
 
     def _page(self, hits, score, uid, followed, saved):

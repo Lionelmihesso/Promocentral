@@ -141,6 +141,8 @@ def main(argv=None):
     brand, cat, pid = deals[0]["brand"], deals[0]["category"], deals[0]["id"]
     routes = [("today", "/api/r/today", {}, ""), ("today?category", "/api/r/today", {"category": cat}, ""),
               ("today?q", "/api/r/today", {"q": "lave linge 9 kg"}, ""), ("search?q", "/api/r/search", {"q": "lave linge 9 kg"}, ""),
+              ("search (feed)", "/api/r/search", {}, ""),
+              ("search (feed, 4 récentes)", "/api/r/search", {"recent": "lave linge 9 kg|matelas 160x200|canapé|four"}, ""),
               ("categories", "/api/r/categories", {}, ""), ("categories (toutes)", "/api/r/categories", {"all": "1"}, ""),
               ("brands (toutes)", "/api/r/brands", {"all": "1"}, ""),
               ("brands", "/api/r/brands", {}, ""), ("brand/<nom>", f"/api/r/brand/{brand}", {}, ""),
@@ -159,7 +161,7 @@ def main(argv=None):
             assert r.status == 200, (route, r.status)
             json.dumps(r.body, ensure_ascii=False)
         xs = sorted(timed(call, a.n))
-        print(f"  {name:18} médiane {statistics.median(xs) * 1000:6.2f} ms · 95e centile {xs[int(len(xs) * 0.95) - 1] * 1000:6.2f} ms")
+        print(f"  {name:25} médiane {statistics.median(xs) * 1000:6.2f} ms · 95e centile {xs[int(len(xs) * 0.95) - 1] * 1000:6.2f} ms")
     store.close()
     print(f"base : {path.stat().st_size / 1e6:.1f} Mo")
 
