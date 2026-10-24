@@ -11,12 +11,13 @@ from . import affiliate
 from .errors import BadRequest, NotFound
 from .market import utc_day
 
-# d'où vient le clic : la fiche (item), ou une fiche ouverte depuis « Moins cher, comparable » (alternative), les produits
+# d'où vient le clic : la fiche (item), ou une fiche ouverte depuis les top deals de l'accueil (top), les favoris du profil
+# (saved), « Moins cher, comparable » (alternative), les produits
 # similaires (similar), une mission dans l'app (mission) ou son e-mail (mail), la page d'une marque (brand) ou d'une
 # catégorie (category), les résultats d'une recherche (search) ou le feed de la Recherche avant toute recherche (feed) :
 # la part de « search » dit si l'on cherche vraiment ; les autres valeurs viennent des versions précédentes de l'app
-CLICK_SOURCES = {"item", "alternative", "similar", "mission", "mail", "brand", "category", "search", "feed", "hero", "today",
-                 "explore", "saved"}
+CLICK_SOURCES = {"item", "top", "alternative", "similar", "mission", "mail", "brand", "category", "search", "feed", "saved",
+                 "hero", "today", "explore"}
 SEGMENT = ("CASE WHEN user_id IS NULL THEN 'sans compte' WHEN user_id IN (SELECT user_id FROM missions) THEN 'avec mission' "
            "ELSE 'connecté, sans mission' END")
 

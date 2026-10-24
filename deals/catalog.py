@@ -8,7 +8,8 @@ Une carte porte la marque et la catégorie au singulier (`kind`). La fiche dit o
 derniers mois (`position`, pur) ; les caractéristiques techniques et les autres enseignes restent chez l'enseigne.
 
 La Recherche n'est jamais vide : sans mot ni filtre, elle montre un feed (`lead` puis `breadth`, purs) que chaque mot,
-filtre ou tri resserre ou réordonne.
+filtre ou tri resserre ou réordonne. L'accueil commence par les top deals (`top`) : les plus fortes remises et les prix
+parmi les plus bas depuis longtemps (`cheap`, pur), à tour de rôle.
 """
 import json
 import re
@@ -24,6 +25,10 @@ FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
 SORTS = ("relevance", "price", "discount")                 # Recherche : pertinence, prix croissant, remise
+TOP_LIMIT = 10                                             # accueil : top deals
+LOW_DAYS = 60                                              # « depuis longtemps » : au moins 2 mois de prix relevés
+LOW_DROP = 0.10                                            # et au moins 10 % sous le prix habituel
+PROMO_STEPS = (1, 10, 20, 30, 40, 50)                      # filtre Promo : en promo, puis −10 % et plus, −20 %…
 RECENT_SEARCHES = 4                                        # feed : les dernières recherches gardées par le navigateur
 RECENT_EACH = 6                                            # feed : produits au plus par recherche récente, en tête
 FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
@@ -105,6 +110,13 @@ def names(category, brand):
                                 (category or "").replace("_", " "), brand or ""])) + " "
 
 
+def cheap(r):
+    """Un prix parmi les plus bas observés depuis au moins 2 mois (au plus bas, ou moins cher que 2 jours relevés sur 3 :
+    le verdict de la fiche, calculé à la publication) et au moins 10 % sous le prix habituel (la médiane des jours)."""
+    return (r["level"] in ("lowest", "low") and (r["span"] or 0) >= LOW_DAYS and bool(r["usual"])
+            and (r["usual"] - r["price"]) / r["usual"] >= LOW_DROP)
+
+
 def relevance(toks, score):
     """Clé de pertinence : d'abord les produits dont la requête nomme la catégorie ou la marque, puis les remises (score :
     la remise, × 1,5 pour une marque suivie), puis le prix croissant."""
@@ -184,28 +196,52 @@ class Catalog:
         hits.sort(key=lambda r: (-score(r), r["product_id"]))
         return {**self._page(hits, score, uid, followed, saved), "published_at": self.published_at()}
 
+    def top(self, uid=None):
+        """Top deals, en tête de l'accueil : les plus fortes remises réelles (une marque suivie compte 1,5 fois) et les prix
+        parmi les plus bas depuis longtemps (`cheap`, ce qu'ils font économiser sur le prix habituel d'abord), à tour de
+        rôle, sans doublon. why : pourquoi chacun est là (la remise ; le prix bas, son verdict et depuis combien de jours)."""
+        followed, saved = self._personal(uid)
+        rows = self.s.q("SELECT product_id, pct, brand, price, level, span, usual FROM catalog")
+        score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
+        deals = sorted((r for r in rows if r["pct"] > 0), key=lambda r: (-score(r), r["price"], r["product_id"]))
+        low = sorted((r for r in rows if cheap(r)), key=lambda r: ((r["price"] - r["usual"]) / r["usual"], r["product_id"]))
+        picked, seen = [], set()
+        for r in (r for turn in zip_longest(deals, low) for r in turn if r):
+            if r["product_id"] not in seen and len(picked) < TOP_LIMIT:
+                seen.add(r["product_id"])
+                picked.append(r)
+        full = {r["product_id"]: r for r in self.s.q(f"SELECT * FROM catalog WHERE product_id IN ({','.join('?' * len(picked))})",
+                                                     [r["product_id"] for r in picked])} if picked else {}
+        return {"products": [{**self._card(full[r["product_id"]], followed, saved),
+                              "why": {"pct": r["pct"], "low": r["level"] if cheap(r) else None, "days": r["span"] if cheap(r) else None}}
+                             for r in picked]}
+
     def published_at(self):
         """Heure de la dernière publication (horodatage), pour « mis à jour à … »."""
         r = self.s.q("SELECT value FROM meta WHERE key='published_at'", one=True)
         return float(r["value"]) if r else None
 
-    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance", recent=()):
+    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance", recent=(), low=False):
         """La Recherche répond à une intention précise, dans tout le catalogue suivi (pas seulement les remises).
 
-        Filtres : catégorie, budget (lo ≤ prix ≤ hi), remise minimale (off, en %) ; sans mot, les filtres suffisent.
+        Filtres : catégorie, budget (lo ≤ prix ≤ hi), promo : remise minimale (off, en %) ou prix parmi les plus bas
+        depuis longtemps (low, `cheap`) ; sans mot, les filtres suffisent. offs : combien de produits pour chaque palier
+        de promo et pour « prix bas », avant le filtre de promo (le filtre dit ce que chaque choix donnera).
         Tri : pertinence (`relevance`), prix croissant, ou remise. Sans mot ni filtre, la pertinence donne le feed : les
         produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis tout
         le catalogue, une catégorie à tour de rôle (`breadth`) ; recent dans la réponse : les recherches qui ont orienté
         le feed. categories : combien de produits trouvés par catégorie, avant le filtre de catégorie (le filtre propose
         ce qui existe)."""
         toks = tokens(q) if q else []
-        feed = not toks and not (category or lo is not None or hi is not None or off)
+        feed = not toks and not (category or lo is not None or hi is not None or off or low)
         followed, saved = self._personal(uid)
-        found = [r for r in self.s.q("SELECT product_id, pct, brand, price, category, search FROM catalog")
-                 if (not toks or matches(r["search"], toks)) and (lo is None or r["price"] >= lo)
-                 and (hi is None or r["price"] <= hi) and (not off or r["pct"] >= off)]
-        facet = Counter(r["category"] for r in found)
-        hits = [r for r in found if not category or r["category"] == category]
+        base = [r for r in self.s.q("SELECT product_id, pct, brand, price, category, search, level, span, usual FROM catalog")
+                if (not toks or matches(r["search"], toks)) and (lo is None or r["price"] >= lo) and (hi is None or r["price"] <= hi)]
+        promo = lambda r: (not off or r["pct"] >= off) and (not low or cheap(r))
+        here = [r for r in base if not category or r["category"] == category]
+        facet = Counter(r["category"] for r in base if promo(r))
+        offs = {**{str(k): sum(r["pct"] >= k for r in here) for k in PROMO_STEPS}, "low": sum(cheap(r) for r in here)}
+        hits = [r for r in here if promo(r)]
         score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
         used = []
         if sort == "price":
@@ -221,7 +257,7 @@ class Catalog:
         out = self._page(hits, score, uid, followed, saved)
         out["categories"] = sorted(({"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in facet.items()),
                                    key=lambda c: (-c["count"], c["label"]))
-        out["recent"] = used
+        out["recent"], out["offs"] = used, offs
         return out
 
     def _page(self, hits, score, uid, followed, saved):

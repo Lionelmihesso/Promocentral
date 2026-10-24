@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises, des missions (v52)
+# L'interface de DEALS — un flux vivant de remises, des missions (v53)
 
 ## Principe
 
@@ -29,6 +29,13 @@ budget. Les pages d'une marque et d'une catégorie se trient (remises d'abord, p
 décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
 technique et les autres enseignes restent chez l'enseigne.
 
+**Le meilleur d'abord (v53).** L'accueil s'ouvre sur les **top deals** : les plus fortes remises réelles et les produits
+dont le prix est parmi les plus bas depuis au moins deux mois (au moins 10 % sous leur prix habituel, même sans
+promotion déclarée), à tour de rôle ; chaque carte dit pourquoi elle est là (la remise, « Au plus bas », « Parmi les plus
+bas »), et notre sélection ne les répète pas. La Recherche filtre par **promo** : un palier de remise (−10 % à −50 %) ou
+les prix parmi les plus bas, chaque choix avec son nombre de produits, seuls ceux qui donnent quelque chose. Les favoris
+sont une partie du **Profil** : quatre onglets.
+
 **La conversion d'abord (v52).** Le modèle est l'affiliation : seules les offres d'enseignes partenaires sont montrées,
 et le geste qui rapporte est le clic vers l'offre, suivi d'un achat. L'app aide à décider : savoir quels deals existent
 (l'accueil), être compris (le feed « Pour vous », les missions), acheter au bon moment (le verdict de prix). Les
@@ -56,17 +63,16 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 
 | Écran | Contenu |
 |---|---|
-| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) |
-| Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative |
+| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **top deals** (« Remises et prix bas » : jusqu'à dix cartes à faire défiler, la plus forte remise d'abord, puis un prix bas, et ainsi de suite), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque (les autres remises) ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) |
+| Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative ; dans les top deals, « Au plus bas » ou « Parmi les plus bas », et « Prix bas » sur le visuel d'un produit sans remise |
 | Pièce | ses remises en mosaïque |
 | Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère, la seule montrée), et dessous « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
 | Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
 | Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » (sans compte : « Ouvrez le lien reçu : votre mission démarre », sur ce téléphone ou un autre) ; **vos missions** : atteinte (**« Voir l'offre · 175 € chez … »** en un geste, puis les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
-| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Remise** (en remise, −10 %, −20 % et plus) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute saisie, « Essayez » et cinq exemples sur une ligne (ou « Vos recherches », les quatre dernières, et « Effacer »), puis le **feed** : « À découvrir · 59 produits » (une catégorie à tour de rôle) ou « Pour vous · D'après vos recherches » ; dès qu'on tape ou filtre, le feed devient les résultats : la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, remise), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque ; sans résultat : « Rien pour « xyzzy » », « Pas encore là ? Lancer une mission », et le feed ; l'onglet touché à nouveau remonte en haut |
+| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Promo** (en promo, −10 %, −20 %, −30 %, −40 %, −50 % et plus, prix parmi les plus bas ; chaque choix avec son nombre de produits, seuls ceux qui donnent quelque chose) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute saisie, « Essayez » et cinq exemples sur une ligne (ou « Vos recherches », les quatre dernières, et « Effacer »), puis le **feed** : « À découvrir · 59 produits » (une catégorie à tour de rôle) ou « Pour vous · D'après vos recherches » ; dès qu'on tape ou filtre, le feed devient les résultats : la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, plus forte promo), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque ; sans résultat : « Rien pour « xyzzy » », « Pas encore là ? Lancer une mission », et le feed ; l'onglet touché à nouveau remonte en haut |
 | Comment ça marche | quelles offres (enseignes partenaires seulement, prix relus chaque nuit, remises réelles seulement), dans quel ordre (chaque écran), comment Deals est rémunéré (une commission, sans effet sur le prix ni sur le classement), vos données ; joignable depuis le pied de chaque écran et depuis l'offre |
-| Favoris | produits gardés en mosaïque ; l'onglet compte les baisses de prix ; la cloche de l'en-tête compte les missions atteintes et y mène |
-| Profil | connexion, marques suivies, déconnexion |
+| Profil | connexion ; **mes favoris** en mosaïque (« 2 baisses de prix ») ; marques suivies ; déconnexion ; l'onglet compte les baisses de prix des favoris ; la cloche de l'en-tête compte les missions atteintes et y mène |
 
 ## À décider : les photos des produits
 
@@ -339,3 +345,30 @@ Parcours vérifié dans un vrai navigateur (Chromium), 52 étapes, deux passages
 « Voir l'offre » direct sur une mission atteinte (source `mission`, identifiant de mission) ; la fiche ouverte depuis
 l'e-mail (source `mail`) ; le lien partenaire avec l'identifiant du clic ; la mention près de l'offre, « Comment ça
 marche » et son pied de page sur les cinq onglets ; et les étapes des versions précédentes. Planche : `docs/ux/12-v52.png`.
+
+## Mesures v52 → v53 : les top deals en premier, le filtre Promo, les favoris dans le Profil
+
+Mêmes produits, mêmes prix et mêmes remises (démo du 14 décembre), téléphone 390 × 844 ; v52 et v53 côte à côte.
+
+| | v52 | v53 |
+|---|---|---|
+| Onglets | 5 (Favoris à part) | **4** (les favoris dans le Profil) |
+| Accueil : première section · produits sur le premier écran | « Inspirations du moment » · 0 | **« Top deals » · 3** |
+| La plus forte remise (−20 %) sur le premier écran de l'accueil | non | **oui** |
+| Produits au prix parmi les plus bas depuis 2 mois (8) : sur l'accueil · sur son premier écran | 7 · 0 | **8 · 3** |
+| Recherche, filtre de remise : choix · nombre de produits affiché · « prix bas » | 4 · non · non | **jusqu'à 8 · oui · oui** |
+| Favoris : gestes depuis l'accueil · cartes sur le premier écran | 1 · 2 | 1 · 2 |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (33 écrans) | 0 · 0 (36 écrans) |
+
+Le filtre de remise existait (« Remise » : en remise, −10 %, −20 % et plus) ; il devient « Promo », avec le nombre de
+produits de chaque choix (calculé avant ce filtre, comme les catégories), des paliers jusqu'à −50 % proposés quand ils
+donnent quelque chose, et les prix parmi les plus bas. Le produit au prix bas sans promotion déclarée (une table à 16 %
+sous son prix habituel) n'apparaissait nulle part sur l'accueil ; il est dans les top deals, marqué « Prix bas ». La
+règle du prix bas est une fonction pure (`catalog.cheap`) sur le verdict de prix calculé à la publication (`level`,
+`span`, `usual`), vérifiée par mutation comme l'ordre des top deals et le filtre.
+
+Parcours vérifié dans un vrai navigateur (Chromium), 56 étapes, deux passages : quatre onglets ; les top deals en
+premier (la plus forte remise en tête, au moins un prix bas sans remise, chaque carte dit pourquoi, notre sélection sans
+doublon), la fiche ouverte depuis le top (source `top`) ; le filtre Promo (les choix et leurs nombres, prix bas, −20 % et
+plus) ; les favoris dans le Profil (source `saved`) ; et les étapes des versions précédentes. Planche :
+`docs/ux/13-v53.png`.

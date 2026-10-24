@@ -23,6 +23,10 @@
    serveur et démarre sur n'importe quel appareil. Chaque fiche ouverte est comptée, d'où elle vient (taux de clic par
    écran, par mission) ; la mention « enseigne partenaire » est près de l'offre, et « Comment ça marche » sur chaque écran.
 
+   v53 : l'accueil commence par les top deals (les plus fortes remises et les prix parmi les plus bas depuis longtemps, à
+   tour de rôle, chacun dit pourquoi il est là) ; la Recherche filtre par promo (−10 % à −50 %, ou prix bas), avec le
+   nombre de produits de chaque choix ; les favoris passent dans le Profil : quatre onglets.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -71,8 +75,11 @@ const EXAMPLES = ["Aspirateur balai sous 300 €", "Lave-linge 9 kg sous 500 €
 // Recherche : des exemples pour démarrer, les filtres (budget maximum, remise minimale) et les tris.
 const TRY = ["aspirateur balai", "lave-linge 9 kg", "matelas 160x200", "canapé d'angle", "réfrigérateur"];
 const BUDGETS = [["", "Tous les budgets"], ["200", "Moins de 200 €"], ["500", "Moins de 500 €"], ["1000", "Moins de 1 000 €"], ["2000", "Moins de 2 000 €"]];
-const OFFS = [["", "Toutes"], ["1", "En remise"], ["10", "−10 % et plus"], ["20", "−20 % et plus"]];
-const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Remise"]];
+// Promo : un palier de remise, ou un prix parmi les plus bas depuis longtemps (catalog.cheap) ; seuls les choix qui
+// donnent quelque chose sont proposés, avec leur nombre de produits.
+const OFFS = [["", "Toutes"], ["1", "En promo"], ["10", "−10 % et plus"], ["20", "−20 % et plus"], ["30", "−30 % et plus"],
+  ["40", "−40 % et plus"], ["50", "−50 % et plus"], ["low", "Prix parmi les plus bas"]];
+const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Plus forte promo"]];
 const NO_FILTERS = { category: "", budget: "", off: "" };
 /* Vos dernières recherches (4, la plus récente d'abord), gardées par ce navigateur seulement : elles orientent le feed
    de la Recherche (« Pour vous ») ; le serveur ne les garde pas. */
@@ -193,6 +200,9 @@ const CSS = `
 .d .vis{position:relative;border-radius:16px;overflow:hidden;background:var(--tint)}
 .d .badge{position:absolute;left:10px;bottom:10px;background:var(--accent);color:#fff;font-size:13px;font-weight:800;border-radius:8px;padding:4px 8px;letter-spacing:-.01em}
 .d .badge.good{background:var(--good)}
+.d .meta .why{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:12px;font-weight:700;color:var(--good);line-height:1.3}
+.d .meta .why .i{flex:0 0 auto}
+.d .sechead .n.drop{color:var(--good);font-weight:700}
 .d .heart{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;color:var(--ink)}
 .d .heart span{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .d .heart.on{color:var(--accent)}
@@ -578,6 +588,7 @@ export default function App() {
   const [view, setView] = useState(null);          // null | item | brand | category | room — chacune garde `from` (« Retour »)
   const [q, setQ] = useState("");                  // Recherche
   const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
+  const [top, setTop] = useState(null);            // top deals (accueil, en premier)
   const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)
   const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
   const [filters, setFilters] = useState(NO_FILTERS);  // Recherche : catégorie, budget maximum, remise minimale
@@ -643,7 +654,7 @@ export default function App() {
   }, [session.checked, session.email, version]);
 
   useEffect(() => {
-    if (tab !== "saved" || !session.email) return;
+    if (tab !== "me" || !session.email) return;
     api("saves").then(d => setSavedList(d.products)).catch(() => {});
   }, [tab, session.email]);
 
@@ -671,6 +682,7 @@ export default function App() {
     api("categories?all=1").then(setAllCats).catch(() => setError("Impossible de charger les catégories."));
     api("brands?all=1").then(setAllBrands).catch(() => {});
     api("today").then(d => { setAll(d); setError(null); }).catch(() => setError("Impossible de charger les remises."));
+    api("top").then(setTop).catch(() => {});
   }, [version]);
 
   useEffect(() => {                                                         // le feed de la Recherche, prêt avant d'y aller
@@ -682,7 +694,8 @@ export default function App() {
     const n = ++seq.current;
     if (view || tab !== "search") return;                                   // une fiche ouverte : les résultats attendent le retour
     if (!any) { setResults(null); setSearching(false); return; }            // plus rien de tapé : le feed
-    const params = new URLSearchParams({ q: term, category: filters.category, max: filters.budget, off: filters.off, sort: sortBy });
+    const params = new URLSearchParams({ q: term, category: filters.category, max: filters.budget, sort: sortBy,
+      off: filters.off === "low" ? "" : filters.off, low: filters.off === "low" ? "1" : "" });
     for (const [k, v] of [...params]) if (!v) params.delete(k);
     setSearching(true);
     const t = setTimeout(() => api(`search?${params}`)
@@ -800,7 +813,8 @@ export default function App() {
     onClick={() => open(p.id, via, mission)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via, mission); }}>
     <div className="vis" style={{ aspectRatio: `1 / ${ratioOf(p.category)}` }}>
       <Vignette category={p.category} seed={p.id} />
-      {p.saving >= 1 ? <span className="badge good">{eur(p.saving)} de moins</span> : p.pct > 0 && <span className="badge">−{p.pct} %</span>}
+      {p.saving >= 1 ? <span className="badge good">{eur(p.saving)} de moins</span> : p.pct > 0 ? <span className="badge">−{p.pct} %</span>
+        : p.why?.low && <span className="badge good">Prix bas</span>}
       <button className={`heart ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
         aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
         <span><Icon d={UI.heart} size={18} fill={isSaved(p.id)} /></span></button>
@@ -810,6 +824,7 @@ export default function App() {
       <div className="name">{p.name || p.title}</div>
       <div className="price"><b className={p.pct > 0 ? "deal" : ""}>{eur(p.price)}</b>{p.pct > 0 && p.was && <s>{eur(p.was)}</s>}</div>
       {dropOf(p) >= 1 && <div className="drop">Baisse de {eur(dropOf(p))}</div>}
+      {p.why?.low && <div className="why"><Icon d={UI.check} size={13} sw={3} />{p.why.low === "lowest" ? "Au plus bas" : "Parmi les plus bas"}</div>}
     </div>
   </article>;
   const grid = (items, via) => <Masonry items={items} cols={cols} render={card(via)} />;
@@ -820,11 +835,11 @@ export default function App() {
     {q && <button type="button" className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label></form>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
   const tabsList = [["home", "Accueil", UI.home], ["search", "Recherche", UI.search], ["missions", "Missions", UI.target],
-    ["saved", "Favoris", UI.heart], ["me", "Profil", UI.user]];
+    ["me", "Profil", UI.user]];                   // les favoris sont dans le Profil
   const reached = missions?.reached || 0;
-  const badge = { missions: reached, saved: drops };
+  const badge = { missions: reached, me: drops };
   const reachedSaid = reached > 1 ? `${reached} missions atteintes` : reached === 1 ? "1 mission atteinte" : "";
-  const tabSaid = (k, l) => k === "missions" && reached ? `${l}, ${reachedSaid}` : k === "saved" && drops ? `${l}, ${plural(drops, "baisse")} de prix` : undefined;
+  const tabSaid = (k, l) => k === "missions" && reached ? `${l}, ${reachedSaid}` : k === "me" && drops ? `${l}, ${plural(drops, "baisse")} de prix sur vos favoris` : undefined;
   // « Pas au bon prix ? » : la mission reprend la requête (ou la catégorie choisie) et le budget.
   const missionWhat = intent;
   const missionText = missionWhat && `${missionWhat}${filters.budget ? ` sous ${filters.budget} €` : ""}`;
@@ -894,7 +909,9 @@ export default function App() {
         pas affichée.</p>
       <h2>Dans quel ordre ?</h2>
       <ul>
-        <li><b>Accueil, notre sélection</b> : les plus fortes remises réelles du jour ; une marque que vous suivez compte une fois et demie.</li>
+        <li><b>Accueil, top deals</b> : les plus fortes remises réelles et les produits dont le prix est parmi les plus bas depuis
+          au moins deux mois (au moins 10 % sous leur prix habituel), à tour de rôle. <b>Notre sélection</b> : les autres remises,
+          les plus fortes d'abord. Une marque que vous suivez compte une fois et demie.</li>
         <li><b>Recherche</b> : d'abord les produits que votre recherche nomme (catégorie, marque), puis les remises, puis le prix ; ou
           le tri que vous choisissez. Avant toute recherche : vos recherches récentes, puis une catégorie à tour de rôle.</li>
         <li><b>Marque, catégorie</b> : les remises d'abord, ou le tri que vous choisissez.</li>
@@ -982,9 +999,15 @@ export default function App() {
     </>;
   } else if (tab === "home") {                    // éditorial : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
     const items = all?.products || [];
+    const tops = top?.products || [], inTop = new Set(tops.map(p => p.id));
+    const rest = items.filter(p => !inTop.has(p.id));              // notre sélection : sans répéter les top deals
     body = <>
       <Ticker items={items} publishedAt={all?.published_at} />
       <div className="intro"><h1>De bonnes affaires, pour vos envies.</h1></div>
+      {tops.length > 0 && <>
+        <div className="sechead"><h2>Top deals</h2><span className="n">Remises et prix bas</span></div>
+        <div className="scroller tops">{tops.map(card("top"))}</div>
+      </>}
       {rooms.length > 0 && <>
         <div className="sechead"><h2>Inspirations du moment</h2></div>
         <div className="rooms">{rooms.map(r => bigCard(r.key, r.label, r.best, r.sub, r.art, r.key, () => openRoom(r)))}</div>
@@ -996,10 +1019,10 @@ export default function App() {
       </>}
       <div className="sechead"><h2>Notre sélection</h2></div>
       {all && items.length === 0 && <div className="empty">Aucune remise aujourd'hui.</div>}
-      {grid(items.slice(0, cols * 2))}{/* le module mission, après deux rangées de remises */}
+      {grid(rest.slice(0, cols * 2))}{/* le module mission, après deux rangées de remises */}
       {all && composer(true)}
-      {items.length > cols * 2 && <div style={{ height: 18 }} />}
-      {grid(items.slice(cols * 2))}
+      {rest.length > cols * 2 && <div style={{ height: 18 }} />}
+      {grid(rest.slice(cols * 2))}
     </>;
   } else if (tab === "search") {                  // un champ, trois filtres, un tri, et un feed que chaque saisie adapte
     const term = q.trim(), t = norm(term);
@@ -1011,11 +1034,13 @@ export default function App() {
     const catName = allCats.find(c => c.key === filters.category)?.label;
     const chip = (key, name, value) => <button key={key} className={`fchip ${value ? "on" : ""}`} onClick={() => setPicking(key)} aria-haspopup="dialog"
       aria-label={value ? `${name} : ${value}` : name}>{value || name}<Icon d={UI.down} size={15} sw={2.4} /></button>;
+    const offs = (results || feed)?.offs || {};          // produits de chaque palier de promo, avant ce filtre
     const sheets = {
       category: ["Catégorie", [["", "Toutes les catégories"], ...catOptions.map(c => [c.key, c.label, c.count])], filters.category,
         v => setFilters(f => ({ ...f, category: v }))],
       budget: ["Budget", BUDGETS, filters.budget, v => setFilters(f => ({ ...f, budget: v }))],
-      off: ["Remise", OFFS, filters.off, v => setFilters(f => ({ ...f, off: v }))],
+      off: ["Promo", OFFS.filter(([k]) => !k || k === filters.off || offs[k] > 0).map(([k, l]) => k ? [k, l, offs[k] ?? 0] : [k, l]),
+        filters.off, v => setFilters(f => ({ ...f, off: v }))],
       sort: ["Trier", SORTS, sortBy, setSortBy],
     };
     const mine = feed?.recent?.length > 0;                // le feed suit vos dernières recherches
@@ -1026,7 +1051,7 @@ export default function App() {
       {searchBar}
       <div className="filters" role="group" aria-label="Filtres">
         {chip("category", "Catégorie", catName)}{chip("budget", "Budget", filters.budget && label(BUDGETS, filters.budget))}
-        {chip("off", "Remise", filters.off && label(OFFS, filters.off))}
+        {chip("off", "Promo", filters.off && label(OFFS, filters.off))}
         {active && <button className="fchip clear" onClick={() => setFilters(NO_FILTERS)}><Icon d={UI.x} size={15} sw={2.4} />Effacer</button>}
       </div>
       {!any && <div className="tryit">{recent.length > 0
@@ -1095,24 +1120,16 @@ export default function App() {
       {session.email && missions && mine.length === 0 && !draft && <p className="note" style={{ marginTop: 18 }}>Aucune mission en cours. Une phrase suffit : le produit, et votre prix.</p>}
       {session.checked && !session.email && !draft && <p className="note" style={{ marginTop: 18 }}>Essayez sans compte : on vous montre ce qui y répond déjà. Votre e-mail n'est demandé qu'au lancement.</p>}
     </div>;
-  } else if (tab === "saved") {
-    body = <>
-      <div className="pagehead"><h1>Favoris</h1></div>
-      {!session.checked && <div className="empty">Chargement…</div>}
-      {session.checked && !session.email && loginCard("Gardez vos coups de cœur.", "Connectez-vous pour retrouver vos favoris")}
-      {session.email && <>
-        <div style={{ height: 18 }} />
-        {savedList && savedList.length === 0 && <div className="empty" style={{ paddingTop: 0 }}>Touchez le cœur d'un produit pour le garder ici.</div>}
-        {grid(savedList || [])}
-      </>}
-    </>;
-  } else {
+  } else {                                        // Profil : vos favoris d'abord, vos marques, la déconnexion
     body = <>
       <div className="pagehead"><h1>Profil</h1></div>
       {!session.checked && <div className="empty">Chargement…</div>}
-      {session.checked && !session.email && loginCard("Vos favoris et vos marques, partout.", "Connectez-vous à Deals")}
+      {session.checked && !session.email && loginCard("Vos favoris, vos marques et vos missions, partout.", "Connectez-vous à Deals")}
       {session.email && <>
         <div className="me">Connecté avec <b>{session.email}</b></div>
+        <div className="sechead"><h2>Mes favoris</h2>{drops > 0 && <span className="n drop">{plural(drops, "baisse")} de prix</span>}</div>
+        {savedList && savedList.length === 0 && <div className="empty" style={{ paddingTop: 0 }}>Touchez le cœur d'un produit pour le garder ici.</div>}
+        {grid(savedList || [], "saved")}
         <div className="sechead"><h2>Marques suivies</h2></div>
         {followed.size === 0 && <div className="empty" style={{ paddingTop: 0 }}>Suivez une marque depuis sa page : ses remises passent en tête.</div>}
         {followed.size > 0 && <div className="bchips">{[...followed].map(b => <button key={b} onClick={() => openBrand(b)}>{b}</button>)}</div>}

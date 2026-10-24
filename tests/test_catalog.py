@@ -111,5 +111,57 @@ class Search(unittest.TestCase):
             self.assertEqual(self.ids(recent=["lave"]), [4, 3, 5, 1, 2])
 
 
+class Top(unittest.TestCase):
+    """Top deals : les plus fortes remises et les prix parmi les plus bas depuis longtemps, à tour de rôle ; le filtre
+    Promo de la Recherche (paliers de remise, prix bas) et le nombre de produits de chaque choix."""
+    ROWS = [  # id, remise, prix, verdict, jours relevés, prix habituel, marque, catégorie
+        (1, 30, 299, "lowest", 75, 400, "Brava", "aspirateur"),   # remise et prix bas (25 % sous l'habituel)
+        (2, 0, 440, "low", 75, 500, "Kessler", "lave_linge"),     # prix bas sans remise (12 %)
+        (3, 12, 380, "usual", 75, 430, "Helio", "lave_linge"),    # remise seulement
+        (4, 0, 300, "low", 30, 400, "Ostra", "lave_linge"),       # trop peu de jours relevés
+        (5, 0, 380, "lowest", 90, 400, "Zenit", "four"),          # au plus bas, mais 5 % seulement sous l'habituel
+        (6, 15, 600, None, None, None, "Dormea", "matelas"),      # remise, historique trop court pour un verdict
+        (7, 0, 500, "high", 75, 450, "Nordvik", "lit"),
+        (8, 0, 180, "lowest", 60, 200, "Lumen", "hotte")]          # deux mois tout juste, 10 % tout juste
+
+    def setUp(self):
+        self.s = Store(Path(tempfile.mkdtemp(), "t.sqlite"))
+        with self.s.tx() as c:
+            for pid, pct, price, level, span, usual, brand, cat in self.ROWS:
+                c.execute("INSERT INTO catalog(product_id, name, title, brand, category, price, pct, search, published_on, attrs, "
+                          "level, span, usual) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          (pid, f"P{pid}", f"P{pid}", brand, cat, price, pct, f" p{pid} {cat.replace('_', ' ')} ", "2026-10-24", "{}",
+                           level, span, usual))
+        self.c = Catalog(self.s)
+
+    def tearDown(self):
+        self.s.close()
+
+    def test_the_low_price_rule(self):
+        self.assertEqual([r[0] for r in self.ROWS if catalog.cheap(dict(zip(("product_id", "pct", "price", "level", "span", "usual"), r)))],
+                         [1, 2, 8])
+
+    def test_top_deals_alternate_discounts_and_low_prices(self):
+        top = self.c.top()["products"]
+        self.assertEqual([p["id"] for p in top], [1, 6, 2, 3, 8])      # remise, remise, prix bas, remise, prix bas ; sans doublon
+        self.assertEqual([p["why"] for p in top], [{"pct": 30, "low": "lowest", "days": 75}, {"pct": 15, "low": None, "days": None},
+                                                    {"pct": 0, "low": "low", "days": 75}, {"pct": 12, "low": None, "days": None},
+                                                    {"pct": 0, "low": "lowest", "days": 60}])
+        with mock.patch.object(catalog, "TOP_LIMIT", 3):
+            self.assertEqual([p["id"] for p in self.c.top()["products"]], [1, 6, 2])
+        uid = self.s.x("INSERT INTO users(email, created_at) VALUES ('mia@test.local', 0)")
+        self.s.x("INSERT INTO follows(user_id, brand, created_at) VALUES (?, 'Helio', 0)", (uid,))
+        self.assertEqual([p["id"] for p in self.c.top(uid)["products"]][:3], [1, 3, 2])   # une marque suivie : 12 × 1,5 > 15
+
+    def test_promo_filter_says_what_each_choice_gives(self):
+        out = self.c.search()
+        self.assertEqual(out["offs"], {"1": 3, "10": 3, "20": 1, "30": 1, "40": 0, "50": 0, "low": 3})
+        self.assertEqual(sorted(p["id"] for p in self.c.search(low=True)["products"]), [1, 2, 8])
+        self.assertEqual(self.c.search(off=20, low=True)["offs"], out["offs"])           # avant le filtre de promo
+        self.assertEqual(self.c.search(category="lave_linge")["offs"], {"1": 1, "10": 1, "20": 0, "30": 0, "40": 0, "50": 0, "low": 1})
+        self.assertEqual({c["key"] for c in self.c.search(low=True)["categories"]}, {"aspirateur", "lave_linge", "hotte"})
+        self.assertEqual(self.c.search(low=True, recent=["p2"])["recent"], [])           # un filtre : ce n'est plus le feed
+
+
 if __name__ == "__main__":
     unittest.main()

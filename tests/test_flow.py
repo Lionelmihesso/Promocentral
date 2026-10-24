@@ -137,6 +137,11 @@ class Flow(unittest.TestCase):
         many = self.get("search?recent=" + quote("xyzzy1|xyzzy2|xyzzy3|xyzzy4|canapé"))[1]  # les 4 dernières seulement
         self.assertEqual((many["products"][0]["brand"], many["recent"]), ("Bultex", []))
         self.assertEqual(Api._recent({"recent": " |" + "a" * 120 + "| canapé "}), ["a" * 80, "canapé"])
+        self.assertEqual(feed["offs"], {"1": 2, "10": 2, "20": 1, "30": 1, "40": 1, "50": 0, "low": 0})   # filtre Promo : chaque choix
+        self.assertEqual(self.get("search?low=1")[1]["total"], 0)                          # premier jour : aucun historique
+        top = self.get("top")[1]["products"]                                               # top deals : les remises, sans prix bas
+        self.assertEqual([(p["brand"], p["why"]["pct"], p["why"]["low"]) for p in top], [("Bultex", 40, None), ("Bosch", 19, None)])
+        self.assertEqual(self.store.q("SELECT COUNT(*) n FROM catalog WHERE level IS NOT NULL", one=True)["n"], 0)
         withq = self.get("search?recent=" + quote("canapé") + "&q=lave%20linge")[1]          # une requête : elles n'y font rien
         self.assertEqual(([p["brand"] for p in withq["products"]], withq["recent"]), (["Bosch"], []))
         cheap = self.get("search?q=site&max=700")[1]["products"]                        # budget

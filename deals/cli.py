@@ -130,6 +130,7 @@ def main(argv=None):
     if a.cmd == "nightly":
         keys = None if partners is None else [k for k in RETAILERS if k in partners]   # on ne lit que les partenaires
         if keys == []:
+            store.close()
             sys.exit("DEALS_AFFILIATE : aucune des enseignes déclarées n'est suivie (clés de deals/collect/retailers.py).")
         if partners is not None and partners - set(RETAILERS):
             print("Enseignes partenaires inconnues, ignorées :", ", ".join(sorted(partners - set(RETAILERS))))

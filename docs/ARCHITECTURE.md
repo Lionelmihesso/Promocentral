@@ -6,7 +6,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 ```
                     NUIT (deals.py nightly, une fois par jour)                      JOUR (deals.py serve)
 
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v52)
+ sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v53)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
@@ -51,8 +51,8 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/judge.py` | **pur** : vraie remise ou fausse remise, à partir des preuves disponibles | — | — |
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même usage, pas moins bien) et coûte au moins 10 % de moins | — | — |
 | `deals/affiliate.py` | **pur** : enseignes partenaires (fichier `DEALS_AFFILIATE`) et lien affilié d'un clic (gabarit du réseau avec `{url}` et `{subid}`, ou paramètres ajoutés à la fiche) | — | — |
-| `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires) et l'écrit d'un bloc ; seules les offres des enseignes partenaires | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
-| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, et son feed, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`), l'ordre du feed (`lead`, `breadth`) ; libellés | store, extract (familles) | — |
+| `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires, verdict de prix de chaque produit) et l'écrit d'un bloc ; seules les offres des enseignes partenaires | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
+| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, et son feed, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`), l'ordre du feed (`lead`, `breadth`), le prix bas (`cheap`) ; top deals de l'accueil ; libellés | store, extract (familles) | — |
 | `deals/missions.py` | **pur** : une phrase → une mission (`interpret`), ce qui rend un produit comparable (`like`), un produit remplit-il une mission (`matches`) ; les missions d'une personne (lancer, une par cible, lister avec leur état, arrêter ; vérifier celle qui attend une connexion) ; la nuit, un e-mail par personne (`notify`), chaque produit à un clic de l'offre | store, catalog, extract, alternatives (classes énergie), accounts (envoi) | missions |
 | `deals/accounts.py` | connexion par lien magique (la mission lancée avant la connexion attend avec le lien), sessions, limites d'envoi, SMTP (liens de connexion, e-mails de missions) | store, config | users, login_links, sessions |
 | `deals/activity.py` | favoris, marques suivies, fiches vues, clics sortants par le lien affilié, mesures de conversion (taux de clic par écran et par personne, part partenaire, missions) | store, affiliate | saves, follows, views, clicks |
@@ -78,8 +78,9 @@ offers     (id, url unique, host, retailer, merchant, product_id, category_hint,
 prices     (offer_id, first_seen, last_seen, price, was, availability, seller, valid_until, lowest_30d, source,
             was_source)                                    une ligne par CHANGEMENT ; last_seen avance sinon
 catalog    (product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, search, published_on,
-            since, ends, history, attrs) depuis quand la remise court, fin déclarée par l'enseigne, meilleur prix de
-                                         chaque jour sur 90 jours (verdict de prix de la fiche), attributs lus (missions)
+            since, ends, history, attrs,  depuis quand la remise court, fin déclarée par l'enseigne, meilleur prix de
+            level, span, usual)          chaque jour sur 90 jours (verdict de prix de la fiche), attributs lus (missions),
+                                         verdict de prix publié : niveau, jours relevés, prix habituel (top deals, Promo)
 meta       (key, value)                  heure de la dernière publication (« MAJ » du bandeau), écrite avec le catalogue
 catalog_offers (product_id, offer_id, merchant, price, was, pct, availability, rank)
 alternatives (product_id, other_id, rank)       comparables, disponibles, au moins 10 % moins chers (fiche)
@@ -131,6 +132,8 @@ vérifié au démarrage).
 | Alternative : même catégorie ; même usage (taille de literie, largeur, places, forme : balai, traîneau, encastrable, d'angle, américain) ; au moins les mêmes fonctions (sans fil, laveur, convertible, induction, électrique) ; pas moins bien (énergie, capacité, couverts, foyers, volume, autonomie, bruit) ; moins chère = au moins 10 % de moins et disponible ; la plus forte économie d'abord, une marque par ligne | `alternatives.py` |
 | Recherche : tout le catalogue suivi ; filtres catégorie, budget, remise minimale (même sans mot) ; pertinence = la requête nomme la catégorie ou la marque, puis les remises, puis le prix ; ou prix croissant, ou remise ; sans mot ni filtre, le feed : les produits des 4 dernières recherches (gardées par le navigateur) d'abord, 6 au plus chacune, puis tout le catalogue, une catégorie à tour de rôle | `catalog.py` (`search`, `lead`, `breadth`) |
 | Marque, catégorie : tous leurs produits, les remises d'abord (depuis une fiche, jamais de cul-de-sac) | `catalog.py` |
+| Top deals (accueil, en premier) : les plus fortes remises réelles (marque suivie × 1,5) et les prix bas, à tour de rôle, dix au plus ; prix bas = au plus bas, ou moins cher que 2 jours sur 3, depuis au moins 60 jours relevés et au moins 10 % sous le prix habituel (médiane) ; notre sélection ne les répète pas | `catalog.py` (`top`, `cheap`), `web/src/App.jsx` |
+| Filtre Promo : en promo, −10 % à −50 % et plus, ou prix bas ; le nombre de produits de chaque choix, avant ce filtre | `catalog.py` (`search`) |
 | Mission : ce qui est dit est exigé (catégorie, marque, fonctions ; capacité, couverts, foyers, places, volume, autonomie au moins ; taille de literie exacte ; largeur à 6 % près ; bruit au plus ; classe énergie au moins), ce qui ne l'est pas ne l'est pas ; disponible et au prix voulu ; caractéristique inconnue du produit = pas de promesse ; comparable = même catégorie, mêmes fonctions, même taille ou capacité ; une mission par cible, 20 par personne | `missions.py` |
 | E-mail de mission : un par personne et par nuit, seulement le nouveau (jamais deux fois le même produit au même prix, rien de ce qui était visible au lancement), les cinq moins chers par mission, plafond par nuit (`DEALS_MISSION_MAILS`) | `missions.py` |
 | Une remise est réelle sauf preuve du contraire ; preuve = historique hors promotion (≥ 14 jours) ou mention légale « plus bas 30 jours » ; prix barré permanent (≥ 60 jours) = pas un deal | `judge.py` |
@@ -150,7 +153,7 @@ vérifié au démarrage).
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (72 tests, ~11 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Contrats (75 tests, ~11 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |

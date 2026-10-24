@@ -31,7 +31,7 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (72, ~11 s)
+python -m unittest discover -s tests -t .    tests (75, ~11 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
@@ -39,9 +39,10 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 `deploy/deals.env.example`). Les commandes qui lisent les sites exigent `DEALS_USER_AGENT` (nom du robot, contact).
 
 ## API `/api/r/` (contrat de l'app)
-Lecture ouverte : `today?category=&q=` (remises du jour), `search?q=&category=&min=&max=&off=&sort=&recent=` (tout le
-catalogue suivi ; filtres : catégorie, budget, remise minimale en % ; tri : `relevance`, `price`, `discount` ;
-`categories` : les catégories trouvées et leur nombre ; sans mot ni filtre, le feed, orienté par `recent` : les
+Lecture ouverte : `today?category=&q=` (remises du jour), `top` (top deals de l'accueil ; `why` : la remise, le prix
+bas et depuis quand), `search?q=&category=&min=&max=&off=&low=&sort=&recent=` (tout le catalogue suivi ; filtres :
+catégorie, budget, promo : remise minimale en % ou `low=1`, prix parmi les plus bas ; tri : `relevance`, `price`,
+`discount` ; `categories` : les catégories trouvées et leur nombre ; `offs` : les produits de chaque palier de promo ; sans mot ni filtre, le feed, orienté par `recent` : les
 dernières recherches gardées par le navigateur, séparées par `|`),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
 leurs produits, remises d'abord), `item/<id>`,
@@ -129,8 +130,9 @@ avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des
 (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Cinq onglets :
-Accueil (éditorial : pièces, marques en promo, sélection), Recherche (un champ, trois filtres, un tri, un feed qui
-s'adapte), Missions, Favoris, Profil ; « Comment ça marche » au pied de chaque écran. Principe, écrans et mesures v41 à v52 :
+Accueil (les top deals d'abord, puis pièces, marques en promo, sélection), Recherche (un champ, trois filtres dont
+Promo, un tri, un feed qui s'adapte), Missions, Profil (les favoris, les marques suivies) ; « Comment ça marche » au pied
+de chaque écran. Principe, écrans et mesures v41 à v53 :
 [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse

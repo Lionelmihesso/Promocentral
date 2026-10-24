@@ -1,5 +1,6 @@
 """Exploitation : la passe de nuit et le serveur partagent la base sans se gêner ; la sauvegarde à chaud est cohérente ;
 une base ancienne est migrée sur place ; la démo se construit avec la vraie chaîne, alternatives moins chères comprises."""
+import json
 import multiprocessing as mp
 import sqlite3
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 from deals import config, demo, sim, store
 from deals.api import Api, Request
 from deals.backup import backup
+from deals.catalog import position
 from deals.store import Store
 
 
@@ -99,6 +101,11 @@ class Ops(unittest.TestCase):
                             and a["saving"] == round(v15["price"] - a["price"]) for a in alts))
         self.assertEqual(len({a["brand"] for a in alts}), 3)
         self.assertNotIn("Agile", " ".join(a["title"] for a in alts))                               # 30 min : pas un remplaçant
+        for r in s.q("SELECT c.price, c.history, c.level, c.span, c.usual, o.availability FROM catalog c "
+                     "JOIN catalog_offers o ON o.product_id=c.product_id AND o.rank=0"):        # le verdict de prix, publié
+            pos = position(json.loads(r["history"]), r["price"]) if r["availability"] != "out_of_stock" else None
+            self.assertEqual((r["level"], r["span"], r["usual"]), (pos["level"], pos["days"], pos["usual"]) if pos else (None, None, None))
+        self.assertTrue(s.q("SELECT COUNT(*) n FROM catalog WHERE level IS NOT NULL", one=True)["n"])
         s.close()
 
 

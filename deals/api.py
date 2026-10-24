@@ -1,8 +1,9 @@
 """Contrat de l'app : /api/r/ (inchangé pour l'interface v41).
 
-Lecture ouverte (sans compte) : today?category=&q= (remises du jour), search?q=&category=&min=&max=&off=&sort=&recent= (tout le
-catalogue suivi ; filtres : catégorie, budget, remise minimale ; tri : relevance, price, discount ; categories : la
-facette des catégories trouvées ; sans mot ni filtre, le feed, orienté par recent : les dernières recherches gardées
+Lecture ouverte (sans compte) : today?category=&q= (remises du jour), top (top deals de l'accueil : remises et prix bas,
+why dit pourquoi), search?q=&category=&min=&max=&off=&low=&sort=&recent= (tout le catalogue suivi ; filtres : catégorie,
+budget, promo : remise minimale ou low=1, prix parmi les plus bas depuis longtemps ; tri : relevance, price, discount ;
+categories : la facette des catégories trouvées ; offs : les produits de chaque palier de promo ; sans mot ni filtre, le feed, orienté par recent : les dernières recherches gardées
 par le navigateur, séparées par « | »), categories et brands (celles qui ont des remises ; ?all=1 : toutes), brand/<nom> et category/<clé> (tous les
 produits, remises d'abord), item/<id>, view {product_id, from, m} (fiche vue : le taux de clic),
 out/<offer_id>?from=&m= (clic tracé → lien affilié de l'enseigne partenaire, avec l'identifiant du clic ; m : la mission
@@ -64,7 +65,9 @@ class Api:
         self.routes = [(m, re.compile(p), f) for m, p, f in [
             ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None)),
             ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None, r.query.get("category") or None,
-                                                         *self._filters(r.query), recent=self._recent(r.query))),
+                                                         *self._filters(r.query), recent=self._recent(r.query),
+                                                         low=r.query.get("low") == "1")),
+            ("GET", r"/api/r/top", lambda r: C.top(uid(r))),
             ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
