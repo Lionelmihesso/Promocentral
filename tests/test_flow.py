@@ -100,10 +100,18 @@ class Flow(unittest.TestCase):
         self.assertEqual(sum(c["count"] for c in self.get("categories")[1]), today["total"])
         self.assertEqual([p["kind"] for p in today["products"]], ["Matelas", "Lave-linge"])     # la liste : marque et catégorie
         item = self.get(f"item/{today['products'][1]['id']}")[1]
-        self.assertEqual((item["name"], item["specs"]), ("Lave-linge hublot Série 6 9 kg", ["9 kg"]))  # la fiche : la description
+        self.assertEqual(item["name"], "Lave-linge hublot Série 6 9 kg")
+        self.assertNotIn("specs", item)                                                     # la description reste chez l'enseigne
         self.assertEqual((len(item["history"]["p"]), item["history"]["p"][-1]), (90, 649))     # courbe 90 jours, aujourd'hui compris
         self.assertIsInstance(today["published_at"], float)                                     # « mis à jour à … »
         self.assertEqual({c["key"]: c["best"] for c in self.get("categories")[1]}, {"matelas": 40, "lave_linge": 19})
+        self.assertEqual(sorted((c["key"], c["count"]) for c in self.get("categories?all=1")[1])[:3],      # aussi sans remise
+                         [("canape", 0), ("lave_linge", 1), ("lit", 0)])
+        self.assertEqual([(b["name"], b["best"], b["top"]["category"], b["categories"]) for b in self.get("brands")[1]],
+                         [("Bosch", 19, "lave_linge", ["Lave-linge"]), ("Bultex", 40, "matelas", ["Matelas"])])
+        self.assertEqual([(b["name"], b["count"], b["products"]) for b in self.get("brands?all=1")[1]],     # on entre par la marque
+                         [("Bosch", 1, 1), ("Bultex", 1, 1), ("Nils", 0, 1), ("Oslo", 0, 1), ("Samsung", 0, 1)])
+        self.assertIsNone(item["position"])                                                 # premier jour : rien à comparer
         self.assertEqual(self.get("today?category=matelas,lave_linge")[1]["total"], 2)           # un univers = plusieurs catégories
         self.assertEqual([(o["merchant"], o["price"], o["best"]) for o in item["offers"]], [("Site A", 649.0, True), ("Site B", 679.0, False)])
         self.assertNotIn("url", item["offers"][0])                          # l'app passe par le clic tracé

@@ -68,7 +68,7 @@ class Ops(unittest.TestCase):
         row = s.q("SELECT * FROM catalog", one=True)
         self.assertEqual((row["name"], row["since"], row["ends"]), ("x", None, None))
         self.assertEqual(s.q("SELECT COUNT(*) n FROM alternatives", one=True)["n"], 0)          # version 3
-        self.assertIsNone(row["specs"])                                                          # version 4
+        self.assertNotIn("specs", row)                                                           # versions 4 puis 7
         self.assertEqual((row["history"], s.q("SELECT COUNT(*) n FROM meta", one=True)["n"]), (None, 0))   # version 5
         self.assertEqual((row["attrs"], s.q("SELECT COUNT(*) n FROM missions", one=True)["n"]), (None, 0))  # version 6
         s.close()

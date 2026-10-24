@@ -73,6 +73,9 @@ class Matches(unittest.TestCase):
         self.assertTrue(matches(m, product("Lave-vaisselle 60 cm 13 couverts classe B", 449)))         # mieux que C
         self.assertFalse(matches(m, product("Lave-vaisselle 60 cm 13 couverts classe D", 349)))
         self.assertFalse(matches(m, product("Lave-vaisselle 45 cm 10 couverts classe C", 349)))
+        m = interpret("Zephyr sous 400 €", BRANDS)
+        self.assertTrue(matches(m, product("Aspirateur balai sans fil V8 40 min", 399, brand="Zephyr")))
+        self.assertFalse(matches(m, product("Aspirateur balai sans fil V8 40 min", 399, brand="Kessler")))   # une autre marque
         self.assertTrue(matches({"product_id": 7, "max_price": 600}, product("Lave-linge 8 kg", 599, pid=7)))
         self.assertFalse(matches({"product_id": 7, "max_price": 600}, product("Lave-linge 8 kg", 599, pid=8)))
 

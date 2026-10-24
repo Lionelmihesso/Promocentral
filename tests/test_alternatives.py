@@ -7,7 +7,6 @@ aspirateur à fil à la place d'un sans fil.
 import unittest
 
 from deals.alternatives import comparable, pick
-from deals.catalog import specs
 from deals.extract import attributes, categorize
 from deals.extract.categories import FAMILY_OF
 
@@ -35,14 +34,6 @@ class Categories(unittest.TestCase):
                          (45, 10, 44, "D", ["encastrable"]))
         self.assertEqual(attributes("Four encastrable pyrolyse 71 L classe A+")["energy_class"], "A+")      # un A+ n'est pas un A
         self.assertEqual(attributes(None, {"Classe énergétique": "A+++ (de A+++ à D)"})["energy_class"], "A+++")
-
-    def test_description_of_the_product_page(self):
-        self.assertEqual(specs(attributes("Lave-vaisselle encastrable 60 cm 14 couverts 42 dB classe B")),
-                         ["Largeur 60 cm", "14 couverts", "Classe B", "42 dB", "Encastrable"])
-        self.assertEqual(specs(attributes("Matelas mousse 160x200 cm")), ["160 × 200 cm"])                  # pas « Largeur 200 cm »
-        self.assertEqual(specs(attributes("Aspirateur balai sans fil V15 60 min")), ["Autonomie 60 min", "Sans fil", "Balai"])
-        self.assertEqual(specs(attributes("Lave-linge 8,5 kg classe A")), ["8,5 kg", "Classe A"])
-        self.assertEqual(specs(attributes("Commode Ella 6 tiroirs")), [])                                    # rien de deviné
 
 
 class Comparable(unittest.TestCase):

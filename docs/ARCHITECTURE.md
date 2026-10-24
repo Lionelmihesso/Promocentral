@@ -6,7 +6,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 ```
                     NUIT (deals.py nightly, une fois par jour)                      JOUR (deals.py serve)
 
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v48)
+ sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v49)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
@@ -51,7 +51,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/judge.py` | **pur** : vraie remise ou fausse remise, à partir des preuves disponibles | — | — |
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même usage, pas moins bien) et coûte au moins 10 % de moins | — | — |
 | `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires) et l'écrit d'un bloc | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
-| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue, catégories, marques, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; libellés et caractéristiques lisibles | store, extract (familles) | — |
+| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`) ; libellés | store, extract (familles) | — |
 | `deals/missions.py` | **pur** : une phrase → une mission (`interpret`), ce qui rend un produit comparable (`like`), un produit remplit-il une mission (`matches`) ; les missions d'une personne (lancer, une par cible, lister avec leur état, arrêter) ; la nuit, un e-mail par personne (`notify`) | store, catalog, extract, alternatives (classes énergie), accounts (envoi) | missions |
 | `deals/accounts.py` | connexion par lien magique, sessions, limites d'envoi, SMTP (liens de connexion, e-mails de missions) | store, config | users, login_links, sessions |
 | `deals/activity.py` | favoris, marques suivies, clics sortants, mesures | store | saves, follows, clicks |
@@ -77,8 +77,8 @@ offers     (id, url unique, host, retailer, merchant, product_id, category_hint,
 prices     (offer_id, first_seen, last_seen, price, was, availability, seller, valid_until, lowest_30d, source,
             was_source)                                    une ligne par CHANGEMENT ; last_seen avance sinon
 catalog    (product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, search, published_on,
-            since, ends, specs, history, attrs) depuis quand la remise court, fin déclarée par l'enseigne, caractéristiques
-                                         lisibles, meilleur prix de chaque jour sur 90 jours (fiche), attributs lus (missions)
+            since, ends, history, attrs) depuis quand la remise court, fin déclarée par l'enseigne, meilleur prix de
+                                         chaque jour sur 90 jours (verdict de prix de la fiche), attributs lus (missions)
 meta       (key, value)                  heure de la dernière publication (« MAJ » du bandeau), écrite avec le catalogue
 catalog_offers (product_id, offer_id, merchant, price, was, pct, availability, rank)
 alternatives (product_id, other_id, rank)       comparables, disponibles, au moins 10 % moins chers (fiche)
@@ -95,7 +95,8 @@ transaction. Une base neuve suit exactement le même chemin qu'une base existant
 chaque test. `PRAGMA user_version` date la base ; un code plus ancien que la base refuse de démarrer. Une évolution du
 schéma = `SCHEMA_VERSION + 1` et une entrée dans `MIGRATIONS` (version 2 : durées de la fiche, prix des favoris ;
 version 3 : alternatives ; version 4 : description de la fiche ; version 5 : courbe de prix, heure de publication ;
-version 6 : missions).
+version 6 : missions ; version 7 : la description retirée, `ALTER TABLE … DROP COLUMN`, d'où SQLite 3.35 au moins,
+vérifié au démarrage).
 
 ## La nuit (`python deals.py nightly`)
 
@@ -127,8 +128,10 @@ version 6 : missions).
 | Mission : ce qui est dit est exigé (catégorie, marque, fonctions ; capacité, couverts, foyers, places, volume, autonomie au moins ; taille de literie exacte ; largeur à 6 % près ; bruit au plus ; classe énergie au moins), ce qui ne l'est pas ne l'est pas ; disponible et au prix voulu ; caractéristique inconnue du produit = pas de promesse ; comparable = même catégorie, mêmes fonctions, même taille ou capacité ; une mission par cible, 20 par personne | `missions.py` |
 | E-mail de mission : un par personne et par nuit, seulement le nouveau (jamais deux fois le même produit au même prix, rien de ce qui était visible au lancement), les cinq moins chers par mission, plafond par nuit (`DEALS_MISSION_MAILS`) | `missions.py` |
 | Une remise est réelle sauf preuve du contraire ; preuve = historique hors promotion (≥ 14 jours) ou mention légale « plus bas 30 jours » ; prix barré permanent (≥ 60 jours) = pas un deal | `judge.py` |
-| Interface : flux de cartes (visuel, remise, marque, nom, prix) ; caractéristiques, durées et courbe seulement dans la fiche ; la qualité est implicite | `web/src/App.jsx`, illustrations `web/src/art.jsx` (caractéristiques lisibles : `catalog.specs`) |
-| Prix sur 90 jours : meilleur prix disponible de chaque jour, toutes enseignes, calculé à la publication ; plus bas, habituel = médiane | `publish.py` (`chart`), `web/src/App.jsx` |
+| Interface : un Accueil éditorial (pièces, marques en promo, sélection) et une Recherche (produit, marque, catégorie) ; flux de cartes (visuel, remise, marque, nom, prix) ; durées et verdict de prix seulement dans la fiche ; la qualité est implicite | `web/src/App.jsx`, illustrations `web/src/art.jsx` |
+| Prix sur 90 jours : meilleur prix disponible de chaque jour, toutes enseignes, calculé à la publication | `publish.py` (`chart`) |
+| Verdict de prix : au plus bas (aucun jour moins cher, plus cher un jour sur deux au moins), parmi les plus bas (moins cher que 2 jours sur 3), plus cher que d'habitude (plus cher que 2 jours sur 3), habituel sinon ; 14 jours relevés au moins ; le point de la jauge = rang du jour | `catalog.py` (`position`) |
+| Fiche : une seule enseigne, la moins chère disponible ; ni description technique ni autres enseignes | `publish.py` (meilleure offre), `web/src/App.jsx` |
 | Classement : remise, × 1,5 pour une marque suivie | `catalog.py` |
 | Clic sortant : seulement vers l'adresse d'une offre connue, tracé | `activity.py` |
 | Connexion : lien à usage unique 15 min ; 5 liens par adresse et par heure, 20 par adresse IP, plafond quotidien global | `accounts.py` |
@@ -138,7 +141,7 @@ version 6 : missions).
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (54 tests, ~9 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Contrats (57 tests, ~9 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |

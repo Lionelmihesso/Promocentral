@@ -14,7 +14,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from .alternatives import pick
-from .catalog import haystack, specs
+from .catalog import haystack
 from .extract import attributes
 from .extract.categories import FAMILY_OF
 from .judge import LOOKBACK, judge
@@ -102,7 +102,7 @@ def publish(store, today, now):
         catalog.append((pid, display_name(p["title"], p["brand"]), p["title"], p["brand"], p["category"], best["price"],
                         verdict.was if deal else None, verdict.pct if deal else 0, best_o["merchant"], best_o["id"],
                         int(bool(deal and verdict.verified)), haystack(p["title"], p["brand"], best_o["merchant"], p["category"]),
-                        day, deal_since, ends, json.dumps(specs(attrs), ensure_ascii=False), chart(series, today),
+                        day, deal_since, ends, chart(series, today),
                         json.dumps(attrs, ensure_ascii=False)))
         published.append({"id": pid, "category": p["category"], "family": FAMILY_OF.get(p["category"]), "brand": p["brand"],
                           "price": best["price"], "in_stock": best["availability"] != "out_of_stock", "attrs": attrs})
@@ -123,7 +123,7 @@ def publish(store, today, now):
         c.execute("DELETE FROM similar")
         c.execute("DELETE FROM alternatives")
         c.executemany("INSERT INTO catalog(product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, "
-                      "search, published_on, since, ends, specs, history, attrs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
+                      "search, published_on, since, ends, history, attrs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
         c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank) "
                       "VALUES (?,?,?,?,?,?,?,?)", catalog_offers)
         c.executemany("INSERT INTO similar(product_id, other_id, rank) VALUES (?,?,?)", similar)

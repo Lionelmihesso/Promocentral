@@ -9,9 +9,9 @@ from .errors import BadRequest, NotFound
 from .market import utc_day
 
 # d'où vient le clic : la fiche (item), ou une fiche ouverte depuis « Moins cher, comparable » (alternative), les produits
-# similaires (similar), une mission (mission), la page d'une marque (brand) ou d'une catégorie (category) ; les autres
-# valeurs viennent des versions précédentes de l'app
-CLICK_SOURCES = {"item", "alternative", "similar", "mission", "brand", "category", "hero", "today", "explore", "saved"}
+# similaires (similar), une mission (mission), la page d'une marque (brand) ou d'une catégorie (category), la Recherche
+# (search) ; les autres valeurs viennent des versions précédentes de l'app
+CLICK_SOURCES = {"item", "alternative", "similar", "mission", "brand", "category", "search", "hero", "today", "explore", "saved"}
 
 
 class Activity:

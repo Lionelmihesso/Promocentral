@@ -4,19 +4,20 @@ Chaque lecture = une ou deux requêtes indexées ; seuls l'ordre (marque suivie 
 personne connectée. La recherche est insensible aux accents, à la casse et aux tirets ; chaque mot cherché doit
 commencer un mot du produit (titre, marque, enseigne, catégorie) ; quelques synonymes du langage courant.
 
-Une carte porte la marque, la catégorie au singulier (`kind`) et les caractéristiques lues (`specs`) : l'app montre
-la marque et la catégorie dans les listes, les caractéristiques seulement pour départager deux produits de même marque
-et catégorie, le titre et les caractéristiques complètes dans la fiche.
+Une carte porte la marque et la catégorie au singulier (`kind`). La fiche dit où se situe le prix du jour sur les trois
+derniers mois (`position`, pur) ; les caractéristiques techniques et les autres enseignes restent chez l'enseigne.
 """
 import json
 import re
 import unicodedata
+from collections import defaultdict
 
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
 
 FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
+POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
 FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
 CATEGORY_LABEL = {
     "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchants", "seche_linge": "Sèche-linge",
@@ -66,23 +67,26 @@ def haystack(title, brand, merchant, category):
                                 (category or "").replace("_", " ")])) + " "
 
 
-def _num(v):
-    return (f"{v:g}" if isinstance(v, float) else str(v)).replace(".", ",")
+def position(history, price):
+    """Le prix du jour face aux relevés de la courbe (meilleur prix de chaque jour, 90 jours, aujourd'hui exclu).
 
-
-def specs(attrs):
-    """Caractéristiques de la description de la fiche, chacune lisible seule : « 160 × 200 cm », « 14 couverts »,
-    « Classe B », « Sans fil ». Seulement ce qui a été lu (titre, caractéristiques déclarées), rien de deviné."""
-    a, out = attrs or {}, []
-    if a.get("bed_size"):
-        out.append(a["bed_size"].replace("x", " × ") + " cm")
-    elif a.get("width_cm"):                                   # « 160x200 cm » : la largeur lue serait 200, fausse
-        out.append(f"Largeur {_num(a['width_cm'])} cm")
-    for key, fmt in (("seats", "{} places"), ("capacity_kg", "{} kg"), ("place_settings", "{} couverts"), ("volume_l", "{} L"),
-                     ("zones", "{} foyers"), ("energy_class", "Classe {}"), ("noise_db", "{} dB"), ("autonomy_min", "Autonomie {} min")):
-        if a.get(key):
-            out.append(fmt.format(a[key] if key == "energy_class" else _num(a[key])))
-    return out + [label for f, label in FEATURE_LABEL.items() if f in a.get("features", ())]
+    level : « lowest » au plus bas (aucun jour moins cher, et plus cher au moins un jour sur deux), « low » parmi les plus
+    bas (moins cher qu'au moins 2 jours sur 3), « high » plus cher que d'habitude (plus cher qu'au moins 2 jours sur 3),
+    « usual » sinon (un prix qui ne bouge pas compris). low et high bornent la jauge (aujourd'hui compris), usual est la
+    médiane, days le nombre de jours depuis le premier relevé ; rank place le prix du jour parmi les jours relevés (0 :
+    le moins cher, 1 : le plus cher ; les jours au même prix comptent pour moitié) : le point de la jauge suit ainsi le
+    verdict. None s'il y a moins de 14 jours relevés."""
+    p = (history or {}).get("p") or []
+    days = [v for v in p[:-1] if v is not None]
+    if len(days) < POSITION_DAYS:
+        return None
+    higher = sum(v > price + 0.5 for v in days) / len(days)     # prix arrondis à l'euro dans la courbe
+    lower = sum(v < price - 0.5 for v in days) / len(days)
+    level = "lowest" if lower == 0 and higher >= 0.5 else "low" if higher >= 2 / 3 else "high" if lower >= 2 / 3 else "usual"
+    first = next(i for i, v in enumerate(p) if v is not None)
+    rank = 0.0 if level == "lowest" else round(lower + (1 - lower - higher) / 2, 2)   # place parmi les jours : 0 le moins cher
+    return {"level": level, "rank": rank, "low": min(min(days), round(price)), "high": max(max(days), round(price)),
+            "usual": sorted(days)[len(days) // 2], "days": len(p) - first}
 
 
 def matches(search, toks):
@@ -105,7 +109,7 @@ class Catalog:
         return {"id": r["product_id"], "title": r["title"], "name": r["name"], "brand": r["brand"], "category": r["category"],
                 "category_label": CATEGORY_LABEL.get(r["category"], r["category"]),
                 "kind": CATEGORY_ONE.get(r["category"], CATEGORY_LABEL.get(r["category"], r["category"])),
-                "specs": json.loads(r["specs"] or "[]"), "price": r["price"], "was": r["was"],
+                "price": r["price"], "was": r["was"],
                 "pct": r["pct"], "merchant": r["merchant"], "since": r["since"], "ends": r["ends"], "published_on": r["published_on"],
                 "followed": r["brand"] in followed, "saved": r["product_id"] in saved}
 
@@ -147,16 +151,29 @@ class Catalog:
         cards = [{**self._card(full[r["product_id"]], followed, saved), "score": score(r)} for r in top]
         return {"products": cards, "total": len(hits), "signed_in": uid is not None}
 
-    def categories(self):
-        rows = self.s.q("SELECT category, COUNT(*) n, MAX(pct) best FROM catalog WHERE pct > 0 GROUP BY category")
+    def categories(self, every=False):
+        """Catégories avec des remises aujourd'hui (count, best) ; every : aussi celles sans remise (onglet Recherche).
+        products : nombre de produits suivis."""
+        rows = self.s.q("SELECT category, COUNT(*) products, SUM(pct > 0) n, MAX(pct) best FROM catalog GROUP BY category")
         out = [{"key": r["category"], "label": CATEGORY_LABEL.get(r["category"], r["category"]), "count": r["n"], "best": r["best"],
-                "family": FAMILY_OF.get(r["category"]), "family_label": FAMILY_LABEL.get(FAMILY_OF.get(r["category"]))} for r in rows]
+                "products": r["products"], "family": FAMILY_OF.get(r["category"]),
+                "family_label": FAMILY_LABEL.get(FAMILY_OF.get(r["category"]))} for r in rows if every or r["n"]]
         return sorted(out, key=lambda e: (-e["count"], e["label"] or ""))
 
-    def brands(self, uid=None):
+    def brands(self, uid=None, every=False):
+        """Marques avec des remises aujourd'hui : combien (count), la meilleure (best), dans quelles catégories, et le
+        produit de la meilleure remise (top : le visuel de la carte) ; every : aussi celles sans remise (on entre par
+        la marque depuis l'onglet Recherche). products : nombre de produits suivis."""
         followed, _ = self._personal(uid)
-        rows = self.s.q("SELECT brand, COUNT(*) n FROM catalog WHERE pct > 0 AND brand IS NOT NULL GROUP BY brand")
-        out = [{"name": r["brand"], "count": r["n"], "followed": r["brand"] in followed} for r in rows]
+        rows = self.s.q("SELECT brand, COUNT(*) products, SUM(pct > 0) n, MAX(pct) best FROM catalog WHERE brand IS NOT NULL GROUP BY brand")
+        top, cats = {}, defaultdict(list)
+        for r in self.s.q("SELECT brand, product_id, category FROM catalog WHERE pct > 0 AND brand IS NOT NULL ORDER BY pct DESC, product_id"):
+            top.setdefault(r["brand"], {"id": r["product_id"], "category": r["category"]})
+            label = CATEGORY_LABEL.get(r["category"], r["category"])
+            if label not in cats[r["brand"]]:
+                cats[r["brand"]].append(label)
+        out = [{"name": r["brand"], "count": r["n"], "best": r["best"], "products": r["products"], "followed": r["brand"] in followed,
+                "top": top.get(r["brand"]), "categories": cats.get(r["brand"], [])} for r in rows if every or r["n"]]
         return sorted(out, key=lambda e: (-e["followed"], -e["count"], e["name"]))
 
     def brand(self, uid, name):
@@ -197,7 +214,8 @@ class Catalog:
                            (product_id,))
         cheaper = self.s.q("SELECT c.* FROM alternatives a JOIN catalog c ON c.product_id=a.other_id WHERE a.product_id=? "
                            "ORDER BY a.rank", (product_id,))
-        return {**self._card(r, followed, saved), "history": json.loads(r["history"] or "null"),
+        history = json.loads(r["history"] or "null")
+        return {**self._card(r, followed, saved), "history": history, "position": position(history, r["price"]),
                 "attrs": json.loads(r["attrs"] or "{}"), "offers": offers,
                 "similar": [self._card(x, followed, saved) for x in similar],
                 "alternatives": [{**self._card(x, followed, saved), "saving": round(r["price"] - x["price"])} for x in cheaper],

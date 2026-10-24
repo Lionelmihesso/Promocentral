@@ -6,6 +6,10 @@
    « Me prévenir sous un prix » pour ce produit ou tous les comparables ; les Missions, un onglet : une envie et un prix
    en une phrase (« aspirateur balai sous 300 € »), ce qui y répond déjà, puis un e-mail la nuit où c'est le cas.
 
+   v49 : deux onglets, deux rôles. L'Accueil est éditorial (les pièces, les marques en promo, notre sélection) ; la
+   Recherche sert à trouver (un produit, une marque, une catégorie). La fiche dit en mots et d'un coup d'œil si le prix
+   du jour est bas sur les derniers mois, et ne propose que l'enseigne la moins chère.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -27,27 +31,16 @@ const UI = {
   bell: ["M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z", "M10 20.5a2.2 2.2 0 0 0 4 0"],
   home: ["M4.5 10.5L12 4.5l7.5 6V19a1 1 0 0 1-1 1h-4v-5.5h-5V20h-4a1 1 0 0 1-1-1z"],
   user: [C(12, 8.5, 3.8), "M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"],
-  sliders: ["M4 7h9", "M17 7h3", C(15, 7, 2), "M4 17h3", "M11 17h9", C(9, 17, 2)],
   share: ["M12 15V4.5", "M8 8l4-4 4 4", "M6 12.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6.5"],
   cal: ["M5.5 6h13a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M4.5 10h15", "M8.5 4v4", "M15.5 4v4"],
   next: ["M9.5 5.5L16 12l-6.5 6.5"],
-  ruler: ["M3.5 15.5l12-12 5 5-12 12z", "M8 11l1.6 1.6", "M10.6 8.4l1.6 1.6", "M13.2 5.8l1.6 1.6"],
-  bolt: ["M13 3.5L6 13.5h5l-1 7 7-10h-5z"],
-  weight: ["M7 8.5h10l2 11.5H5z", C(12, 6, 2.3)],
-  plate: [C(12, 12, 7.5), C(12, 12, 4)],
-  sound: ["M4.5 9.5h3l4-3.5v12l-4-3.5h-3z", "M15 9a4 4 0 0 1 0 6", "M17.5 6.5a7.5 7.5 0 0 1 0 11"],
-  battery: ["M4.5 8h13a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z", "M20.5 10.5v3", "M6.5 10.5v3", "M9.5 10.5v3"],
-  box: ["M4.5 7.5L12 4l7.5 3.5v9L12 20l-7.5-3.5z", "M4.5 7.5L12 11l7.5-3.5", "M12 11v9"],
-  flame: ["M12 20.5c-3.6 0-6-2.4-6-5.6 0-3.9 3.6-5.7 4.4-10.4 2.6 1.9 3.3 4.3 3 6.2 1-.7 1.8-1.9 2-3 1.7 1.8 2.6 4.3 2.6 6.9 0 3.4-2.4 5.9-6 5.9z"],
-  seat: ["M6.5 11V7.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2V11", "M4.5 13a2 2 0 0 1 4 0v1.5h7V13a2 2 0 0 1 4 0v4.5h-15z", "M6.5 17.5v2", "M17.5 17.5v2"],
   target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
+  minus: ["M6.5 12h11"],
+  up: ["M12 18.5v-12", "M6.5 12l5.5-5.5 5.5 5.5"],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
   fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
   {d.map((p, i) => <path key={i} d={p} />)}{fill && <path d={d[0]} fill="currentColor" stroke="none" />}</svg>;
-const specIcon = s => /×|^Largeur/.test(s) ? UI.ruler : /^Classe/.test(s) ? UI.bolt : /kg$/.test(s) ? UI.weight : /couverts/.test(s) ? UI.plate
-  : /dB$/.test(s) ? UI.sound : /^Autonomie/.test(s) ? UI.battery : / L$/.test(s) ? UI.box : /foyers/.test(s) ? UI.flame
-  : /places/.test(s) ? UI.seat : UI.check;
 
 /* ---------------------------------------------------------------- formats */
 const eur = n => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " €";
@@ -57,6 +50,8 @@ const daysBetween = (a, b) => Math.round((iso(b) - iso(a)) / 86400000);
 const clock = ts => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts * 1000));
 const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(ts * 1000));
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const spanOf = days => days >= 30 ? `${Math.floor(days / 30)} mois` : `${days} jours`;      // « depuis 2 mois » : arrondi en dessous
 const FAMILY = { electromenager: "Électroménager", ameublement: "Ameublement", literie: "Literie" };
 const EXAMPLES = ["Aspirateur balai sous 300 €", "Lave-linge 9 kg sous 500 €", "Matelas 160x200 sous 600 €", "Canapé d'angle sous 900 €"];
 // L'inspiration par pièce : des catégories regroupées comme on pense son intérieur.
@@ -101,11 +96,10 @@ const pending = {
   set(spec) { try { localStorage.setItem(PENDING, JSON.stringify({ spec, at: Date.now() })); } catch { /* stockage indisponible */ } },
   clear() { try { localStorage.removeItem(PENDING); } catch { /* idem */ } },
 };
-/* Prix proposés pour une alerte : le plus bas des 90 jours s'il est sous le prix du jour, puis −10 % et −20 %. */
-const lowOf = h => { const v = (h?.p || []).filter(x => x != null); return v.length ? Math.min(...v) : null; };
+/* Prix proposés pour une alerte : le plus bas des derniers mois s'il est sous le prix du jour, puis −10 % et −20 %. */
 function suggestions(p) {
-  const out = [], low = lowOf(p.history);
-  if (low != null && Math.round(low) < Math.round(p.price)) out.push([Math.round(low), "plus bas 90 j"]);
+  const out = [], low = p.position?.low;
+  if (low != null && low < Math.round(p.price)) out.push([low, "le plus bas"]);
   for (const f of [0.9, 0.8]) { const v = Math.floor(p.price * f); if (!out.some(([x]) => x === v)) out.push([v, `−${Math.round((1 - f) * 100)} %`]); }
   return out;
 }
@@ -121,7 +115,7 @@ const useWidth = () => {
 
 const CSS = `
 .d{--ink:#141414;--paper:#FFFFFF;--tint:#F4F2EF;--tint2:#EAE7E2;--mid:#5E6166;--soft:#6B6E73;--icon:#8A8D92;--line:#ECE9E4;
-  --accent:#D63A0D;--accent-soft:#FCEDE6;--good:#1F7A52;--terminal:#121315;
+  --accent:#D63A0D;--accent-ink:#B5300A;--accent-soft:#FCEDE6;--good:#1F7A52;--warn:#A9480A;--terminal:#121315;
   --serif:"Instrument Serif",Georgia,"Times New Roman",serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
   font-family:Manrope,-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);background:var(--paper);min-height:100vh;
   font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
@@ -149,8 +143,6 @@ const CSS = `
 /* titres */
 .d .intro{padding:18px 16px 0}
 .d h1{font-family:var(--serif);font-weight:400;font-size:42px;line-height:1;letter-spacing:-.015em;margin:0}
-.d .intro p{margin:10px 0 0;color:var(--mid);font-size:15px;line-height:1.45}
-.d .intro p b{color:var(--ink)}
 .d .pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:12px 10px 0 16px}
 .d .sub{color:var(--mid);font-size:14.5px;margin-top:6px}
 .d h2{font-family:var(--serif);font-weight:400;font-size:26px;line-height:1.05;letter-spacing:-.01em;margin:0}
@@ -207,7 +199,6 @@ const CSS = `
 .d .fbtn{pointer-events:auto;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.14)}
 .d .fbtn.on{color:var(--accent)}
 .d .info{padding:18px 16px 0}
-.d .info .brand{font-size:12px;font-weight:800;color:var(--mid);text-transform:uppercase;letter-spacing:.09em}
 .d .info .title{font-family:inherit;font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:4px 0 0}
 .d .prices{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;margin-top:12px}
 .d .prices .pct{font-size:46px;font-weight:800;letter-spacing:-.05em;color:var(--accent);line-height:1}
@@ -216,25 +207,21 @@ const CSS = `
 .d .when{display:flex;align-items:center;gap:10px;margin-top:14px;background:var(--accent-soft);border-radius:14px;padding:12px 14px;font-size:14px;font-weight:600}
 .d .when .i{color:var(--accent)}
 .d .buy{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;min-height:54px;border-radius:15px;background:var(--ink);color:#fff;font-size:16px;font-weight:800;text-decoration:none}
-.d .chart{padding:0 16px}
-.d .chart svg{display:block;width:100%;height:auto}
-.d .verdict{font-size:15px;font-weight:700;margin:0 0 10px}
-.d .verdict.low{color:var(--good)}
-.d .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--mid)}
-.d .legend b{color:var(--ink);font-weight:700}
-.d .about{padding:0 16px}
-.d .about p{margin:0;font-size:15.5px;line-height:1.45}
-.d .specs{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.d .specs li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:8px 14px 8px 11px;font-size:14px;font-weight:600}
-.d .specs li .i{color:var(--mid)}
-.d .offers{padding:0 16px}
-.d .offer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
-.d .offer:first-child{border-top:1px solid var(--line)}
-.d .offer .m{font-size:16px;font-weight:700;letter-spacing:-.01em}
-.d .offer .e{font-size:12.5px;color:var(--mid);margin-top:2px;font-weight:700}
-.d .offer .r{display:flex;align-items:center;gap:12px}
-.d .offer .r b{font-size:18px;font-weight:800;letter-spacing:-.03em}
-.d .offer .go{display:flex;align-items:center;gap:4px;min-height:44px;border:0;background:var(--tint);border-radius:12px;padding:0 14px;font-size:13.5px;font-weight:800;text-decoration:none;color:var(--ink)}
+/* le prix du jour sur les derniers mois : un verdict, une jauge */
+.d .pos{margin-top:14px;border:1px solid var(--line);border-radius:16px;padding:13px 16px 12px}
+.d .pos .vd{display:flex;align-items:center;gap:9px;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
+.d .pos .vi{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--icon);color:#fff}
+.d .pos.good .vd{color:var(--good)}.d .pos.good .vi{background:var(--good)}
+.d .pos.warn .vd{color:var(--warn)}.d .pos.warn .vi{background:var(--warn)}
+.d .gauge{margin-top:12px}
+.d .gauge .now{position:relative;height:23px;font-size:11.5px;font-weight:800;color:var(--ink);line-height:14px}
+.d .gauge .now span{position:absolute;white-space:nowrap;transform:translateX(-50%)}
+.d .gauge .now span.l{transform:none}.d .gauge .now span.r{transform:translateX(-100%)}
+.d .track{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,#2E8B57 0%,#74B55A 24%,#E6C34D 40%,#E6C34D 60%,#E68B3F 76%,#DC6A36 100%)}
+.d .track i{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--ink);transform:translate(-50%,-50%);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.d .ends{display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px;color:var(--mid);font-weight:600}
+.d .ends b{color:var(--ink);font-weight:800}
+.d .pos .pn{margin:8px 0 0;font-size:13.5px;color:var(--mid);font-weight:600}
 /* comptes, marques */
 .d .login{margin:16px 16px 0;background:var(--tint);border-radius:22px;padding:20px}
 .d .login h3{font-size:19px;font-weight:800;letter-spacing:-.03em;margin:0}
@@ -284,6 +271,21 @@ const CSS = `
 .d .state{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:14.5px;font-weight:700;color:var(--mid)}
 .d .state i{width:9px;height:9px;border-radius:50%;background:var(--icon);flex:0 0 auto}
 .d .state.ok{color:var(--good)}.d .state.ok i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
+/* recherche : marques en tuiles, catégories par univers */
+.d .btiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 16px}
+.d .btile{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;min-height:78px;border:0;border-radius:16px;background:var(--tint);padding:12px 14px;text-align:left;min-width:0}
+.d .btile b{font-family:var(--serif);font-weight:400;font-size:25px;line-height:1;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d .btile span{font-size:13px;font-weight:700;color:var(--mid)}
+.d .btile span.deal{color:var(--accent-ink)}
+.d .btile .i{position:absolute;top:10px;right:10px;color:var(--good)}
+.d .more{display:block;margin:10px 16px 0;width:calc(100% - 32px);min-height:48px;border:1px solid var(--line);border-radius:14px;background:var(--paper);font-size:14.5px;font-weight:800}
+.d .fam{padding:0 16px 16px}
+.d .fam h3,.d .found h3{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);margin:0 0 10px}
+.d .ctags{display:flex;flex-wrap:wrap;gap:8px}
+.d .ctag{display:flex;align-items:center;gap:8px;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14.5px;font-weight:700}
+.d .ctag span{font-size:12.5px;font-weight:800;color:var(--accent-ink)}
+.d .found{padding:18px 16px 0}
+.d .found .btiles{padding:0}
 /* missions : une envie et un prix, en une phrase */
 .d .mbox{margin:16px 16px 0;background:var(--terminal);color:#F2F0EC;border-radius:22px;padding:18px}
 .d .mbox.feed{margin-top:24px}
@@ -343,13 +345,14 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .ticker{border-radius:12px;margin-bottom:8px}
   .d .intro,.d .sechead,.d .pagehead{padding-left:0;padding-right:0}
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
-  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .about,.d .offers,.d .chart,.d .me,.d .mlist,.d .note{padding-left:0;padding-right:0}
+  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .btiles,.d .fam,.d .found{padding-left:0;padding-right:0}
+  .d .btiles{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1000px}
+  .d .more{margin-left:0;width:auto;padding:0 24px}
   .d .mbox,.d .draft,.d .mline{margin-left:0;margin-right:0}
   .d .mline{width:100%;max-width:640px}
   .d .mbox{padding:26px 28px}.d .mbox .mform{max-width:640px}
   .d .mwrap{max-width:760px}
   .d h1{font-size:64px}
-  .d .intro p{font-size:17px;max-width:640px}
   .d .room{width:228px;height:292px}
   .d .rooms{scroll-padding-inline:0}
   .d .masonry{gap:20px}
@@ -359,7 +362,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .item .info{padding-left:0;padding-right:0;padding-top:0}
   .d .sheet-wrap{align-items:center}.d .sheet{border-radius:26px}
 }
-@media (hover:hover){.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover{background:var(--tint2)}.d .chips button.on:hover{background:var(--ink)}}
+@media (hover:hover){.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover,.d .btile:hover,.d .ctag:hover{background:var(--tint2)}.d .chips button.on:hover{background:var(--ink)}}
 `;
 
 /* Une feuille se ferme aussi avec Échap. */
@@ -480,50 +483,42 @@ function Masonry({ items, cols, render }) {
     {columns.map((c, i) => <div key={i} className="mcol">{c.items.map(render)}</div>)}</div>;
 }
 
-/* Courbe du prix sur 90 jours : le prix du jour face au plus bas et au prix habituel (médiane) relevés. */
-function PriceChart({ history, price }) {
-  const pts = (history?.p || []).map((v, i) => [i, v]).filter(([, v]) => v != null);
-  if (pts.length < 2) return null;
-  const vals = pts.map(([, v]) => v), low = Math.min(...vals), high = Math.max(...vals);
-  const sorted = [...vals].sort((a, b) => a - b), usual = sorted[Math.floor(sorted.length / 2)];
-  const W = 360, H = 140, top = 16, bottom = 34, n = history.p.length;
-  const x = i => 4 + (i / (n - 1)) * (W - 8);
-  const y = v => high === low ? (H - bottom + top) / 2 : top + (1 - (v - low) / (high - low)) * (H - top - bottom);
-  let d = "", prev = -2;                                    // en marches : un prix par jour, le changement se voit d'un jour à l'autre
-  for (const [i, v] of pts) { d += i === prev + 1 ? `H${x(i).toFixed(1)}V${y(v).toFixed(1)}` : `M${x(i).toFixed(1)} ${y(v).toFixed(1)}`; prev = i; }
-  const last = pts[pts.length - 1], lowAt = pts.find(([, v]) => v === low), today = Math.round(price);
-  const verdict = today <= low ? "Au plus bas depuis 90 jours" : `${eur(today - low)} au-dessus du plus bas des 90 jours`;
-  return <div className="chart">
-    <p className={`verdict ${today <= low ? "low" : ""}`}>{verdict}</p>
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Prix sur 90 jours : plus bas ${eur(low)}, habituel ${eur(usual)}, aujourd'hui ${eur(price)}`}>
-      <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#D63A0D" stopOpacity=".16" /><stop offset="1" stopColor="#D63A0D" stopOpacity="0" /></linearGradient></defs>
-      <path d={`M4 ${y(usual)}H${W - 4}`} stroke="#9AA0A6" strokeWidth="1" strokeDasharray="4 4" />
-      <path d={`${d}V${H - bottom + 10}H${x(pts[0][0])}Z`} fill="url(#area)" />
-      <path d={d} fill="none" stroke="#D63A0D" strokeWidth="2" strokeLinejoin="round" />
-      <circle cx={x(lowAt[0])} cy={y(low)} r="3.5" fill="#fff" stroke="#1F7A52" strokeWidth="2" />
-      <circle cx={x(last[0])} cy={y(last[1])} r="4.5" fill="#D63A0D" stroke="#fff" strokeWidth="2" />
-      <path d={`M4 ${H - bottom + 10}H${W - 4}`} stroke="#E3E0DA" strokeWidth="1" />
-      <text x="4" y={H - 6} fontFamily="JetBrains Mono, monospace" fontSize="10.5" fill="#6B6E73">{dayLabel(history.from)}</text>
-      <text x={W - 4} y={H - 6} textAnchor="end" fontFamily="JetBrains Mono, monospace" fontSize="10.5" fill="#6B6E73">aujourd'hui</text>
-    </svg>
-    <div className="legend"><span>Aujourd'hui <b>{eur(price)}</b></span><span>Plus bas <b>{eur(low)}</b></span><span>Habituel <b>{eur(usual)}</b></span></div>
+/* Le prix du jour sur les derniers mois, pour décider vite : un verdict en mots, une jauge du plus bas au plus haut
+   relevés, un point pour aujourd'hui (règle côté serveur : catalog.position). */
+// band : la zone de la jauge où tombe chaque verdict (vert, jaune, orange) ; le point y suit le rang du jour.
+const VERDICT = {
+  lowest: { tone: "good", icon: UI.check, band: [0, 0], say: span => `Au plus bas depuis ${span}` },
+  low: { tone: "good", icon: UI.check, band: [0.04, 0.3], say: span => `Un des prix les plus bas depuis ${span}` },
+  usual: { tone: "", icon: UI.minus, band: [0.38, 0.62], say: () => "Son prix habituel" },
+  high: { tone: "warn", icon: UI.up, band: [0.7, 0.96], say: () => "Plus cher que d'habitude" },
+};
+function PricePosition({ pos, price }) {
+  if (!pos) return null;
+  const v = VERDICT[pos.level], span = spanOf(pos.days), range = pos.high - pos.low;
+  const at = Math.min(v.band[1], Math.max(v.band[0], pos.rank));         // place parmi les jours, dans la zone du verdict
+  const left = `calc(9px + (100% - 18px) * ${at.toFixed(3)})`;
+  return <div className={`pos ${v.tone}`}>
+    <div className="vd"><span className="vi"><Icon d={v.icon} size={14} sw={2.8} /></span>{v.say(span)}</div>
+    {range > 0 && <div className="gauge" role="img" aria-label={`Depuis ${span}, de ${eur(pos.low)} à ${eur(pos.high)} ; aujourd'hui ${eur(price)}`}>
+      <div className="now" aria-hidden="true"><span className={at < 0.12 ? "l" : at > 0.88 ? "r" : ""} style={{ left: at < 0.12 ? 0 : at > 0.88 ? "100%" : left }}>aujourd'hui</span></div>
+      <div className="track"><i style={{ left }} /></div>
+      <div className="ends" aria-hidden="true"><span>Le plus bas <b>{eur(pos.low)}</b></span><span>Le plus haut <b>{eur(pos.high)}</b></span></div>
+    </div>}
+    {pos.level === "high" && <p className="pn">Souvent à {eur(pos.usual)} {pos.days >= 60 ? `ces ${Math.floor(pos.days / 30)} derniers mois`
+      : pos.days >= 30 ? "ce dernier mois" : `ces ${pos.days} derniers jours`}.</p>}
   </div>;
 }
 
 export default function App() {
   const [tab, setTab] = useState("home");
   const [view, setView] = useState(null);          // null | item | brand | category | room — chacune garde `from` (« Retour »)
-  const [family, setFamily] = useState("");        // univers choisi sur l'accueil ; "" = pour vous
-  const [q, setQ] = useState("");
-  const [all, setAll] = useState(null);            // remises du jour (bandeau, inspirations)
-  const [feed, setFeed] = useState(null);          // accueil : sélection ou résultats de recherche
-  const [categories, setCategories] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [xcat, setXcat] = useState("");            // Explorer : catégorie ; "" = tout
-  const [sort, setSort] = useState("pct");         // Explorer : pct | asc | desc
-  const [xlist, setXlist] = useState(null);
-  const [xsearch, setXsearch] = useState(false);
-  const [sheet, setSheet] = useState(false);
+  const [q, setQ] = useState("");                  // Recherche
+  const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
+  const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)
+  const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
+  const [everyBrand, setEveryBrand] = useState(false);
+  const [results, setResults] = useState(null);    // Recherche : produits
+  const [order, setOrder] = useState("pct");       // pages marque et catégorie : pct | asc | desc
   const [list, setList] = useState(null);          // pièce
   const [item, setItem] = useState(null);
   const [brandPage, setBrandPage] = useState(null);
@@ -550,7 +545,6 @@ export default function App() {
   const cols = width >= 1200 ? 5 : width >= 1000 ? 4 : width >= 700 ? 3 : 2;
 
   const flash = t => { setToast(t); setTimeout(() => setToast(null), 2200); };
-  useEscape(() => setSheet(false), sheet);
   const askLogin = message => setLogin({ message });
   const loadMissions = () => api("missions").then(setMissions).catch(() => {});
   const refreshSession = () => api("auth/me")
@@ -607,29 +601,16 @@ export default function App() {
   }, [mprice, draft]);
 
   useEffect(() => {
-    api("categories").then(setCategories).catch(() => setError("Impossible de charger les catégories."));
-    api("brands").then(setBrands).catch(() => {});
+    api("categories?all=1").then(setAllCats).catch(() => setError("Impossible de charger les catégories."));
+    api("brands?all=1").then(setAllBrands).catch(() => {});
     api("today").then(d => { setAll(d); setError(null); }).catch(() => setError("Impossible de charger les remises."));
   }, [version]);
 
-  const catsOf = f => categories.filter(c => c.family === f).map(c => c.key).join(",");
-  useEffect(() => {                                                         // accueil : univers ou recherche
-    if (view || tab !== "home") return;
-    const t = setTimeout(() => {
-      const path = q.trim() ? `search?q=${encodeURIComponent(q.trim())}` : family ? `today?category=${catsOf(family)}` : "today";
-      api(path).then(setFeed).catch(() => setError("Impossible de charger les produits."));
-    }, q ? 200 : 0);
+  useEffect(() => {                                                         // Recherche : tout le catalogue
+    if (view || tab !== "search" || !q.trim()) { setResults(null); return; }
+    const t = setTimeout(() => api(`search?q=${encodeURIComponent(q.trim())}`).then(setResults).catch(() => {}), 200);
     return () => clearTimeout(t);
-  }, [tab, family, q, view, version, categories]);
-
-  useEffect(() => {                                                         // Explorer : catégorie ou recherche
-    if (view || tab !== "explore") return;
-    const t = setTimeout(() => {
-      const path = xsearch && q.trim() ? `search?q=${encodeURIComponent(q.trim())}` : xcat ? `today?category=${xcat}` : "today";
-      api(path).then(setXlist).catch(() => {});
-    }, q ? 200 : 0);
-    return () => clearTimeout(t);
-  }, [tab, xcat, q, xsearch, view, version]);
+  }, [tab, q, view, version]);
 
   useEffect(() => {
     if (!view) return;
@@ -682,11 +663,11 @@ export default function App() {
     } catch { /* partage annulé */ }
   };
 
-  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ(""); setXsearch(false); };
+  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ(""); };
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
   const open = (id, via) => { setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
-  const openBrand = name => { setBrandPage(null); setView(v => ({ kind: "brand", name, from: v })); };
-  const openCategory = key => { setCatPage(null); setView(v => ({ kind: "category", key, from: v })); };
+  const openBrand = name => { setBrandPage(null); setOrder("pct"); setView(v => ({ kind: "brand", name, from: v })); };
+  const openCategory = key => { setCatPage(null); setOrder("pct"); setView(v => ({ kind: "category", key, from: v })); };
   const openRoom = room => { setList(null); setView(v => ({ kind: "room", room, from: v })); };
   const goBack = () => { setItem(null); setBrandPage(null); setCatPage(null); setList(null); setView(view?.from || null); };
 
@@ -743,7 +724,7 @@ export default function App() {
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Une marque, un produit, une envie…" aria-label="Rechercher" enterKeyHint="search" />
     {q && <button className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
-  const tabsList = [["home", "Accueil", UI.home], ["explore", "Explorer", UI.search], ["missions", "Missions", UI.target],
+  const tabsList = [["home", "Accueil", UI.home], ["search", "Recherche", UI.search], ["missions", "Missions", UI.target],
     ["saved", "Favoris", UI.heart], ["me", "Profil", UI.user]];
   const reached = missions?.reached || 0;
   const badge = { missions: reached, saved: drops };
@@ -782,6 +763,22 @@ export default function App() {
   };
   const loginCard = (title, msg) => <div className="login"><h3>{title}</h3><p>Votre e-mail suffit, sans mot de passe.</p>
     <button className="cta" onClick={() => askLogin(msg)}>Me connecter</button></div>;
+  const categories = allCats.filter(c => c.count > 0);                    // celles qui ont des remises aujourd'hui
+  const promoBrands = allBrands.filter(b => b.count > 0 && b.top).slice(0, 12);
+  // Des cartes au format des pièces : un visuel (le produit de la meilleure remise), la marque, « Jusqu'à −20 % ».
+  const bigCard = (key, label, best, sub, art, seed, onClick, cls = "") => <button key={key} className={`room ${cls}`} onClick={onClick}
+    aria-label={`${label}, jusqu'à moins ${best} %, ${sub}`}>
+    <Vignette category={art} seed={seed} ratio={1.32} floor={0.7} zoom={ratioOf(art) > 1 ? 0.9 : 1.04} /><span className="shade" />
+    <span className="rt"><b>{label}</b><span>Jusqu'à −{best} %</span><small>{sub}</small></span></button>;
+  const brandTile = b => <button key={b.name} className="btile" onClick={() => openBrand(b.name)}
+    aria-label={`${b.name}${b.followed ? ", suivie" : ""}, ${b.count ? `${plural(b.count, "remise")}, jusqu'à moins ${b.best} %` : plural(b.products, "produit")}`}>
+    <b>{b.name}</b>{b.followed && <Icon d={UI.check} size={14} sw={2.6} />}
+    <span className={b.count ? "deal" : ""}>{b.count ? `${plural(b.count, "remise")} · −${b.best} %` : plural(b.products, "produit")}</span></button>;
+  const catChip = c => <button key={c.key} className="ctag" onClick={() => openCategory(c.key)}
+    aria-label={c.count ? `${c.label}, jusqu'à moins ${c.best} %` : c.label}>{c.label}{c.count > 0 && <span>−{c.best} %</span>}</button>;
+  const sortBar = <div className="chips" role="group" aria-label="Trier">{[["pct", "Remises d'abord"], ["asc", "Prix croissant"], ["desc", "Prix décroissant"]].map(([k, l]) =>
+    <button key={k} className={order === k ? "on" : ""} aria-pressed={order === k} onClick={() => setOrder(k)}>{l}</button>)}</div>;
+  const ordered = items => order === "pct" ? items : [...items].sort((a, b) => order === "asc" ? a.price - b.price : b.price - a.price);
   const rooms = ROOMS.map(r => {
     const here = categories.filter(c => r.cats.includes(c.key));
     return here.length ? { ...r, best: Math.max(...here.map(c => c.best)), sub: here.map(c => c.label).join(", "),
@@ -811,27 +808,16 @@ export default function App() {
           <h1 className="title">{item.name || item.title}</h1>
           <div className="prices">{item.pct > 0 && <span className="pct">−{item.pct} %</span>}<span className="now">{eur(item.price)}</span>
             {item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div>
+          <PricePosition pos={item.position} price={item.price} />
           {when && <div className="when"><Icon d={UI.cal} size={20} />{when}</div>}
           {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}`} target="_blank" rel="noopener">
             Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
           <button className={`alertbtn ${mine ? "on" : ""}`} onClick={() => setAlertOpen(true)}>
             <Icon d={mine ? UI.check : UI.bell} size={19} sw={2.1} />{mine ? `Alerte à ${eur(mine.max_price)}` : "Me prévenir sous un prix"}</button>
         </div>
-        {item.history && <><div className="sechead"><h2>Prix sur 90 jours</h2></div><PriceChart history={item.history} price={item.price} /></>}
-        {item.specs.length > 0 && <><div className="sechead"><h2>À propos</h2></div>
-          <div className="about"><ul className="specs">{item.specs.map(s => <li key={s}><Icon d={specIcon(s)} size={18} />{s}</li>)}</ul></div></>}
         {item.alternatives.length > 0 && <>
           <div className="sechead"><h2>Moins cher, comparable</h2></div>
           <div className="scroller">{item.alternatives.map(card("alternative"))}</div>
-        </>}
-        {item.offers.length > 1 && <>
-          <div className="sechead"><h2>Autres enseignes</h2></div>
-          <div className="offers">
-            {item.offers.filter(o => o !== best).map(o => <div key={o.offer_id} className="offer">
-              <div><div className="m">{o.merchant}</div>{o.availability === "out_of_stock" && <div className="e">Indisponible</div>}</div>
-              <div className="r"><b>{eur(o.price)}</b>
-                <a className="go" href={`/api/r/out/${o.offer_id}?from=${source}`} target="_blank" rel="noopener">Voir<Icon d={UI.ext} size={16} sw={2.2} /></a></div></div>)}
-          </div>
         </>}
         {item.alternatives.length === 0 && item.similar.length > 0 && <>
           <div className="sechead"><h2>Produits similaires</h2></div>
@@ -848,8 +834,9 @@ export default function App() {
         <div className="sub">{brandPage.deals ? `${plural(brandPage.deals, "remise")} aujourd'hui · ` : ""}{plural(brandPage.products.length, "produit")}</div></div>
         <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleFollow(brandPage.brand)} aria-pressed={on}>
           <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Suivie" : "Suivre"}</button></div>
-      <div style={{ height: 18 }} />
-      {grid(brandPage.products, "brand")}
+      {sortBar}
+      <div style={{ height: 16 }} />
+      {grid(ordered(brandPage.products), "brand")}
     </>;
   } else if (view?.kind === "category" && catPage) {
     body = <>
@@ -857,8 +844,9 @@ export default function App() {
       <div className="pagehead"><div><h1>{catPage.label}</h1>
         <div className="sub">{catPage.deals ? `${plural(catPage.deals, "remise")} aujourd'hui · ` : ""}{plural(catPage.products.length, "produit")}</div></div>
         <button className="pill" onClick={() => goMission(`${catPage.kind.toLowerCase()} `, true)}><Icon d={UI.target} size={17} sw={2.2} />Mission</button></div>
-      <div style={{ height: 18 }} />
-      {grid(catPage.products, "category")}
+      {sortBar}
+      <div style={{ height: 16 }} />
+      {grid(ordered(catPage.products), "category")}
     </>;
   } else if (view?.kind === "room") {
     body = <>
@@ -869,64 +857,51 @@ export default function App() {
       {list && grid(list.products)}
       {list && list.total === 0 && <div className="empty">Aucune remise dans cette pièce aujourd'hui.</div>}
     </>;
-  } else if (tab === "home") {
-    const items = feed?.products || [];
+  } else if (tab === "home") {                    // éditorial : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
+    const items = all?.products || [];
     body = <>
-      <Ticker items={all?.products || []} publishedAt={all?.published_at} />
-      <div className="intro">
-        <h1>De bonnes affaires, pour vos envies.</h1>
-        <p>{all ? <><b>{plural(all.total, "remise")}</b> en ce moment sur les grandes marques. </> : null}Mise à jour chaque jour.</p>
-      </div>
-      {searchBar}
-      {!q && <div className="chips" role="group" aria-label="Univers">
-        <button className={!family ? "on" : ""} aria-pressed={!family} onClick={() => setFamily("")}>Pour vous</button>
-        {Object.keys(FAMILY).filter(f => categories.some(c => c.family === f)).map(f =>
-          <button key={f} className={family === f ? "on" : ""} aria-pressed={family === f} onClick={() => setFamily(x => x === f ? "" : f)}>{FAMILY[f]}</button>)}
-      </div>}
-      {!q && !family && rooms.length > 0 && <>
+      <Ticker items={items} publishedAt={all?.published_at} />
+      <div className="intro"><h1>De bonnes affaires, pour vos envies.</h1></div>
+      {rooms.length > 0 && <>
         <div className="sechead"><h2>Inspirations du moment</h2></div>
-        <div className="rooms">{rooms.map(r => <button key={r.key} className="room" onClick={() => openRoom(r)}
-          aria-label={`${r.label}, jusqu'à moins ${r.best} %, ${r.sub}`}>
-          <Vignette category={r.art} seed={r.key} ratio={1.32} floor={0.7} zoom={ratioOf(r.art) > 1 ? 0.9 : 1.04} /><span className="shade" />
-          <span className="rt"><b>{r.label}</b><span>Jusqu'à −{r.best} %</span><small>{r.sub}</small></span></button>)}</div>
+        <div className="rooms">{rooms.map(r => bigCard(r.key, r.label, r.best, r.sub, r.art, r.key, () => openRoom(r)))}</div>
       </>}
-      <div className="sechead"><h2>{q ? (feed ? plural(feed.total, "résultat") : "…") : family ? FAMILY[family] : "Nos sélections pour vous"}</h2>
-        {!q && feed && <span className="n">{plural(feed.total, "remise")}</span>}</div>
-      {q && missionLine}
-      {feed && items.length === 0 && <div className="empty">{q ? "Aucun produit ne correspond." : "Aucune remise dans cet univers aujourd'hui."}</div>}
-      {q || family ? grid(items) : <>                        {/* le module mission, après deux rangées de remises */}
-        {grid(items.slice(0, cols * 2))}
-        {feed && composer(true)}
-        {items.length > cols * 2 && <div style={{ height: 18 }} />}
-        {grid(items.slice(cols * 2))}
+      {promoBrands.length > 0 && <>
+        <div className="sechead"><h2>Les marques en promo</h2></div>
+        <div className="rooms">{promoBrands.map(b => bigCard(b.name, b.name, b.best, b.categories.join(", "), b.top.category, b.top.id,
+          () => openBrand(b.name), "bcard"))}</div>
       </>}
+      <div className="sechead"><h2>Notre sélection</h2></div>
+      {all && items.length === 0 && <div className="empty">Aucune remise aujourd'hui.</div>}
+      {grid(items.slice(0, cols * 2))}{/* le module mission, après deux rangées de remises */}
+      {all && composer(true)}
+      {items.length > cols * 2 && <div style={{ height: 18 }} />}
+      {grid(items.slice(cols * 2))}
     </>;
-  } else if (tab === "explore") {
-    const items = [...(xlist?.products || [])];
-    if (!(xsearch && q.trim())) items.sort((a, b) => sort === "asc" ? a.price - b.price : sort === "desc" ? b.price - a.price : 0);
+  } else if (tab === "search") {                  // trouver : un produit, une marque, une catégorie
+    const term = q.trim(), t = norm(term);
+    const hit = name => name.includes(t) || (t.length >= 3 && ` ${t} `.includes(` ${name} `));
+    const brandHits = term ? allBrands.filter(b => norm(b.name).includes(t)).slice(0, 6) : [];
+    const catHits = term ? allCats.filter(c => hit(norm(c.label)) || hit(norm(c.key.replace(/_/g, " ")))).slice(0, 8) : [];
+    const byName = (a, b) => a.label.localeCompare(b.label, "fr");
     body = <>
-      <div className="pagehead"><h1>Explorer</h1><div style={{ display: "flex" }}>
-        <button className="ibtn" aria-label="Trier et marques" onClick={() => setSheet(true)}><Icon d={UI.sliders} size={22} /></button>
-        <button className="ibtn" aria-label="Rechercher" aria-pressed={xsearch} onClick={() => { setXsearch(s => !s); setQ(""); }}>
-          <Icon d={xsearch ? UI.x : UI.search} size={22} /></button></div></div>
-      {xsearch && searchBar}
-      {!(xsearch && q.trim()) && <div className="chips" role="group" aria-label="Catégories">
-        <button className={!xcat ? "on" : ""} aria-pressed={!xcat} onClick={() => setXcat("")}>Tous</button>
-        {categories.map(c => <button key={c.key} className={xcat === c.key ? "on" : ""} aria-pressed={xcat === c.key}
-          onClick={() => setXcat(k => k === c.key ? "" : c.key)}>{c.label}</button>)}</div>}
-      <div style={{ height: 16 }} />
-      {xsearch && missionLine}
-      {xlist && items.length === 0 && <div className="empty">{xsearch && q.trim() ? "Aucun produit ne correspond." : "Aucune remise ici aujourd'hui."}</div>}
-      {grid(items)}
-      {sheet && <div className="sheet-wrap" onClick={() => setSheet(false)}><div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="eyebrow">Explorer</div><h2>Trier</h2>
-        <div className="opts" style={{ marginTop: 14 }}>{[["pct", "Meilleures remises"], ["asc", "Prix croissant"], ["desc", "Prix décroissant"]].map(([k, l]) =>
-          <button key={k} className={sort === k ? "on" : ""} aria-pressed={sort === k} onClick={() => { setSort(k); setSheet(false); }}>{l}
-            {sort === k && <Icon d={UI.check} size={18} sw={2.4} />}</button>)}</div>
-        <h3>Marques</h3>
-        <div className="bchips" style={{ padding: 0 }}>{brands.map(b => <button key={b.name} className={b.followed ? "on" : ""}
-          onClick={() => { setSheet(false); openBrand(b.name); }}>{b.name}</button>)}</div>
-      </div></div>}
+      <div className="pagehead"><h1>Recherche</h1></div>
+      {searchBar}
+      {!term ? <>
+        <div className="sechead"><h2>Marques</h2></div>
+        <div className="btiles">{(everyBrand ? allBrands : allBrands.slice(0, 8)).map(brandTile)}</div>
+        {!everyBrand && allBrands.length > 8 && <button className="more" onClick={() => setEveryBrand(true)}>Toutes les marques ({allBrands.length})</button>}
+        <div className="sechead"><h2>Catégories</h2></div>
+        {Object.keys(FAMILY).map(f => { const here = allCats.filter(c => c.family === f).sort(byName);
+          return here.length > 0 && <div key={f} className="fam"><h3>{FAMILY[f]}</h3><div className="ctags">{here.map(catChip)}</div></div>; })}
+      </> : <>
+        {brandHits.length > 0 && <div className="found"><h3>Marques</h3><div className="btiles">{brandHits.map(brandTile)}</div></div>}
+        {catHits.length > 0 && <div className="found"><h3>Catégories</h3><div className="ctags">{catHits.map(catChip)}</div></div>}
+        <div className="sechead"><h2>{results ? plural(results.total, "produit") : "…"}</h2></div>
+        {missionLine}
+        {results && results.products.length === 0 && <div className="empty">Aucun produit ne correspond.</div>}
+        {grid(results?.products || [], "search")}
+      </>}
     </>;
   } else if (tab === "missions") {
     const mine = missions?.missions || [];
@@ -1009,7 +984,7 @@ export default function App() {
     {body}
     <nav className="d-nav" aria-label="Navigation">{tabsList.map(([k, l, d]) =>
       <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
-        <span className="ic"><Icon d={d} size={23} fill={tab === k && k !== "explore" && k !== "missions"} />
+        <span className="ic"><Icon d={d} size={23} fill={tab === k && k !== "search" && k !== "missions"} />
           {badge[k] > 0 && <span className="dot" aria-hidden="true">{badge[k]}</span>}</span>{l}</button>)}</nav>
     {login && <LoginSheet message={login.message} onClose={() => setLogin(null)}
       onDone={() => { setLogin(null); refreshSession(); setVersion(v => v + 1); }} />}

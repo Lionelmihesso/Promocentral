@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -96,6 +96,9 @@ MIGRATIONS = {
         "label TEXT NOT NULL, created_at REAL NOT NULL, notified TEXT NOT NULL DEFAULT '{}')",
         "CREATE INDEX missions_user ON missions(user_id)",
     ],
+    7: [  # la fiche ne montre plus de description (elle est chez l'enseigne) : plus calculée ni stockée
+        "ALTER TABLE catalog DROP COLUMN specs",
+    ],
 }
 
 
@@ -112,6 +115,8 @@ def statements(script):
 
 class Store:
     def __init__(self, path):
+        if sqlite3.sqlite_version_info < (3, 35):            # ALTER TABLE … DROP COLUMN (version 7)
+            raise RuntimeError(f"SQLite {sqlite3.sqlite_version} : la version 3.35 ou plus récente est nécessaire")
         self.path = str(path)
         self._local = threading.local()
         c = self.conn()

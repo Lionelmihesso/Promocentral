@@ -1,7 +1,8 @@
 # Mise en ligne — un seul petit serveur (Debian ou Ubuntu)
 
-Prérequis : Python 3.11 ou plus récent (bibliothèque standard uniquement), Caddy pour le HTTPS, un compte SMTP (liens
-de connexion, e-mails des missions).
+Prérequis : Python 3.11 ou plus récent (bibliothèque standard uniquement) avec SQLite 3.35 ou plus récent (Debian 12,
+Ubuntu 22.04 et suivantes ; vérifié au démarrage), Caddy pour le HTTPS, un compte SMTP (liens de connexion, e-mails des
+missions).
 Trois services : l'app (`deals-web`), la passe de nuit (`deals-daily`, 3 h : collecte, publication, e-mails des
 missions), la sauvegarde (`deals-backup`, 6 h).
 

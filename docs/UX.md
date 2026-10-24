@@ -1,10 +1,10 @@
-# L'interface de DEALS — un flux vivant de remises, des missions (v48)
+# L'interface de DEALS — un flux vivant de remises, des missions (v49)
 
 ## Principe
 
 **Pinterest × Bloomberg.** Pinterest pour donner envie : des visuels, une mosaïque, l'inspiration par pièce. Bloomberg
 pour la vie et la décision : un bandeau où défilent les remises du jour avec l'heure de mise à jour, et dans chaque fiche
-la courbe du prix sur 90 jours avec un verdict (« Au plus bas depuis 90 jours », ou « 148 € au-dessus du plus bas »).
+le prix du jour situé sur les derniers mois, en mots et d'un coup d'œil (« Au plus bas depuis 2 mois », une jauge).
 
 Les visuels sont des **illustrations originales** par catégorie (`web/src/art.jsx`), déclinées par produit (couleurs
 tirées du produit, proportions de l'objet : une armoire est haute, un canapé est large, d'où la mosaïque). Aucune image
@@ -14,13 +14,22 @@ pas montrées : c'est une décision à prendre (droits, vie privée, coût), voi
 La qualité reste implicite : seulement des remises réelles, aucune mention « vérifiée ». Les durées (depuis quand,
 jusqu'à quand) restent dans la fiche. Deux entrées : **les belles remises du moment** (l'accueil) et **le produit qu'on
 regarde** (la recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins cher, et aussi
-bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (la courbe).
+bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (le verdict de
+prix, règle : `catalog.position`).
+
+**Deux onglets, deux rôles (v49).** L'**Accueil** est éditorial : le bandeau, un titre, les inspirations par pièce, les
+marques en promo (au même format que les pièces), notre sélection ; aucune phrase de remplissage, aucun outil de
+recherche. La **Recherche** sert à trouver : la barre, les marques en tuiles (toutes, avec ou sans remise), les
+catégories par univers ; en tapant, les marques et les catégories qui correspondent, puis les produits. Les pages d'une
+marque et d'une catégorie se trient (remises d'abord, prix croissant, décroissant). La fiche ne garde que ce qui sert la
+décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
+technique et les autres enseignes restent chez l'enseigne.
 
 **Continuer, puis guetter (v48).** Arriver sur un produit, c'est s'intéresser à sa marque ou à sa catégorie : elles sont
 posées sur le visuel de la fiche comme des étiquettes et mènent à tous leurs produits, remises d'abord, même quand la
 marque n'a aucune remise aujourd'hui (plus de cul-de-sac). Et si ce n'est pas le bon prix : « Me prévenir sous un prix »,
 pour ce produit ou pour tous les comparables (même catégorie, mêmes fonctions, même taille), avec trois prix proposés
-(le plus bas des 90 jours, −10 %, −20 %). Plus largement, **une mission** : une envie et un prix en une phrase
+(le plus bas des derniers mois, −10 %, −20 %). Plus largement, **une mission** : une envie et un prix en une phrase
 (« aspirateur balai sous 300 € ») ; l'app dit ce qu'elle a compris et ce qui y répond déjà, et un e-mail part la nuit où
 c'est le cas (`deals/missions.py`). Un onglet à part entière, un module dans le flux de l'accueil, la cloche qui compte
 les missions atteintes.
@@ -34,14 +43,14 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 
 | Écran | Contenu |
 |---|---|
-| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », « 13 remises en ce moment », recherche, univers (Pour vous, Électroménager, Ameublement, Literie), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **nos sélections** en mosaïque ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) ; sous des résultats de recherche, « Pas au bon prix ? Lancer une mission » |
+| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) |
 | Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative |
 | Pièce | ses remises en mosaïque |
-| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **prix sur 90 jours** (courbe en marches, un prix par jour, verdict, aujourd'hui · plus bas · habituel) ; **à propos** (caractéristiques avec pictogramme) ; **moins cher, comparable** ; autres enseignes ; à défaut, produits similaires |
+| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne la moins chère, la seule montrée) ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
-| Marque, catégorie | tous leurs produits en mosaïque, remises d'abord ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
+| Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
 | Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » ; **vos missions** : atteinte (les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
-| Explorer | toutes les remises en mosaïque, catégories, tri (meilleures remises, prix croissant, décroissant), marques ; recherche dans tout le catalogue |
+| Recherche | la barre (tout le catalogue suivi) ; **marques** en tuiles (nom, « 3 remises · −19 % » ou « 6 produits », suivie ✓), 8 d'abord, « Toutes les marques (11) » ; **catégories** par univers (« Lits −20 % ») ; en tapant : les marques et les catégories qui correspondent, les produits, « Pas au bon prix ? Lancer une mission » |
 | Favoris | produits gardés en mosaïque ; l'onglet compte les baisses de prix ; la cloche de l'en-tête compte les missions atteintes et y mène |
 | Profil | connexion, marques suivies, déconnexion |
 
@@ -195,3 +204,38 @@ catégorie (remises d'abord, « Retour »), « Mission » depuis une catégorie,
 comparables, la connexion demandée au lancement puis la mission lancée au retour du lien, l'alerte visible sur la fiche
 et relancée sans doublon, le module de l'accueil, l'aperçu qui suit le prix, une phrase non suivie expliquée, la cloche,
 la mission depuis une recherche, l'arrêt d'une mission. Planche : `docs/ux/8-v48.png`.
+
+## Mesures v48 → v49 : un accueil éditorial, une Recherche par marque, un verdict de prix lisible
+
+Mêmes produits et mêmes prix (démo du 14 décembre, 59 produits, 11 marques, 20 catégories), téléphone 390 × 844, sans
+compte.
+
+| | v48 | v49 |
+|---|---|---|
+| Phrase sous le titre de l'accueil | « 13 remises en ce moment sur les grandes marques. Mise à jour chaque jour. » | aucune |
+| Outils présents dans les deux onglets (champ de recherche, puces de filtre, mosaïque des remises) | 3 | **0** |
+| Entrées par marque sur l'accueil | 0 | **7** (les marques en promo) |
+| Marques visibles sans geste dans l'onglet de recherche | 0 (dans une feuille de réglages) | **8**, les 11 en un geste |
+| Marques atteignables depuis cet onglet | 7 sur 11 (celles qui ont une remise) | **11 sur 11** |
+| Gestes de l'accueil à la page d'une marque | 3 | **1** (une carte de l'accueil) ou 2 (l'onglet, une tuile) |
+| Part du premier écran de l'accueil occupée par des visuels · mots | 31 % · 70 | **49 %** · 72 |
+| Verdict de prix sur la fiche | au bas du premier écran (à 715 px), la courbe en dessous | **sous le prix** (à 470 px), jauge comprise |
+| Pour le lire | une courbe en marches, deux points, une ligne pointillée, deux dates, trois valeurs : 9 textes, 5 nombres | une phrase, une jauge, un point, deux bornes : 6 textes, 3 nombres |
+| Verdicts possibles | 2 (« au plus bas », « X € au-dessus du plus bas ») | 4 (au plus bas, parmi les plus bas, habituel, plus cher que d'habitude) |
+| Enseignes et description sur la fiche | toutes les enseignes, « À propos » | l'enseigne la moins chère seulement |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (18 écrans) | 0 · 0 (21 écrans) |
+
+Les mots du premier écran de l'accueil ne baissent pas : la phrase retirée laisse la place aux cartes des marques en
+promo, qui montent dans le premier écran (d'où la part des visuels). Les verdicts, sur les 59 fiches de la démo : au
+plus bas 2, parmi les plus bas 14, habituel 31, plus cher que d'habitude 12 ; sur les 13 remises du jour : 2, 6, 5, 0.
+Cinq remises sont donc à leur « prix habituel » : la démo simule des promotions qui reviennent souvent, et le verdict le
+dit plutôt que de laisser croire à une occasion rare. La jauge place le jour parmi les jours relevés (pas en euros) :
+ainsi le point tombe toujours dans la couleur du verdict (sur une première version en euros, « Son prix habituel »
+s'affichait dans le vert). Règle et seuils : `catalog.position` (tests : `tests/test_catalog.py`, chaque seuil vérifié par mutation).
+
+Parcours vérifié dans un vrai navigateur (Chromium), 37 étapes, deux passages : accueil sans phrase ni outils de
+recherche et ses trois sections, marques en promo vers leur page, Recherche (8 tuiles puis les 11 marques, les 20
+catégories par univers, une marque sans remise trouvée en tapant trois lettres, catégories et produits pour « lave »),
+le verdict et la jauge des quatre états (le point dans sa zone), une seule enseigne et c'est la moins chère, ni courbe
+ni « À propos » ni autres enseignes, tri par prix d'une catégorie, suivre une marque depuis la Recherche ; et les étapes
+des versions précédentes (missions, alertes, connexion, favoris, partage, alternatives). Planche : `docs/ux/9-v49.png`.

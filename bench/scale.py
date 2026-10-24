@@ -141,7 +141,8 @@ def main(argv=None):
     brand, cat, pid = deals[0]["brand"], deals[0]["category"], deals[0]["id"]
     routes = [("today", "/api/r/today", {}, ""), ("today?category", "/api/r/today", {"category": cat}, ""),
               ("today?q", "/api/r/today", {"q": "lave linge 9 kg"}, ""), ("search?q", "/api/r/search", {"q": "lave linge 9 kg"}, ""),
-              ("categories", "/api/r/categories", {}, ""),
+              ("categories", "/api/r/categories", {}, ""), ("categories (toutes)", "/api/r/categories", {"all": "1"}, ""),
+              ("brands (toutes)", "/api/r/brands", {"all": "1"}, ""),
               ("brands", "/api/r/brands", {}, ""), ("brand/<nom>", f"/api/r/brand/{brand}", {}, ""),
               ("category/<clé>", f"/api/r/category/{cat}", {}, ""),
               ("item/<id>", f"/api/r/item/{pid}", {}, ""), ("today (connecté)", "/api/r/today", {}, session),

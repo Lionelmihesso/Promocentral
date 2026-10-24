@@ -1,12 +1,14 @@
 """Contrat de l'app : /api/r/ (inchangé pour l'interface v41).
 
 Lecture ouverte (sans compte) : today?category=&q= (remises du jour), search?q= (tout le catalogue suivi, remises
-d'abord), categories, brands, brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id>,
+d'abord), categories et brands (celles qui ont des remises ; ?all=1 : toutes), brand/<nom> et category/<clé> (tous les
+produits, remises d'abord), item/<id>,
 out/<offer_id>?from=, missions/parse {text} et missions/preview {mission} (ce qui est compris, ce qui y répond déjà).
-Champs ajoutés depuis la v41, sans rien retirer : since et ends (fiche), alternatives avec saving (fiche : comparables
-moins chers), kind et specs (cartes : catégorie au singulier, caractéristiques lues), history (fiche : prix des 90
-derniers jours), published_at (today : heure de la dernière publication), saved_price (favoris), family et best
-(catégories : univers, meilleure remise). today?category= accepte plusieurs catégories séparées par des virgules.
+Champs ajoutés depuis la v41 : since et ends (fiche), alternatives avec saving (fiche : comparables moins chers), kind
+(cartes : catégorie au singulier ; specs, les caractéristiques, retiré en v49 : plus montré), history (fiche : prix des 90
+derniers jours), position (fiche : le prix du jour sur ces 90 jours), published_at (today : heure de la dernière
+publication), saved_price (favoris), family, best et products (catégories), best, products, top et categories (marques).
+today?category= accepte plusieurs catégories séparées par des virgules.
 Session requise (sinon 401) : save, saves, brand/follow, follows, missions (GET : les miennes ; POST : lancer),
 missions/delete {id}.
 Connexion : auth/request {email}, auth/verify?token= (pose le cookie, ou renvoie vers /?auth=expired), auth/me, auth/logout.
@@ -53,8 +55,8 @@ class Api:
         self.routes = [(m, re.compile(p), f) for m, p, f in [
             ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None)),
             ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None)),
-            ("GET", r"/api/r/categories", lambda r: C.categories()),
-            ("GET", r"/api/r/brands", lambda r: C.brands(uid(r))),
+            ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
+            ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
             ("GET", r"/api/r/category/([a-z_]+)", lambda r, key: C.category(uid(r), key)),
             ("GET", r"/api/r/item/(\d+)", lambda r, pid: C.item(uid(r), int(pid))),

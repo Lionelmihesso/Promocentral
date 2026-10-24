@@ -25,7 +25,7 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures du produit
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (54, ~9 s)
+python -m unittest discover -s tests -t .    tests (57, ~9 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
@@ -34,14 +34,16 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 
 ## API `/api/r/` (contrat de l'app)
 Lecture ouverte : `today?category=&q=` (remises du jour), `search?q=` (tout le catalogue suivi, remises d'abord),
-`categories`, `brands`, `brand/<nom>` et `category/<clé>` (tous leurs produits, remises d'abord), `item/<id>`,
+`categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
+leurs produits, remises d'abord), `item/<id>`,
 `out/<offer_id>?from=`, `missions/parse` {text} et `missions/preview` {mission} (ce qui est compris, ce qui y répond
 déjà ; une mission : `product_id`, ou `like` (comparables à ce produit), ou `category`, `brand`, `features`, `attrs` ;
 et `max_price`).
-Ajoutés depuis la v41, sans rien retirer : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche),
-`kind` et `specs` (cartes : catégorie au singulier, caractéristiques lues), `history` (fiche : prix des 90 derniers jours),
-`published_at` (today : heure de la dernière publication), `saved_price` (favoris), `family` et `best` (catégories),
-`attrs` (fiche : caractéristiques lues) ;
+Ajoutés depuis la v41 : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche), `kind` (cartes :
+catégorie au singulier), `history` (fiche : prix des 90 derniers jours) et `position` (fiche : le prix du jour sur ces
+jours, voir plus bas), `published_at` (today : heure de la dernière publication), `saved_price` (favoris), `family`,
+`best` et `products` (catégories), `best`, `products`, `top` et `categories` (marques), `attrs` (fiche : caractéristiques
+lues, pour les missions) ; retiré en v49 : `specs` (la description n'est plus montrée) ;
 `today?category=` accepte plusieurs catégories séparées par des virgules (univers, pièce).
 Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`, `missions` (GET : les miennes et leur état ;
 POST : lancer, ou changer le prix d'une même cible), `missions/delete` {id}.
@@ -53,11 +55,16 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
   ou un « prix barré » inchangé depuis 60 jours (c'est alors le prix). Fausse remise : 10 points de plus que la remise
   réelle, sauf si celle-ci dépasse 30 %. Une fiche reste consultable, sans remise affichée (`deals/judge.py`).
 - **Une carte** : le visuel (illustration de la catégorie), la remise posée dessus, la marque, un nom sur une ligne, le
-  prix et le prix barré. Les caractéristiques (« 160 × 200 cm », « Classe B »), les durées (depuis quand, jusqu'à quand)
-  et la courbe du prix ne sont que dans la fiche. La qualité est implicite.
-- **Prix sur 90 jours** (fiche) : le meilleur prix disponible de chaque jour, toutes enseignes suivies, calculé à la
-  publication ; plus bas et prix habituel (médiane) des 90 jours ; verdict « Au plus bas depuis 90 jours » ou « X €
-  au-dessus du plus bas ».
+  prix et le prix barré. Les durées (depuis quand, jusqu'à quand) et le verdict de prix ne sont que dans la fiche. La
+  qualité est implicite. Aucune description technique ni autre enseigne : elles sont chez l'enseigne, qui est proposée
+  seule (la moins chère, disponible).
+- **Le prix du jour sur les derniers mois** (fiche) : face au meilleur prix de chaque jour relevé (toutes enseignes
+  suivies, jusqu'à 90 jours, aujourd'hui exclu), « Au plus bas depuis N mois » si aucun jour n'était moins cher et que
+  le prix était plus haut au moins un jour sur deux ; « Un des prix les plus bas » s'il est moins cher qu'au moins 2
+  jours sur 3 ; « Plus cher que d'habitude » s'il est plus cher qu'au moins 2 jours sur 3 (« Souvent à X € », la
+  médiane) ; « Son prix habituel » sinon, prix immobile compris ; rien avant 14 jours relevés. « N mois » est arrondi en
+  dessous. La jauge va du plus bas au plus haut relevés ; le point place le jour parmi les jours relevés, dans la zone
+  du verdict (`catalog.position`).
 - **Classement** : remise en %, × 1,5 si la marque est suivie par la personne connectée. Rien d'autre.
 - **Moins cher, comparable** (fiche) : jusqu'à trois produits qui remplacent vraiment celui qu'on regarde et coûtent au
   moins 10 % de moins, disponibles, la plus forte économie d'abord, une marque par ligne, avec l'économie en euros.
@@ -99,11 +106,12 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
 
 Une page (`web/src/App.jsx` → `web/app.html`, polices incluses, aucune requête vers un tiers) : un flux vivant de
 remises, à la croisée d'un Pinterest (mosaïque de visuels, inspiration par pièce) et d'un Bloomberg (bandeau défilant
-avec l'heure de mise à jour, courbe du prix sur 90 jours). Les visuels sont des illustrations originales par catégorie
+avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des illustrations originales par catégorie
 (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Cinq onglets :
-Accueil, Explorer, Missions, Favoris, Profil. Principe, écrans et mesures v41 à v48 :
+Accueil (éditorial : pièces, marques en promo, sélection), Recherche (un produit, une marque, une catégorie), Missions,
+Favoris, Profil. Principe, écrans et mesures v41 à v49 :
 [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
