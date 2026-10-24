@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises, des missions (v49)
+# L'interface de DEALS — un flux vivant de remises, des missions (v50)
 
 ## Principe
 
@@ -17,11 +17,13 @@ regarde** (la recherche couvre tout le catalogue suivi) ; la fiche répond alors
 bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (le verdict de
 prix, règle : `catalog.position`).
 
-**Deux onglets, deux rôles (v49).** L'**Accueil** est éditorial : le bandeau, un titre, les inspirations par pièce, les
-marques en promo (au même format que les pièces), notre sélection ; aucune phrase de remplissage, aucun outil de
-recherche. La **Recherche** sert à trouver : la barre, les marques en tuiles (toutes, avec ou sans remise), les
-catégories par univers ; en tapant, les marques et les catégories qui correspondent, puis les produits. Les pages d'une
-marque et d'une catégorie se trient (remises d'abord, prix croissant, décroissant). La fiche ne garde que ce qui sert la
+**L'accueil inspire, la recherche répond, les missions guettent (v49, v50).** L'**Accueil** est éditorial : le bandeau,
+un titre, les inspirations par pièce, les marques en promo (au même format que les pièces), notre sélection ; aucune
+phrase de remplissage, aucun outil de recherche. La **Recherche** répond à une intention précise, sobrement : un champ,
+trois filtres visibles d'emblée (catégorie, budget, remise), un tri (pertinence, prix, remise), des résultats en
+mosaïque ; avant toute recherche, l'écran reste nu, avec quelques exemples. Une marque tapée s'ouvre en raccourci au-dessus
+des résultats. Les **Missions** guettent une occasion future ; depuis la Recherche, la mission reprend la requête et le
+budget. Les pages d'une marque et d'une catégorie se trient (remises d'abord, prix croissant, décroissant). La fiche ne garde que ce qui sert la
 décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
 technique et les autres enseignes restent chez l'enseigne.
 
@@ -50,7 +52,7 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 | Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
 | Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
 | Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » ; **vos missions** : atteinte (les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
-| Recherche | la barre (tout le catalogue suivi) ; **marques** en tuiles (nom, « 3 remises · −19 % » ou « 6 produits », suivie ✓), 8 d'abord, « Toutes les marques (11) » ; **catégories** par univers (« Lits −20 % ») ; en tapant : les marques et les catégories qui correspondent, les produits, « Pas au bon prix ? Lancer une mission » |
+| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Remise** (en remise, −10 %, −20 % et plus) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute recherche, « Essayez » et cinq exemples ; ensuite, la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, remise), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque |
 | Favoris | produits gardés en mosaïque ; l'onglet compte les baisses de prix ; la cloche de l'en-tête compte les missions atteintes et y mène |
 | Profil | connexion, marques suivies, déconnexion |
 
@@ -239,3 +241,29 @@ catégories par univers, une marque sans remise trouvée en tapant trois lettres
 le verdict et la jauge des quatre états (le point dans sa zone), une seule enseigne et c'est la moins chère, ni courbe
 ni « À propos » ni autres enseignes, tri par prix d'une catégorie, suivre une marque depuis la Recherche ; et les étapes
 des versions précédentes (missions, alertes, connexion, favoris, partage, alternatives). Planche : `docs/ux/9-v49.png`.
+
+## Mesures v49 → v50 : la Recherche répond à une intention précise
+
+Mêmes produits et mêmes prix (démo du 14 décembre), téléphone 390 × 844, sans compte.
+
+| | v49 | v50 |
+|---|---|---|
+| Éléments à toucher avant toute recherche · mots du premier écran | 30 · 58 | **9 · 15** |
+| Filtres catégorie, budget, remise | aucun | **les trois, visibles d'emblée** |
+| Tri des résultats | aucun (remises d'abord) | **pertinence, prix croissant, remise** |
+| « lave » : rang du premier produit qui n'est ni lave-linge ni lave-vaisselle | 2 (un robot laveur en remise) | **10** (après les 9 lave-linge et lave-vaisselle) |
+| « Un lave-linge sous 500 € » : ce qui est montré | les 5 lave-linge de la catégorie, à trier soi-même | **les 3 sous 500 €**, en 5 gestes sans rien taper |
+| Mission depuis la Recherche | la requête seule | la requête ou la catégorie, et le budget (« lave-linge sous 500 € ») |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (21 écrans) | 0 · 0 (24 écrans) |
+
+Les marques ne sont plus listées dans la Recherche : on y entre par l'accueil (les marques en promo), par les étiquettes
+de chaque fiche, ou en tapant le nom (le raccourci « Marque » s'affiche au-dessus des résultats, même pour une marque
+sans remise). Le filtre de catégorie propose, quand on a tapé quelque chose, les seules catégories trouvées et leur
+nombre de produits. La pertinence met d'abord les produits dont la requête nomme la catégorie ou la marque, puis les
+remises, puis le prix (`Catalog.search`, chaque règle et chaque filtre vérifiés par mutation).
+
+Parcours vérifié dans un vrai navigateur (Chromium), 41 étapes, deux passages : l'écran sobre (le champ, les trois
+filtres, les cinq exemples, aucun bloc), un exemple qui lance la recherche, la marque sans remise trouvée en tapant trois
+lettres, la pertinence de « lave », catégorie et budget sans rien taper (3 produits, tous sous 500 €, les puces
+montrent le choix), le tri par prix, la mission qui reprend catégorie et budget ; et les étapes des versions
+précédentes. Planche : `docs/ux/10-v50.png`.

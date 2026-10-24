@@ -10,6 +10,10 @@
    Recherche sert à trouver (un produit, une marque, une catégorie). La fiche dit en mots et d'un coup d'œil si le prix
    du jour est bas sur les derniers mois, et ne propose que l'enseigne la moins chère.
 
+   v50 : la Recherche répond à une intention précise, sobrement : un champ, trois filtres (catégorie, budget, remise) et
+   un tri visibles d'emblée, des résultats en mosaïque ; avant toute recherche, quelques exemples. L'accueil inspire, la
+   recherche répond, les missions guettent.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -36,6 +40,7 @@ const UI = {
   next: ["M9.5 5.5L16 12l-6.5 6.5"],
   target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
   minus: ["M6.5 12h11"],
+  down: ["M7 10l5 5 5-5"],
   up: ["M12 18.5v-12", "M6.5 12l5.5-5.5 5.5 5.5"],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
@@ -54,6 +59,12 @@ const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toL
 const spanOf = days => days >= 30 ? `${Math.floor(days / 30)} mois` : `${days} jours`;      // « depuis 2 mois » : arrondi en dessous
 const FAMILY = { electromenager: "Électroménager", ameublement: "Ameublement", literie: "Literie" };
 const EXAMPLES = ["Aspirateur balai sous 300 €", "Lave-linge 9 kg sous 500 €", "Matelas 160x200 sous 600 €", "Canapé d'angle sous 900 €"];
+// Recherche : des exemples pour démarrer, les filtres (budget maximum, remise minimale) et les tris.
+const TRY = ["aspirateur balai", "lave-linge 9 kg", "matelas 160x200", "canapé d'angle", "réfrigérateur"];
+const BUDGETS = [["", "Tous les budgets"], ["200", "Moins de 200 €"], ["500", "Moins de 500 €"], ["1000", "Moins de 1 000 €"], ["2000", "Moins de 2 000 €"]];
+const OFFS = [["", "Toutes"], ["1", "En remise"], ["10", "−10 % et plus"], ["20", "−20 % et plus"]];
+const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Remise"]];
+const NO_FILTERS = { category: "", budget: "", off: "" };
 // L'inspiration par pièce : des catégories regroupées comme on pense son intérieur.
 const ROOMS = [
   { key: "chambre", label: "Chambre", art: "lit", cats: ["lit", "matelas", "sommier", "armoire", "commode"] },
@@ -250,6 +261,9 @@ const CSS = `
 .d .opts button{padding:10px 16px}
 .d .opts small{display:block;font-size:13px;font-weight:600;color:var(--mid);margin-top:2px}
 .d .opts button.on small{color:#D9D7D2}
+.d .opts .aside{display:flex;align-items:center;gap:10px}
+.d .opts .aside em{font-style:normal;font-size:13.5px;font-weight:700;color:var(--mid)}
+.d .opts button.on .aside em{color:#D9D7D2}
 /* fiche : marque et catégorie, alerte de prix */
 .d .crumbs{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px}
 .d .crumbs button{display:flex;align-items:center;gap:3px;border:0;background:rgba(255,255,255,.95);border-radius:999px;min-height:44px;padding:0 11px 0 15px;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;box-shadow:0 1px 4px rgba(0,0,0,.14)}
@@ -272,20 +286,22 @@ const CSS = `
 .d .state i{width:9px;height:9px;border-radius:50%;background:var(--icon);flex:0 0 auto}
 .d .state.ok{color:var(--good)}.d .state.ok i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
 /* recherche : marques en tuiles, catégories par univers */
-.d .btiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 16px}
-.d .btile{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;min-height:78px;border:0;border-radius:16px;background:var(--tint);padding:12px 14px;text-align:left;min-width:0}
-.d .btile b{font-family:var(--serif);font-weight:400;font-size:25px;line-height:1;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.d .btile span{font-size:13px;font-weight:700;color:var(--mid)}
-.d .btile span.deal{color:var(--accent-ink)}
-.d .btile .i{position:absolute;top:10px;right:10px;color:var(--good)}
-.d .more{display:block;margin:10px 16px 0;width:calc(100% - 32px);min-height:48px;border:1px solid var(--line);border-radius:14px;background:var(--paper);font-size:14.5px;font-weight:800}
-.d .fam{padding:0 16px 16px}
-.d .fam h3,.d .found h3{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);margin:0 0 10px}
+.d .sbar.big{height:58px;border-radius:18px;padding-left:18px;margin-top:14px}
+.d .sbar.big input{font-size:17px;font-weight:600}
+.d .filters{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 2px}
+.d .fchip{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1px solid #D9D6D0;background:var(--paper);border-radius:999px;min-height:44px;padding:0 12px 0 16px;font-size:14.5px;font-weight:700;white-space:nowrap}
+.d .fchip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.d .fchip .i{color:inherit;opacity:.75}
+.d .tryit{padding:26px 16px 0}
+.d .tryit h3{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);margin:0 0 10px}
 .d .ctags{display:flex;flex-wrap:wrap;gap:8px}
 .d .ctag{display:flex;align-items:center;gap:8px;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14.5px;font-weight:700}
-.d .ctag span{font-size:12.5px;font-weight:800;color:var(--accent-ink)}
-.d .found{padding:18px 16px 0}
-.d .found .btiles{padding:0}
+.d .brow{display:flex;align-items:center;gap:10px;width:calc(100% - 32px);margin:16px 16px 0;min-height:56px;border:0;border-radius:16px;background:var(--tint);padding:0 14px 0 16px;text-align:left}
+.d .brow small{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid)}
+.d .brow b{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1}
+.d .brow span{flex:1;font-size:13.5px;font-weight:700;color:var(--mid)}
+.d .fchip.clear{border-color:transparent;background:none;color:var(--mid);padding:0 12px;gap:4px}
+.d .fchip.sort{border-color:transparent;background:var(--tint);font-size:14px;padding:0 12px 0 14px}
 /* missions : une envie et un prix, en une phrase */
 .d .mbox{margin:16px 16px 0;background:var(--terminal);color:#F2F0EC;border-radius:22px;padding:18px}
 .d .mbox.feed{margin-top:24px}
@@ -345,9 +361,8 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .ticker{border-radius:12px;margin-bottom:8px}
   .d .intro,.d .sechead,.d .pagehead{padding-left:0;padding-right:0}
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
-  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .btiles,.d .fam,.d .found{padding-left:0;padding-right:0}
-  .d .btiles{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1000px}
-  .d .more{margin-left:0;width:auto;padding:0 24px}
+  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
+  .d .brow{margin-left:0;margin-right:0;width:100%;max-width:640px}
   .d .mbox,.d .draft,.d .mline{margin-left:0;margin-right:0}
   .d .mline{width:100%;max-width:640px}
   .d .mbox{padding:26px 28px}.d .mbox .mform{max-width:640px}
@@ -362,7 +377,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .item .info{padding-left:0;padding-right:0;padding-top:0}
   .d .sheet-wrap{align-items:center}.d .sheet{border-radius:26px}
 }
-@media (hover:hover){.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover,.d .btile:hover,.d .ctag:hover{background:var(--tint2)}.d .chips button.on:hover{background:var(--ink)}}
+@media (hover:hover){.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover,.d .ctag:hover,.d .brow:hover{background:var(--tint2)}.d .chips button.on:hover{background:var(--ink)}}
 `;
 
 /* Une feuille se ferme aussi avec Échap. */
@@ -460,6 +475,23 @@ function AlertSheet({ item, current, onClose, onLaunch, onStop }) {
   </div>;
 }
 
+/* Un filtre ou un tri de la Recherche : une liste, un choix, la feuille se ferme. */
+function ChoiceSheet({ title, options, value, onPick, onClose }) {
+  useEscape(onClose);
+  const box = useRef(null);
+  useEffect(() => { box.current?.focus(); }, []);
+  return <div className="sheet-wrap" onClick={onClose}>
+    <div className="sheet" ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className="eyebrow">Recherche</div>
+      <h2>{title}</h2>
+      <div className="opts" style={{ marginTop: 14 }}>{options.map(([v, label, count]) =>
+        <button key={v} className={value === v ? "on" : ""} aria-pressed={value === v} onClick={() => { onPick(v); onClose(); }}
+          aria-label={count != null ? `${label}, ${plural(count, "produit")}` : undefined}>
+          <span><b>{label}</b></span><span className="aside">{count != null && <em>{count}</em>}{value === v && <Icon d={UI.check} size={18} sw={2.4} />}</span></button>)}</div>
+    </div>
+  </div>;
+}
+
 /* Bandeau : les remises du jour défilent, comme un fil de cotations. */
 function Ticker({ items, publishedAt }) {
   if (!items.length) return null;
@@ -516,7 +548,9 @@ export default function App() {
   const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
   const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)
   const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
-  const [everyBrand, setEveryBrand] = useState(false);
+  const [filters, setFilters] = useState(NO_FILTERS);  // Recherche : catégorie, budget maximum, remise minimale
+  const [sortBy, setSortBy] = useState("relevance");
+  const [picking, setPicking] = useState(null);    // filtre en cours de choix : category | budget | off | sort
   const [results, setResults] = useState(null);    // Recherche : produits
   const [order, setOrder] = useState("pct");       // pages marque et catégorie : pct | asc | desc
   const [list, setList] = useState(null);          // pièce
@@ -606,11 +640,14 @@ export default function App() {
     api("today").then(d => { setAll(d); setError(null); }).catch(() => setError("Impossible de charger les remises."));
   }, [version]);
 
-  useEffect(() => {                                                         // Recherche : tout le catalogue
-    if (view || tab !== "search" || !q.trim()) { setResults(null); return; }
-    const t = setTimeout(() => api(`search?q=${encodeURIComponent(q.trim())}`).then(setResults).catch(() => {}), 200);
+  useEffect(() => {                                                         // Recherche : une requête, des filtres, un tri
+    const term = q.trim(), any = term || filters.category || filters.budget || filters.off;
+    if (view || tab !== "search" || !any) { setResults(null); return; }
+    const params = new URLSearchParams({ q: term, category: filters.category, max: filters.budget, off: filters.off, sort: sortBy });
+    for (const [k, v] of [...params]) if (!v) params.delete(k);
+    const t = setTimeout(() => api(`search?${params}`).then(setResults).catch(() => {}), term ? 200 : 0);
     return () => clearTimeout(t);
-  }, [tab, q, view, version]);
+  }, [tab, q, filters, sortBy, view, version]);
 
   useEffect(() => {
     if (!view) return;
@@ -621,7 +658,7 @@ export default function App() {
     if (view.kind === "room") api(`today?category=${view.room.cats.join(",")}`).then(setList).catch(() => setError("Pièce introuvable."));
   }, [view, version]);
 
-  useEffect(() => { window.scrollTo(0, 0); setAlertOpen(false); }, [view, tab]);
+  useEffect(() => { window.scrollTo(0, 0); setAlertOpen(false); setPicking(null); }, [view, tab]);
 
   const isSaved = id => saved.has(id);
   const isFollowed = b => followed.has(b);
@@ -663,7 +700,8 @@ export default function App() {
     } catch { /* partage annulé */ }
   };
 
-  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ(""); };
+  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ("");
+    setFilters(NO_FILTERS); setSortBy("relevance"); };
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
   const open = (id, via) => { setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
   const openBrand = name => { setBrandPage(null); setOrder("pct"); setView(v => ({ kind: "brand", name, from: v })); };
@@ -720,7 +758,7 @@ export default function App() {
   </article>;
   const grid = (items, via) => <Masonry items={items} cols={cols} render={card(via)} />;
 
-  const searchBar = <label className="sbar"><Icon d={UI.search} size={19} />
+  const searchBar = <label className="sbar big"><Icon d={UI.search} size={20} />
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Une marque, un produit, une envie…" aria-label="Rechercher" enterKeyHint="search" />
     {q && <button className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
@@ -730,7 +768,10 @@ export default function App() {
   const badge = { missions: reached, saved: drops };
   const reachedSaid = reached > 1 ? `${reached} missions atteintes` : reached === 1 ? "1 mission atteinte" : "";
   const tabSaid = (k, l) => k === "missions" && reached ? `${l}, ${reachedSaid}` : k === "saved" && drops ? `${l}, ${plural(drops, "baisse")} de prix` : undefined;
-  const missionLine = q.trim().length >= 3 && <button className="mline" onClick={() => goMission(q.trim())}>
+  // « Pas au bon prix ? » : la mission reprend la requête (ou la catégorie choisie) et le budget.
+  const missionWhat = q.trim() || (allCats.find(c => c.key === filters.category)?.label || "").toLowerCase();
+  const missionText = missionWhat && `${missionWhat}${filters.budget ? ` sous ${filters.budget} €` : ""}`;
+  const missionLine = missionWhat.length >= 3 && <button className="mline" onClick={() => goMission(missionText)}>
     <Icon d={UI.target} size={20} /><span>Pas au bon prix ? <b>Lancer une mission</b></span><Icon d={UI.next} size={18} sw={2.2} /></button>;
   const composer = (home) => <form className={`mbox ${home ? "feed" : ""}`} onSubmit={e => { e.preventDefault(); home ? goMission(mtext) : parseMission(mtext); }}>
     <div className="k"><i />{home ? "MISSION" : "NOUVELLE MISSION"}</div>
@@ -770,12 +811,6 @@ export default function App() {
     aria-label={`${label}, jusqu'à moins ${best} %, ${sub}`}>
     <Vignette category={art} seed={seed} ratio={1.32} floor={0.7} zoom={ratioOf(art) > 1 ? 0.9 : 1.04} /><span className="shade" />
     <span className="rt"><b>{label}</b><span>Jusqu'à −{best} %</span><small>{sub}</small></span></button>;
-  const brandTile = b => <button key={b.name} className="btile" onClick={() => openBrand(b.name)}
-    aria-label={`${b.name}${b.followed ? ", suivie" : ""}, ${b.count ? `${plural(b.count, "remise")}, jusqu'à moins ${b.best} %` : plural(b.products, "produit")}`}>
-    <b>{b.name}</b>{b.followed && <Icon d={UI.check} size={14} sw={2.6} />}
-    <span className={b.count ? "deal" : ""}>{b.count ? `${plural(b.count, "remise")} · −${b.best} %` : plural(b.products, "produit")}</span></button>;
-  const catChip = c => <button key={c.key} className="ctag" onClick={() => openCategory(c.key)}
-    aria-label={c.count ? `${c.label}, jusqu'à moins ${c.best} %` : c.label}>{c.label}{c.count > 0 && <span>−{c.best} %</span>}</button>;
   const sortBar = <div className="chips" role="group" aria-label="Trier">{[["pct", "Remises d'abord"], ["asc", "Prix croissant"], ["desc", "Prix décroissant"]].map(([k, l]) =>
     <button key={k} className={order === k ? "on" : ""} aria-pressed={order === k} onClick={() => setOrder(k)}>{l}</button>)}</div>;
   const ordered = items => order === "pct" ? items : [...items].sort((a, b) => order === "asc" ? a.price - b.price : b.price - a.price);
@@ -878,30 +913,44 @@ export default function App() {
       {items.length > cols * 2 && <div style={{ height: 18 }} />}
       {grid(items.slice(cols * 2))}
     </>;
-  } else if (tab === "search") {                  // trouver : un produit, une marque, une catégorie
+  } else if (tab === "search") {                  // répondre à une intention précise : un champ, trois filtres, un tri
     const term = q.trim(), t = norm(term);
-    const hit = name => name.includes(t) || (t.length >= 3 && ` ${t} `.includes(` ${name} `));
-    const brandHits = term ? allBrands.filter(b => norm(b.name).includes(t)).slice(0, 6) : [];
-    const catHits = term ? allCats.filter(c => hit(norm(c.label)) || hit(norm(c.key.replace(/_/g, " ")))).slice(0, 8) : [];
-    const byName = (a, b) => a.label.localeCompare(b.label, "fr");
+    const active = filters.category || filters.budget || filters.off;
+    const brandHit = t.length >= 2 ? allBrands.find(b => norm(b.name) === t) || allBrands.find(b => norm(b.name).startsWith(t)) : null;
+    const catOptions = (results && term ? results.categories : allCats.map(c => ({ key: c.key, label: c.label, count: c.products })))
+      .slice().sort((a, b) => a.label.localeCompare(b.label, "fr"));
+    const label = (list, v) => list.find(([k]) => k === v)?.[1];
+    const catName = allCats.find(c => c.key === filters.category)?.label;
+    const chip = (key, name, value) => <button key={key} className={`fchip ${value ? "on" : ""}`} onClick={() => setPicking(key)} aria-haspopup="dialog"
+      aria-label={value ? `${name} : ${value}` : name}>{value || name}<Icon d={UI.down} size={15} sw={2.4} /></button>;
+    const sheets = {
+      category: ["Catégorie", [["", "Toutes les catégories"], ...catOptions.map(c => [c.key, c.label, c.count])], filters.category,
+        v => setFilters(f => ({ ...f, category: v }))],
+      budget: ["Budget", BUDGETS, filters.budget, v => setFilters(f => ({ ...f, budget: v }))],
+      off: ["Remise", OFFS, filters.off, v => setFilters(f => ({ ...f, off: v }))],
+      sort: ["Trier", SORTS, sortBy, setSortBy],
+    };
     body = <>
       <div className="pagehead"><h1>Recherche</h1></div>
       {searchBar}
-      {!term ? <>
-        <div className="sechead"><h2>Marques</h2></div>
-        <div className="btiles">{(everyBrand ? allBrands : allBrands.slice(0, 8)).map(brandTile)}</div>
-        {!everyBrand && allBrands.length > 8 && <button className="more" onClick={() => setEveryBrand(true)}>Toutes les marques ({allBrands.length})</button>}
-        <div className="sechead"><h2>Catégories</h2></div>
-        {Object.keys(FAMILY).map(f => { const here = allCats.filter(c => c.family === f).sort(byName);
-          return here.length > 0 && <div key={f} className="fam"><h3>{FAMILY[f]}</h3><div className="ctags">{here.map(catChip)}</div></div>; })}
-      </> : <>
-        {brandHits.length > 0 && <div className="found"><h3>Marques</h3><div className="btiles">{brandHits.map(brandTile)}</div></div>}
-        {catHits.length > 0 && <div className="found"><h3>Catégories</h3><div className="ctags">{catHits.map(catChip)}</div></div>}
-        <div className="sechead"><h2>{results ? plural(results.total, "produit") : "…"}</h2></div>
+      <div className="filters" role="group" aria-label="Filtres">
+        {chip("category", "Catégorie", catName)}{chip("budget", "Budget", filters.budget && label(BUDGETS, filters.budget))}
+        {chip("off", "Remise", filters.off && label(OFFS, filters.off))}
+        {active && <button className="fchip clear" onClick={() => setFilters(NO_FILTERS)}><Icon d={UI.x} size={15} sw={2.4} />Effacer</button>}
+      </div>
+      {!term && !active ? <div className="tryit"><h3>Essayez</h3>
+        <div className="ctags">{TRY.map(x => <button key={x} className="ctag" onClick={() => setQ(x)}>{x}</button>)}</div></div> : <>
+        {brandHit && <button className="brow" onClick={() => openBrand(brandHit.name)} aria-label={`La marque ${brandHit.name}`}>
+          <small>Marque</small><b>{brandHit.name}</b><span>{plural(brandHit.products, "produit")}</span><Icon d={UI.next} size={18} sw={2.2} /></button>}
+        <div className="sechead"><h2>{results ? plural(results.total, "produit") : "…"}</h2>
+          <button className="fchip sort" onClick={() => setPicking("sort")} aria-haspopup="dialog" aria-label={`Trier : ${label(SORTS, sortBy)}`}>
+            {label(SORTS, sortBy)}<Icon d={UI.down} size={15} sw={2.4} /></button></div>
         {missionLine}
         {results && results.products.length === 0 && <div className="empty">Aucun produit ne correspond.</div>}
         {grid(results?.products || [], "search")}
       </>}
+      {picking && <ChoiceSheet title={sheets[picking][0]} options={sheets[picking][1]} value={sheets[picking][2]} onPick={sheets[picking][3]}
+        onClose={() => setPicking(null)} />}
     </>;
   } else if (tab === "missions") {
     const mine = missions?.missions || [];

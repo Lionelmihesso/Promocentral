@@ -10,7 +10,7 @@ derniers mois (`position`, pur) ; les caractéristiques techniques et les autres
 import json
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
@@ -18,6 +18,7 @@ from .extract.categories import FAMILY_OF
 FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
+SORTS = ("relevance", "price", "discount")                 # Recherche : pertinence, prix croissant, remise
 FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
 CATEGORY_LABEL = {
     "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchants", "seche_linge": "Sèche-linge",
@@ -89,6 +90,12 @@ def position(history, price):
             "usual": sorted(days)[len(days) // 2], "days": len(p) - first}
 
 
+def names(category, brand):
+    """Les mots qui nomment un produit sans le décrire : sa catégorie (au pluriel, au singulier) et sa marque."""
+    return " " + norm(" ".join([CATEGORY_LABEL.get(category or "", ""), CATEGORY_ONE.get(category or "", ""),
+                                (category or "").replace("_", " "), brand or ""])) + " "
+
+
 def matches(search, toks):
     """Chaque mot doit commencer un mot du produit ; un synonyme de plusieurs mots (« lave linge ») est cherché tel quel."""
     return all((t in search) if " " in t else (f" {t}" in search) for t in toks)
@@ -131,17 +138,36 @@ class Catalog:
         r = self.s.q("SELECT value FROM meta WHERE key='published_at'", one=True)
         return float(r["value"]) if r else None
 
-    def search(self, uid=None, q=None):
-        """Tout le catalogue suivi, pas seulement les remises : c'est l'entrée « je regarde ce produit » (sa fiche montre
-        ses alternatives moins chères). Les remises d'abord, puis le reste, du moins cher au plus cher."""
+    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance"):
+        """La Recherche répond à une intention précise, dans tout le catalogue suivi (pas seulement les remises).
+
+        Filtres : catégorie, budget (lo ≤ prix ≤ hi), remise minimale (off, en %) ; sans mot, les filtres suffisent.
+        Tri : pertinence (d'abord les produits dont la requête nomme la catégorie ou la marque, puis les remises, puis
+        le prix croissant), prix croissant, ou remise. categories : combien de produits trouvés par catégorie, avant le
+        filtre de catégorie (le filtre propose ce qui existe)."""
         toks = tokens(q) if q else []
-        if not toks:
-            return {"products": [], "total": 0, "signed_in": uid is not None}
+        if not toks and not (category or lo is not None or hi is not None or off):
+            return {"products": [], "total": 0, "categories": [], "signed_in": uid is not None}
         followed, saved = self._personal(uid)
-        hits = [r for r in self.s.q("SELECT product_id, pct, brand, price, search FROM catalog") if matches(r["search"], toks)]
+        found = [r for r in self.s.q("SELECT product_id, pct, brand, price, category, search FROM catalog")
+                 if (not toks or matches(r["search"], toks)) and (lo is None or r["price"] >= lo)
+                 and (hi is None or r["price"] <= hi) and (not off or r["pct"] >= off)]
+        facet = Counter(r["category"] for r in found)
+        hits = [r for r in found if not category or r["category"] == category]
         score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
-        hits.sort(key=lambda r: (r["pct"] <= 0, -score(r), r["price"], r["product_id"]))
-        return self._page(hits, score, uid, followed, saved)
+        if sort == "price":
+            hits.sort(key=lambda r: (r["price"], r["product_id"]))
+        elif sort == "discount":
+            hits.sort(key=lambda r: (-r["pct"], r["price"], r["product_id"]))
+        else:
+            def named(r):                                  # la requête nomme sa catégorie ou sa marque
+                n = names(r["category"], r["brand"])
+                return any((t in n) if " " in t else (f" {t}" in n) for t in toks)
+            hits.sort(key=lambda r: (not named(r), r["pct"] <= 0, -score(r), r["price"], r["product_id"]))
+        out = self._page(hits, score, uid, followed, saved)
+        out["categories"] = sorted(({"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in facet.items()),
+                                   key=lambda c: (-c["count"], c["label"]))
+        return out
 
     def _page(self, hits, score, uid, followed, saved):
         """Lignes complètes et cartes pour le seul haut de liste montré."""

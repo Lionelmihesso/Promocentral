@@ -3,11 +3,17 @@
 « Au plus bas » seulement si aucun jour des trois derniers mois n'était moins cher et que le prix était plus haut au moins
 un jour sur deux (un prix qui ne bouge pas n'est pas « au plus bas », il est habituel) ; « parmi les plus bas » si
 moins cher qu'au moins 2 jours sur 3 ; « plus cher que d'habitude » si plus cher qu'au moins 2 jours sur 3 ; rien sans
-au moins 14 jours relevés.
+au moins 14 jours relevés. La Recherche (Catalog.search) filtre par catégorie, budget et remise, même sans mot, et met
+d'abord les produits dont la requête nomme la catégorie ou la marque.
 """
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from deals.catalog import position
+from deals.catalog import Catalog, haystack, position
+from deals.extract import attributes, categorize
+from deals.store import Store
 
 
 def curve(*runs, today):
@@ -46,6 +52,41 @@ class Position(unittest.TestCase):
         self.assertIsNone(position(curve((700, 13), today=650), 650))
         self.assertIsNone(position(None, 650))
         self.assertEqual(position(curve((700, 14), today=650), 650)["days"], 15)
+
+
+class Search(unittest.TestCase):
+    def setUp(self):
+        self.s = Store(Path(tempfile.mkdtemp(), "c.sqlite"))
+        rows = [(1, "Robot aspirateur laveur S8", "Brava", 299, 30), (2, "Lave-linge hublot 9 kg classe A", "Kessler", 449, 0),
+                (3, "Lave-vaisselle 60 cm 13 couverts", "Helio", 389, 10), (4, "Lave-linge hublot 8 kg", "Ostra", 549, 15),
+                (5, "Sèche-linge Zenit 8 kg à superposer avec Ostra", "Zenit", 399, 40)]
+        with self.s.tx() as c:
+            for pid, title, brand, price, pct in rows:
+                cat = categorize(title)[0]
+                c.execute("INSERT INTO catalog(product_id, name, title, brand, category, price, pct, search, published_on, attrs) "
+                          "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, cat, price, pct, haystack(title, brand, "Site", cat),
+                                                         "2026-10-24", json.dumps(attributes(title))))
+        self.c = Catalog(self.s)
+
+    def tearDown(self):
+        self.s.close()
+
+    def ids(self, **kw):
+        return [p["id"] for p in self.c.search(**kw)["products"]]
+
+    def test_relevance_names_first(self):
+        self.assertEqual(self.ids(q="lave"), [4, 3, 2, 1])               # « laveur » trouvé, mais après les lave-linge et lave-vaisselle
+        self.assertEqual(self.ids(q="lave", sort="discount"), [1, 4, 3, 2])
+        self.assertEqual(self.ids(q="lave", sort="price"), [1, 3, 2, 4])
+        self.assertEqual(self.ids(q="ostra"), [4, 5])                     # la marque nomme le produit : avant la plus forte remise
+
+    def test_filters_even_without_words(self):
+        self.assertEqual(self.ids(hi=450), [5, 1, 3, 2])                  # budget seul : les remises d'abord, puis le prix
+        self.assertEqual(self.ids(off=15), [5, 1, 4])                     # remise minimale
+        self.assertEqual(self.ids(q="lave", category="lave_linge", lo=500), [4])
+        facet = {c["key"]: c["count"] for c in self.c.search(q="lave", category="lave_linge")["categories"]}
+        self.assertEqual(facet, {"lave_linge": 2, "lave_vaisselle": 1, "robot_aspirateur": 1})   # avant le filtre de catégorie
+        self.assertEqual(self.c.search()["products"], [])                # ni mot ni filtre : rien
 
 
 if __name__ == "__main__":

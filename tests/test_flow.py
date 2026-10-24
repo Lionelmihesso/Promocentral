@@ -128,6 +128,15 @@ class Flow(unittest.TestCase):
         self.assertEqual([(p["brand"], p["pct"]) for p in found],
                          [("Bultex", 40), ("Bosch", 19), ("Nils", 0), ("Samsung", 0), ("Oslo", 0)])
         self.assertEqual(self.get("search?q=")[1]["products"], [])
+        cheap = self.get("search?q=site&max=700")[1]["products"]                        # budget
+        self.assertTrue(cheap and all(p["price"] <= 700 for p in cheap) and len(cheap) < len(found))
+        self.assertEqual([p["brand"] for p in self.get("search?off=1")[1]["products"]], ["Bultex", "Bosch"])   # sans mot : remises
+        by_price = [p["price"] for p in self.get("search?q=site&sort=price")[1]["products"]]
+        self.assertEqual(by_price, sorted(by_price))
+        st, only, _ = self.get("search?q=site&category=matelas")
+        self.assertEqual(([p["category"] for p in only["products"]], len(only["categories"])), (["matelas"], 5))   # facette entière
+        self.assertEqual(self.get("search?q=site&sort=hasard")[0], 400)
+        self.assertEqual(self.get("search?q=site&max=beaucoup")[0], 400)
         self.assertEqual(item["alternatives"], [])                                       # rien de comparable ici
         self.assertTrue(all(p["since"] == p["published_on"] for p in today["products"]))  # première publication : tout commence
 

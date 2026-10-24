@@ -25,7 +25,7 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures du produit
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (57, ~9 s)
+python -m unittest discover -s tests -t .    tests (59, ~9 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
@@ -33,7 +33,9 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 `deploy/deals.env.example`). Les commandes qui lisent les sites exigent `DEALS_USER_AGENT` (nom du robot, contact).
 
 ## API `/api/r/` (contrat de l'app)
-Lecture ouverte : `today?category=&q=` (remises du jour), `search?q=` (tout le catalogue suivi, remises d'abord),
+Lecture ouverte : `today?category=&q=` (remises du jour), `search?q=&category=&min=&max=&off=&sort=` (tout le catalogue
+suivi ; filtres : catégorie, budget, remise minimale en % ; tri : `relevance`, `price`, `discount` ; `categories` : les
+catégories trouvées et leur nombre),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
 leurs produits, remises d'abord), `item/<id>`,
 `out/<offer_id>?from=`, `missions/parse` {text} et `missions/preview` {mission} (ce qui est compris, ce qui y répond
@@ -74,9 +76,10 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
   en dessous ; capacité, couverts, foyers au plus un de moins ; volume au plus 15 % de moins ; autonomie au moins les
   deux tiers ; bruit au plus 3 dB de plus). Sans alternative moins chère : les autres comparables, au prix le plus
   proche (« Produits similaires ») ; sans comparable : rien (`deals/alternatives.py`).
-- **Recherche** : tout le catalogue suivi, pas seulement les remises (les remises d'abord, puis du moins cher au plus
-  cher), pour ouvrir le produit qu'on regarde ailleurs ; insensible aux accents, à la casse et aux tirets, synonymes
-  courants (frigo, sofa, congélo…).
+- **Recherche** : tout le catalogue suivi, pas seulement les remises, pour une intention précise ; filtres catégorie,
+  budget et remise minimale, même sans mot ; tri par pertinence (d'abord les produits dont la requête nomme la
+  catégorie ou la marque, puis les remises, puis le prix), par prix croissant ou par remise ; insensible aux accents, à
+  la casse et aux tirets, synonymes courants (frigo, sofa, congélo…).
 - **Marque et catégorie** (fiche) : deux étiquettes sur le visuel, qui mènent à tous les produits de la marque ou de la
   catégorie, les remises d'abord, même sans remise aujourd'hui.
 - **Missions** : une envie et un prix maximum, pour un produit, ses comparables (même catégorie, mêmes fonctions, même
@@ -110,8 +113,8 @@ avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des
 (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Cinq onglets :
-Accueil (éditorial : pièces, marques en promo, sélection), Recherche (un produit, une marque, une catégorie), Missions,
-Favoris, Profil. Principe, écrans et mesures v41 à v49 :
+Accueil (éditorial : pièces, marques en promo, sélection), Recherche (un champ, trois filtres, un tri), Missions,
+Favoris, Profil. Principe, écrans et mesures v41 à v50 :
 [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse

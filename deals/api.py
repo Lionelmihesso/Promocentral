@@ -1,7 +1,8 @@
 """Contrat de l'app : /api/r/ (inchangé pour l'interface v41).
 
-Lecture ouverte (sans compte) : today?category=&q= (remises du jour), search?q= (tout le catalogue suivi, remises
-d'abord), categories et brands (celles qui ont des remises ; ?all=1 : toutes), brand/<nom> et category/<clé> (tous les
+Lecture ouverte (sans compte) : today?category=&q= (remises du jour), search?q=&category=&min=&max=&off=&sort= (tout le
+catalogue suivi ; filtres : catégorie, budget, remise minimale ; tri : relevance, price, discount ; categories : la
+facette des catégories trouvées), categories et brands (celles qui ont des remises ; ?all=1 : toutes), brand/<nom> et category/<clé> (tous les
 produits, remises d'abord), item/<id>,
 out/<offer_id>?from=, missions/parse {text} et missions/preview {mission} (ce qui est compris, ce qui y répond déjà).
 Champs ajoutés depuis la v41 : since et ends (fiche), alternatives avec saving (fiche : comparables moins chers), kind
@@ -21,7 +22,8 @@ from urllib.parse import unquote
 
 from .accounts import Accounts
 from .activity import Activity
-from .catalog import Catalog
+from .catalog import SORTS, Catalog
+from .errors import BadRequest
 from .missions import Missions
 
 
@@ -54,7 +56,8 @@ class Api:
         need = lambda r: A.require(r.session)
         self.routes = [(m, re.compile(p), f) for m, p, f in [
             ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None)),
-            ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None)),
+            ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None, r.query.get("category") or None,
+                                                         *self._filters(r.query))),
             ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
@@ -75,6 +78,18 @@ class Api:
             ("GET", r"/api/r/auth/me", lambda r: A.me(r.session)),
             ("POST", r"/api/r/auth/logout", lambda r: Response(200, {"ok": True}, cookie=A.logout(r.session))),
         ]]
+
+    @staticmethod
+    def _filters(query):
+        """Recherche : budget (min, max en euros), remise minimale (off, en %), tri ; une valeur invalide est refusée."""
+        try:
+            lo, hi, off = (float(query[k]) if query.get(k) else None for k in ("min", "max", "off"))
+        except ValueError:
+            raise BadRequest("Filtre invalide")
+        sort = query.get("sort") or "relevance"
+        if sort not in SORTS:
+            raise BadRequest("Tri inconnu")
+        return lo, hi, off, sort
 
     def _verify(self, r):
         location, cookie = self.accounts.verify(r.query.get("token", ""))
