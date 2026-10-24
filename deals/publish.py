@@ -6,7 +6,8 @@ déclare (montrés dans la fiche), la description (caractéristiques lues), la c
 par enseigne, et, par
 alternatives.py, jusqu'à trois produits comparables moins chers et trois produits comparables au prix le plus proche.
 Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un catalogue complet au suivant, jamais un état
-intermédiaire.
+intermédiaire. Avec des enseignes partenaires (affiliate.py), seules leurs offres sont publiées : chaque offre montrée
+mène à un lien rémunéré.
 """
 import json
 import re
@@ -56,11 +57,13 @@ def daily_best(offer_intervals, first, last):
     return out
 
 
-def publish(store, today, now):
-    """Recalcule et remplace le catalogue publié. → statistiques de publication."""
+def publish(store, today, now, partners=None):
+    """Recalcule et remplace le catalogue publié ; partners : les enseignes partenaires (clés), seules publiées (None :
+    toutes, en développement). → statistiques de publication."""
     products = {r["id"]: r for r in store.q("SELECT id, title, brand, category, attributes FROM products")}
     before = {r["product_id"]: r for r in store.q("SELECT product_id, pct, since FROM catalog")}
-    offers = store.q("SELECT id, product_id, merchant FROM offers WHERE product_id IS NOT NULL AND status NOT IN ('gone', 'out_of_scope')")
+    offers = [o for o in store.q("SELECT id, product_id, merchant, retailer FROM offers WHERE product_id IS NOT NULL "
+                                 "AND status NOT IN ('gone', 'out_of_scope')") if partners is None or o["retailer"] in partners]
     since = day_start(today - timedelta(days=LOOKBACK + 1)) - FRESH_S
     intervals = defaultdict(list)
     for r in store.q("SELECT offer_id, first_seen, last_seen, price, was, availability, lowest_30d, valid_until FROM prices "

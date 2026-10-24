@@ -168,7 +168,7 @@ class Catalog:
                 "category_label": CATEGORY_LABEL.get(r["category"], r["category"]),
                 "kind": CATEGORY_ONE.get(r["category"], CATEGORY_LABEL.get(r["category"], r["category"])),
                 "price": r["price"], "was": r["was"],
-                "pct": r["pct"], "merchant": r["merchant"], "since": r["since"], "ends": r["ends"], "published_on": r["published_on"],
+                "pct": r["pct"], "merchant": r["merchant"], "offer_id": r["offer_id"], "since": r["since"], "ends": r["ends"], "published_on": r["published_on"],
                 "followed": r["brand"] in followed, "saved": r["product_id"] in saved}
 
     def today(self, uid=None, category=None, q=None):

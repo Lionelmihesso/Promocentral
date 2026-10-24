@@ -6,7 +6,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 ```
                     NUIT (deals.py nightly, une fois par jour)                      JOUR (deals.py serve)
 
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v51)
+ sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v52)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
@@ -50,11 +50,12 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/collect/` | découverte (plans de site), passe de nuit (un fil par site, coupe-circuit, budget), diagnostic, rapport | fetch, extract, market | runs |
 | `deals/judge.py` | **pur** : vraie remise ou fausse remise, à partir des preuves disponibles | — | — |
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même usage, pas moins bien) et coûte au moins 10 % de moins | — | — |
-| `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires) et l'écrit d'un bloc | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
+| `deals/affiliate.py` | **pur** : enseignes partenaires (fichier `DEALS_AFFILIATE`) et lien affilié d'un clic (gabarit du réseau avec `{url}` et `{subid}`, ou paramètres ajoutés à la fiche) | — | — |
+| `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires) et l'écrit d'un bloc ; seules les offres des enseignes partenaires | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
 | `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, et son feed, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`), l'ordre du feed (`lead`, `breadth`) ; libellés | store, extract (familles) | — |
-| `deals/missions.py` | **pur** : une phrase → une mission (`interpret`), ce qui rend un produit comparable (`like`), un produit remplit-il une mission (`matches`) ; les missions d'une personne (lancer, une par cible, lister avec leur état, arrêter) ; la nuit, un e-mail par personne (`notify`) | store, catalog, extract, alternatives (classes énergie), accounts (envoi) | missions |
-| `deals/accounts.py` | connexion par lien magique, sessions, limites d'envoi, SMTP (liens de connexion, e-mails de missions) | store, config | users, login_links, sessions |
-| `deals/activity.py` | favoris, marques suivies, clics sortants, mesures | store | saves, follows, clicks |
+| `deals/missions.py` | **pur** : une phrase → une mission (`interpret`), ce qui rend un produit comparable (`like`), un produit remplit-il une mission (`matches`) ; les missions d'une personne (lancer, une par cible, lister avec leur état, arrêter ; vérifier celle qui attend une connexion) ; la nuit, un e-mail par personne (`notify`), chaque produit à un clic de l'offre | store, catalog, extract, alternatives (classes énergie), accounts (envoi) | missions |
+| `deals/accounts.py` | connexion par lien magique (la mission lancée avant la connexion attend avec le lien), sessions, limites d'envoi, SMTP (liens de connexion, e-mails de missions) | store, config | users, login_links, sessions |
+| `deals/activity.py` | favoris, marques suivies, fiches vues, clics sortants par le lien affilié, mesures de conversion (taux de clic par écran et par personne, part partenaire, missions) | store, affiliate | saves, follows, views, clicks |
 | `deals/api.py` | contrat `/api/r/` (inchangé pour l'app, routes ajoutées) | catalog, accounts, activity, missions | — |
 | `deals/web.py` | serveur HTTP : app statique, routes, cookie, taille des requêtes, en-têtes | api | — |
 | `deals/sim.py`, `deals/demo.py` | marché simulé à vérité connue ; démo par la vraie chaîne | collect, market, publish | — |
@@ -84,7 +85,12 @@ catalog_offers (product_id, offer_id, merchant, price, was, pct, availability, r
 alternatives (product_id, other_id, rank)       comparables, disponibles, au moins 10 % moins chers (fiche)
 similar    (product_id, other_id, rank)         les autres comparables, au prix le plus proche (fiche, à défaut)
 users, login_links, sessions          (jetons stockés en SHA-256)
-follows (user_id, brand) · saves (user_id, product_id, price) · clicks (at, day, user_id, product_id, offer_id, merchant, source)
+follows (user_id, brand) · saves (user_id, product_id, price)
+clicks     (id, at, day, user_id, product_id, offer_id, merchant, source, partner, mission_id)
+            id : l'identifiant transmis au réseau d'affiliation (sous-ID) ; partner : parti chez un partenaire ;
+            mission_id : la mission d'où vient le clic (carte de mission, e-mail)
+views      (at, day, user_id, product_id, source, mission_id)    fiches ouvertes : le taux de clic de chaque écran
+login_links.mission                    la mission lancée avant la connexion, lancée à l'ouverture du lien
 missions   (id, user_id, product_id, category, brand, want, max_price, label, created_at, notified)
             ce qui est guetté (un produit, ou catégorie, marque et souhaits : fonctions, tailles), le prix maximum ;
             notified : produit → prix du dernier e-mail (rien n'est renvoyé au même prix)
@@ -133,15 +139,18 @@ vérifié au démarrage).
 | Verdict de prix : au plus bas (aucun jour moins cher, plus cher un jour sur deux au moins), parmi les plus bas (moins cher que 2 jours sur 3), plus cher que d'habitude (plus cher que 2 jours sur 3), habituel sinon ; 14 jours relevés au moins ; le point de la jauge = rang du jour | `catalog.py` (`position`) |
 | Fiche : une seule enseigne, la moins chère disponible ; ni description technique ni autres enseignes | `publish.py` (meilleure offre), `web/src/App.jsx` |
 | Classement : remise, × 1,5 pour une marque suivie | `catalog.py` |
-| Clic sortant : seulement vers l'adresse d'une offre connue, tracé | `activity.py` |
+| Clic sortant : seulement vers l'adresse d'une offre connue, tracé ; part par le lien affilié de l'enseigne avec l'identifiant du clic | `activity.py`, `affiliate.py` |
+| Affiliation : seules les offres des enseignes partenaires sont lues la nuit et publiées ; sans fichier de partenaires (développement), tout est publié et les liens partent tels quels | `affiliate.py`, `publish.py`, `cli.py` |
+| Mesure de conversion : fiches vues → clics vers l'enseigne (taux de clic), par écran (source) et par personne (avec mission, connectée sans mission, sans compte) ; part des clics partis chez un partenaire ; clics venus des missions (app, e-mail) | `activity.py` (`metrics`) |
+| Transparence : « enseigne partenaire » près de l'offre, page « Comment ça marche » (référencement, classement, rémunération) depuis chaque écran ; mention dans les e-mails | `web/src/App.jsx`, `missions.py` |
 | Connexion : lien à usage unique 15 min ; 5 liens par adresse et par heure, 20 par adresse IP, plafond quotidien global | `accounts.py` |
-| Interface des missions : une phrase, ce qui est compris et ce qui y répond déjà avant de lancer ; connexion au lancement, la mission attend le retour du lien | `web/src/App.jsx` |
+| Interface des missions : une phrase, ce qui est compris et ce qui y répond déjà avant de lancer ; connexion au lancement, la mission attend le lien sur le serveur et démarre à son ouverture, sur n'importe quel appareil ; mission atteinte : « Voir l'offre » en un geste | `web/src/App.jsx`, `accounts.py`, `api.py` |
 
 ## Vérifier
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (61 tests, ~10 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Contrats (72 tests, ~11 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |

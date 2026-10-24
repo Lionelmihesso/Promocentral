@@ -6,8 +6,14 @@ attribut de l'offre. Quand ce n'est pas encore le bon prix, on dit ce qu'on veut
 300 € ») : une **mission**, et un e-mail la nuit où c'est le cas. On lit sans compte ; un e-mail suffit pour garder des
 favoris, suivre des marques et lancer des missions.
 
-Trois familles chères, où une remise compte : **électroménager (aspirateurs compris), ameublement, literie**. Une collecte par nuit, sans
-affiliation, aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
+Trois familles chères, où une remise compte : **électroménager (aspirateurs compris), ameublement, literie**. Une collecte par nuit,
+aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
+
+**Modèle d'affiliation** : seules les offres d'enseignes partenaires sont montrées ; chaque clic part par leur lien
+affilié avec son identifiant, qui revient dans les rapports du réseau (la vente se rattache à l'écran, à la mission, à
+la personne). La plateforme est une aide à la décision d'achat : savoir quels deals existent, être compris (feed
+« Pour vous », missions), acheter au bon moment. Une page « Comment ça marche » dit comment les offres sont choisies,
+classées et rémunérées.
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
@@ -23,9 +29,9 @@ python deals.py missions                     envoyer les e-mails des missions su
 python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
 python deals.py explain <adresse>            ce que l'extraction voit sur une page, et pourquoi
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
-python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures du produit
+python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (61, ~10 s)
+python -m unittest discover -s tests -t .    tests (72, ~11 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
@@ -97,13 +103,20 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
   en lançant la mission ; au-delà du plafond de la nuit (`DEALS_MISSION_MAILS`), la suite part la nuit suivante
   (`deals/missions.py`).
 - **Connexion au moment de l'action** (favori, suivre, lancer une mission), jamais à l'entrée ; une mission lancée
-  avant la connexion est créée au retour du lien. Lien à usage unique valable 15 min ; 5 liens
+  avant la connexion attend avec le lien, sur le serveur, et démarre quand il est ouvert, sur n'importe quel appareil
+  (l'e-mail la nomme : « Confirmez votre mission : … »). Lien à usage unique valable 15 min ; 5 liens
   par adresse et par heure, 20 par adresse IP, plafond quotidien global ; même réponse qu'un compte existe ou non ;
   seuls les hachages des jetons sont stockés.
 - **Favoris** : le prix du jour où le favori a été posé est gardé ; une baisse se voit dans Favoris et sur l'onglet.
-- **Clics sortants** : `out/<offer_id>` trace le clic (avec ou sans compte) et sa source (`from=item`, ou d'où la fiche
-  a été ouverte : `alternative`, `similar`, `mission`, `brand`, `category`) et ne redirige que vers l'adresse d'une
-  offre connue. C'est la mesure du produit (`python deals.py metrics`, par jour et par source).
+- **Clics sortants** : `out/<offer_id>?from=&m=` trace le clic (avec ou sans compte), sa source (`item`, ou d'où la
+  fiche a été ouverte : `alternative`, `similar`, `mission`, `mail`, `brand`, `category`, `search`, `feed`) et sa
+  mission, puis envoie vers l'offre par le lien affilié de l'enseigne, avec l'identifiant du clic ; jamais ailleurs que
+  vers une offre connue. Chaque fiche ouverte est comptée (`view`).
+- **Mesures de conversion** (`python deals.py metrics`) : fiches vues, clics vers l'enseigne et taux de clic par écran
+  et par personne (avec mission, connectée sans mission, sans compte) ; part des clics partis chez un partenaire ; clics
+  venus des missions. Les ventes et commissions viennent des rapports du réseau, rattachées par l'identifiant du clic.
+- **Missions vers l'achat** : une mission atteinte propose « Voir l'offre » en un geste ; dans l'e-mail, chaque produit
+  mène en un clic à l'offre ou à sa fiche (source `mail`, mission connue).
 - **Fraîcheur** : toutes les offres sont relues chaque nuit tant que la passe tient dans le budget (4 h) ; sinon, par
   ordre de valeur (deal en cours, favori, clic récent, puis le plus ancien relu). Un prix non relu depuis 3 jours n'est
   plus montré.
@@ -117,7 +130,7 @@ avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Cinq onglets :
 Accueil (éditorial : pièces, marques en promo, sélection), Recherche (un champ, trois filtres, un tri, un feed qui
-s'adapte), Missions, Favoris, Profil. Principe, écrans et mesures v41 à v51 :
+s'adapte), Missions, Favoris, Profil ; « Comment ça marche » au pied de chaque écran. Principe, écrans et mesures v41 à v52 :
 [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
@@ -146,7 +159,16 @@ validé (au-dessus du prix, remise ≤ 85 %, cohérent avec le pourcentage affic
 financement, éco-participation, ODR, « autres offres dès … » jamais pris pour un prix. Blocage reconnu par signature
 (DataDome, Cloudflare, Akamai, Imperva, PerimeterX, Kasada, Queue-it) sans faux positif sur une page lisible.
 
-## Collecte (sans affiliation)
+## Enseignes partenaires (affiliation)
+
+`DEALS_AFFILIATE` désigne un fichier JSON : clé d'enseigne (`deals/collect/retailers.py`) → règle de lien. Deux formes :
+le gabarit du réseau, avec `{url}` (l'adresse de la fiche, encodée) et `{subid}` (l'identifiant du clic), ou des
+paramètres ajoutés à l'adresse de la fiche (`tag=…&sub={subid}`) ; exemple : `deploy/affiliate.example.json`, gabarits
+exacts dans l'espace affilié de chaque réseau. Seules ces enseignes sont lues la nuit et publiées ; un fichier mal formé
+arrête le démarrage. Sans ce fichier (développement), tout est publié et les liens partent tels quels ; la démo simule
+des enseignes partenaires.
+
+## Collecte
 
 Familles : **électroménager** (lave-linge, sèche-linge, lave-vaisselle, réfrigérateurs, congélateurs, fours, plaques,
 hottes, cuisinières, aspirateurs, robots aspirateurs), **ameublement** (canapés, fauteuils, lits, armoires, tables, buffets, meubles TV, commodes),

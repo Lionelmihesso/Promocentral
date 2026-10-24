@@ -100,6 +100,7 @@ class Flow(unittest.TestCase):
                          [("Matelas mousse 140x190 Integral 3", 40), ("Lave-linge hublot Série 6 9 kg", 19)])   # prix barré lu dans le bloc HTML / en JSON-LD
         self.assertEqual(sum(c["count"] for c in self.get("categories")[1]), today["total"])
         self.assertEqual([p["kind"] for p in today["products"]], ["Matelas", "Lave-linge"])     # la liste : marque et catégorie
+        self.assertTrue(all(p["offer_id"] for p in today["products"]))                       # un « Voir l'offre » direct possible
         item = self.get(f"item/{today['products'][1]['id']}")[1]
         self.assertEqual(item["name"], "Lave-linge hublot Série 6 9 kg")
         self.assertNotIn("specs", item)                                                     # la description reste chez l'enseigne
@@ -203,6 +204,16 @@ class Flow(unittest.TestCase):
         self.assertEqual([p["brand"] for p in self.get("category/lave_linge")[1]["products"]], ["Bosch"])   # depuis la fiche
         self.assertEqual(self.get("category/inconnue")[0], 404)
         self.assertEqual(self.get("brand/Nils")[1]["products"][0]["pct"], 0)                     # marque sans remise : visitable
+
+    def test_6_only_partner_offers_are_published(self):
+        q, today, now = self.store.q, self.market.today(), self.market.clock()
+        theirs = {r["product_id"] for r in q("SELECT product_id FROM offers WHERE retailer='b' AND product_id IS NOT NULL "
+                                            "AND status NOT IN ('gone', 'out_of_scope')")}
+        stats = publish(self.store, today, now, partners={"b"})
+        self.assertEqual({r["merchant"] for r in q("SELECT merchant FROM catalog_offers")}, {"Site B"})   # une seule enseigne
+        self.assertEqual({r["product_id"] for r in q("SELECT product_id FROM catalog")}, theirs)
+        self.assertEqual(stats["products"], len(theirs))
+        publish(self.store, today, now)                                                    # de nouveau tout, pour la suite
 
     def test_5_a_refusing_site_is_left_alone(self):
         for i in range(8):

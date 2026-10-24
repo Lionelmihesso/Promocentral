@@ -1,0 +1,4 @@
+{
+  "boulanger": "https://reseau.example/clic?programme=XXXX&affilie=YYYY&sous_id={subid}&url={url}",
+  "but": "partenaire=YYYY&sous_id={subid}"
+}

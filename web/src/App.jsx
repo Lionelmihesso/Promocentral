@@ -18,6 +18,11 @@
    de rôle, ou « Pour vous » d'après vos dernières recherches, gardées par ce navigateur) ; chaque lettre, filtre ou tri
    l'adapte sur place, sans écran blanc, et une recherche sans résultat retombe sur le feed.
 
+   v52 : la conversion d'abord (modèle d'affiliation, enseignes partenaires seulement). Une mission mène à l'offre en un
+   geste (« Voir l'offre » sur la mission atteinte, et dans son e-mail) ; lancée sans compte, elle attend le lien sur le
+   serveur et démarre sur n'importe quel appareil. Chaque fiche ouverte est comptée, d'où elle vient (taux de clic par
+   écran, par mission) ; la mention « enseigne partenaire » est près de l'offre, et « Comment ça marche » sur chaque écran.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -110,14 +115,6 @@ async function api(path, body) {
   return data;
 }
 
-/* Une mission lancée avant la connexion attend ici le retour du lien (30 minutes au plus) ; le serveur ne garde
-   qu'une mission par cible : deux onglets qui la lancent n'en font qu'une. */
-const PENDING = "deals.mission";
-const pending = {
-  get() { try { const p = JSON.parse(localStorage.getItem(PENDING) || "null"); return p && Date.now() - p.at < 1800000 ? p.spec : null; } catch { return null; } },
-  set(spec) { try { localStorage.setItem(PENDING, JSON.stringify({ spec, at: Date.now() })); } catch { /* stockage indisponible */ } },
-  clear() { try { localStorage.removeItem(PENDING); } catch { /* idem */ } },
-};
 /* Prix proposés pour une alerte : le plus bas des derniers mois s'il est sous le prix du jour, puis −10 % et −20 %. */
 function suggestions(p) {
   const out = [], low = p.position?.low;
@@ -279,6 +276,18 @@ const CSS = `
 .d .crumbs{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px}
 .d .crumbs button{display:flex;align-items:center;gap:3px;border:0;background:rgba(255,255,255,.95);border-radius:999px;min-height:44px;padding:0 11px 0 15px;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;box-shadow:0 1px 4px rgba(0,0,0,.14)}
 .d .crumbs .i{color:var(--mid)}
+.d .aff{margin:8px 2px 0;font-size:12.5px;line-height:1.45;color:var(--mid)}
+.d .lnk{border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);text-decoration:underline;text-underline-offset:3px;min-height:44px}
+.d .aff .lnk,.d .legal .lnk{display:inline-block;min-height:0;line-height:18px;padding:13px 0;margin:-13px 0}
+.d .legal{padding:28px 16px 8px;font-size:12.5px;color:var(--mid);line-height:1.5}
+.d .about{padding:0 16px 8px;max-width:680px}
+.d .about h1{font-size:40px;margin:6px 0 0}
+.d .about .lead{font-size:17px;line-height:1.5;margin:14px 0 0}
+.d .about h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:26px 0 0}
+.d .about p,.d .about li{font-size:15px;line-height:1.55;color:#33363A}
+.d .about p{margin:8px 0 0}.d .about ul{margin:8px 0 0;padding-left:20px}.d .about li{margin-top:6px}
+.d .mbuy{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 10px 0 0;min-height:50px;padding:0 14px 0 16px;border-radius:14px;background:var(--ink);color:#fff;text-decoration:none;font-size:14.5px;font-weight:700}
+.d .mbuy b{font-weight:800;color:#FFB08F}
 .d .alertbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;min-height:52px;border-radius:15px;border:1.5px solid var(--ink);background:var(--paper);font-size:15px;font-weight:800}
 .d .alertbtn.on{border-color:var(--good);color:var(--good);background:#EAF5EF}
 /* prix voulu */
@@ -384,6 +393,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .brow{margin-left:0;margin-right:0;width:100%;max-width:640px}
   .d .ctags.row{flex-wrap:wrap;margin:0;padding:0}
   .d .mbox,.d .draft,.d .mline{margin-left:0;margin-right:0}
+  .d .legal,.d .about{padding-left:0;padding-right:0}
   .d .mline{width:100%;max-width:640px}
   .d .mbox{padding:26px 28px}.d .mbox .mform{max-width:640px}
   .d .mwrap{max-width:760px}
@@ -414,7 +424,8 @@ function Toast({ text }) {
   return text ? <div className="toast" role="status">{text}</div> : null;
 }
 
-function LoginSheet({ message, onClose, onDone }) {
+/* Connexion par e-mail ; mission : celle qui attend le lien, gardée par le serveur et lancée à son ouverture. */
+function LoginSheet({ message, mission, onClose, onDone }) {
   useEscape(onClose);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -423,7 +434,7 @@ function LoginSheet({ message, onClose, onDone }) {
   const submit = async e => {
     e.preventDefault();
     setBusy(true); setErr(null);
-    try { await api("auth/request", { email }); setSent(true); }
+    try { await api("auth/request", mission ? { email, mission } : { email }); setSent(true); }
     catch (ex) { setErr(ex.message); }
     finally { setBusy(false); }
   };
@@ -438,8 +449,9 @@ function LoginSheet({ message, onClose, onDone }) {
         <button className="cta" disabled={busy}>Recevoir le lien</button>
       </> : <>
         <div className="eyebrow">Lien envoyé</div>
-        <h2>Ouvrez le lien reçu sur cet appareil.</h2>
-        <p className="hint">Il est valable 15 minutes. Revenez ensuite ici : vous êtes connecté.</p>
+        <h2>{mission ? "Ouvrez le lien reçu : votre mission démarre." : "Ouvrez le lien reçu sur cet appareil."}</h2>
+        <p className="hint">{mission ? "Sur ce téléphone ou un autre appareil, valable 15 minutes. Ensuite, on guette pour vous chaque nuit."
+          : "Il est valable 15 minutes. Revenez ensuite ici : vous êtes connecté."}</p>
         <button type="button" className="cta" onClick={onDone}>J'ai ouvert le lien</button>
       </>}
     </form>
@@ -603,7 +615,7 @@ export default function App() {
   const cols = width >= 1200 ? 5 : width >= 1000 ? 4 : width >= 700 ? 3 : 2;
 
   const flash = t => { setToast(t); setTimeout(() => setToast(null), 2200); };
-  const askLogin = message => setLogin({ message });
+  const askLogin = (message, mission) => setLogin({ message, mission });
   const loadMissions = () => api("missions").then(setMissions).catch(() => {});
   const refreshSession = () => api("auth/me")
     .then(d => setSession({ checked: true, email: d.email }))
@@ -613,9 +625,11 @@ export default function App() {
     refreshSession();
     const url = new URL(window.location.href);
     if (url.searchParams.get("auth") === "expired") flash("Ce lien a expiré. Demandez-en un nouveau.");
-    const shared = Number(url.searchParams.get("p"));                       // lien partagé : /?p=<produit>
-    if (shared) setView({ kind: "item", id: shared });
-    if (url.searchParams.has("auth") || url.searchParams.has("p")) window.history.replaceState({}, "", url.pathname);
+    const shared = Number(url.searchParams.get("p"));                       // lien partagé, ou e-mail de mission : /?p=<produit>
+    if (shared) setView({ kind: "item", id: shared, via: url.searchParams.get("from") === "mail" ? "mail" : undefined,
+                          mission: Number(url.searchParams.get("m")) || undefined });
+    if (Number(url.searchParams.get("mission"))) { setTab("missions"); flash("Mission lancée : on vous prévient"); }   // lien ouvert
+    if (["auth", "p", "mission"].some(k => url.searchParams.has(k))) window.history.replaceState({}, "", url.pathname);
     const again = () => { if (document.visibilityState === "visible") refreshSession(); };
     document.addEventListener("visibilitychange", again);
     return () => document.removeEventListener("visibilitychange", again);
@@ -639,14 +653,9 @@ export default function App() {
     loadMissions();
   }, [session.checked, session.email, version, tab]);
 
-  useEffect(() => {                                                         // la mission lancée avant la connexion
-    if (!session.email) return;
-    const spec = pending.get();
-    if (!spec) return;
-    pending.clear();
-    api("missions", spec).then(() => { flash("Mission lancée : on vous prévient"); setDraft(null); setMtext(""); loadMissions(); })
-      .catch(ex => flash(ex.message));
-  }, [session.email]);
+  useEffect(() => {                                                         // fiche ouverte, et d'où : le taux de clic
+    if (view?.kind === "item") api("view", { product_id: view.id, from: view.via || "item", m: view.mission }).catch(() => {});
+  }, [view]);
 
   useEffect(() => {                                                         // le prix change : ce qui y répond déjà
     if (!draft) return;
@@ -749,7 +758,8 @@ export default function App() {
   const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ("");
     setFilters(NO_FILTERS); setSortBy("relevance"); if (t === tab && !view) window.scrollTo(0, 0); };   // l'onglet déjà ouvert : en haut
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
-  const open = (id, via) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
+  const open = (id, via, mission) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, mission, from: v })); };
+  const openAbout = () => setView(v => ({ kind: "about", from: v }));
   const openBrand = name => { setBrandPage(null); setOrder("pct"); setView(v => ({ kind: "brand", name, from: v })); };
   const openCategory = key => { setCatPage(null); setOrder("pct"); setView(v => ({ kind: "category", key, from: v })); };
   const openRoom = room => { setList(null); setView(v => ({ kind: "room", room, from: v })); };
@@ -770,10 +780,10 @@ export default function App() {
     else parseMission(text);
   };
   const launch = async spec => {
-    if (!session.email) { pending.set(spec); askLogin("Connectez-vous pour lancer la mission"); return false; }
+    if (!session.email) { askLogin("Connectez-vous pour lancer la mission", spec); return false; }
     try { await api("missions", spec); flash("Mission lancée : on vous prévient"); loadMissions(); return true; }
     catch (ex) {
-      if (ex.status === 401) { pending.set(spec); askLogin("Connectez-vous pour lancer la mission"); }
+      if (ex.status === 401) askLogin("Connectez-vous pour lancer la mission", spec);
       else flash(ex.message);
       return false;
     }
@@ -786,8 +796,8 @@ export default function App() {
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
   const said = p => `${p.brand}, ${p.name || p.title}, ${p.pct > 0 ? `moins ${p.pct} %, ` : ""}${eur(p.price)}`;
 
-  const card = via => p => <article key={p.id} className="card" role="button" tabIndex={0} aria-label={said(p)}
-    onClick={() => open(p.id, via)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via); }}>
+  const card = (via, mission) => p => <article key={p.id} className="card" role="button" tabIndex={0} aria-label={said(p)}
+    onClick={() => open(p.id, via, mission)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via, mission); }}>
     <div className="vis" style={{ aspectRatio: `1 / ${ratioOf(p.category)}` }}>
       <Vignette category={p.category} seed={p.id} />
       {p.saving >= 1 ? <span className="badge good">{eur(p.saving)} de moins</span> : p.pct > 0 && <span className="badge">−{p.pct} %</span>}
@@ -829,7 +839,7 @@ export default function App() {
       <button aria-label={home ? "Lancer la mission" : "Voir la mission"} disabled={mbusy}><Icon d={UI.next} size={22} sw={2.4} /></button></div>
     {!home && merr && <div className="merr" role="alert">{merr}</div>}
   </form>;
-  const nearRow = (p, label) => <button className="near" onClick={() => open(p.id, "mission")} aria-label={`${label} : ${said(p)}`}>
+  const nearRow = (p, label, mission) => <button className="near" onClick={() => open(p.id, "mission", mission)} aria-label={`${label} : ${said(p)}`}>
     <span className="th"><Vignette category={p.category} seed={p.id} ratio={1} /></span>
     <span className="tx"><small>{label}</small><span>{p.brand} {p.name || p.title}</span></span><b>{eur(p.price)}</b>
     <Icon d={UI.next} size={16} sw={2.2} /></button>;
@@ -845,8 +855,11 @@ export default function App() {
           {!ok && now == null && <span>{m.product_id ? "Indisponible aujourd'hui" : "Rien de suivi pour l'instant"}</span>}</div>
       </div>
       <button className="ibtn" aria-label={`Arrêter la mission ${m.title}`} onClick={() => stopMission(m)}><Icon d={UI.x} size={18} /></button></div>
-      {ok && <div className="scroller">{m.matches.map(card("mission"))}</div>}
-      {!ok && m.nearest && nearRow(m.nearest, m.product_id ? "Voir la fiche" : "Le plus proche")}
+      {ok && <a className="mbuy" href={`/api/r/out/${m.matches[0].offer_id}?from=mission&m=${m.id}`} target="_blank" rel="noopener"
+        aria-label={`Voir l'offre : ${said(m.matches[0])}, chez ${m.matches[0].merchant}`}>
+        <span>Voir l'offre · <b>{eur(m.matches[0].price)}</b> chez {m.matches[0].merchant}</span><Icon d={UI.ext} size={18} sw={2.2} /></a>}
+      {ok && <div className="scroller">{m.matches.map(card("mission", m.id))}</div>}
+      {!ok && m.nearest && nearRow(m.nearest, m.product_id ? "Voir la fiche" : "Le plus proche", m.id)}
     </article>;
   };
   const loginCard = (title, msg) => <div className="login"><h3>{title}</h3><p>Votre e-mail suffit, sans mot de passe.</p>
@@ -868,7 +881,33 @@ export default function App() {
   }).filter(Boolean);
 
   let body;
-  if (view?.kind === "item" && item) {
+  if (view?.kind === "about") {                    // référencement, classement, rémunération : ce que la loi demande de dire
+    body = <div className="about">
+      {back}
+      <h1>Comment ça marche</h1>
+      <p className="lead">Deals repère chaque jour les bonnes affaires d'électroménager, d'ameublement et de literie, et vous dit si
+        c'est le bon moment d'acheter.</p>
+      <h2>Quelles offres ?</h2>
+      <p>Uniquement celles de nos enseignes partenaires. Leurs prix sont relus chaque nuit ; un prix qui n'a pas été relu depuis
+        trois jours n'est plus montré. Une remise n'est affichée que si elle est réelle : nous la comparons aux prix des mois
+        précédents et au « prix le plus bas des 30 derniers jours » que l'enseigne doit indiquer ; une remise exagérée n'est
+        pas affichée.</p>
+      <h2>Dans quel ordre ?</h2>
+      <ul>
+        <li><b>Accueil, notre sélection</b> : les plus fortes remises réelles du jour ; une marque que vous suivez compte une fois et demie.</li>
+        <li><b>Recherche</b> : d'abord les produits que votre recherche nomme (catégorie, marque), puis les remises, puis le prix ; ou
+          le tri que vous choisissez. Avant toute recherche : vos recherches récentes, puis une catégorie à tour de rôle.</li>
+        <li><b>Marque, catégorie</b> : les remises d'abord, ou le tri que vous choisissez.</li>
+        <li><b>Fiche</b> : l'offre la moins chère parmi nos partenaires.</li>
+      </ul>
+      <h2>Comment Deals est rémunéré ?</h2>
+      <p>Quand vous achetez après avoir touché « Voir l'offre », l'enseigne nous verse une commission. Votre prix ne change pas,
+        et le montant de la commission n'entre dans aucun classement.</p>
+      <h2>Vos données</h2>
+      <p>Votre e-mail sert à vous connecter et à recevoir les alertes de vos missions. Vos recherches récentes restent dans votre
+        navigateur.</p>
+    </div>;
+  } else if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
     const mine = (missions?.missions || []).find(m => m.product_id === item.id);
     const when = timing(item);
@@ -892,8 +931,10 @@ export default function App() {
             {item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div>
           <PricePosition pos={item.position} price={item.price} />
           {when && <div className="when"><Icon d={UI.cal} size={20} />{when}</div>}
-          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}`} target="_blank" rel="noopener">
-            Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
+          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}${view.mission ? `&m=${view.mission}` : ""}`}
+            target="_blank" rel="noopener">Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
+          {best && <p className="aff">Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous.{" "}
+            <button className="lnk" onClick={openAbout}>Comment ça marche</button></p>}
           <button className={`alertbtn ${mine ? "on" : ""}`} onClick={() => setAlertOpen(true)}>
             <Icon d={mine ? UI.check : UI.bell} size={19} sw={2.1} />{mine ? `Alerte à ${eur(mine.max_price)}` : "Me prévenir sous un prix"}</button>
         </div>
@@ -1090,12 +1131,20 @@ export default function App() {
     </header>}
     {error && <div className="empty">{error}</div>}
     {body}
+    {view?.kind !== "about" && <footer className="legal">Offres d'enseignes partenaires, remises vérifiées.{" "}
+      <button className="lnk" onClick={openAbout}>Comment ça marche</button></footer>}
     <nav className="d-nav" aria-label="Navigation">{tabsList.map(([k, l, d]) =>
       <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <span className="ic"><Icon d={d} size={23} fill={tab === k && k !== "search" && k !== "missions"} />
           {badge[k] > 0 && <span className="dot" aria-hidden="true">{badge[k]}</span>}</span>{l}</button>)}</nav>
-    {login && <LoginSheet message={login.message} onClose={() => setLogin(null)}
-      onDone={() => { setLogin(null); refreshSession(); setVersion(v => v + 1); }} />}
+    {login && <LoginSheet message={login.message} mission={login.mission} onClose={() => setLogin(null)}
+      onDone={() => {                                 // lien ouvert : connecté, et la mission qui l'attendait est lancée
+        setLogin(null); setVersion(v => v + 1);
+        api("auth/me").then(d => {
+          setSession({ checked: true, email: d.email });
+          if (login.mission) { setDraft(null); setMtext(""); setAlertOpen(false); flash("Mission lancée : on vous prévient"); }
+        }).catch(() => setSession({ checked: true, email: null }));
+      }} />}
     <Toast text={toast} />
   </div></div>;
 }

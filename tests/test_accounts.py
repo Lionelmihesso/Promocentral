@@ -51,6 +51,25 @@ class Accounts(unittest.TestCase):
     def link(self):
         return self.api.accounts.outbox.sent[-1][1]
 
+    def test_a_mission_launched_before_login_waits_on_the_server(self):
+        outbox = self.api.accounts.outbox
+        before = len(outbox.sent)
+        st = self.raw("POST", "/api/r/auth/request", {"email": "noa@test.local", "mission": {"category": "aspirateur"}})[0]
+        self.assertEqual((st, len(outbox.sent)), (400, before))              # sans prix : refusée, et aucun e-mail
+        mission = {"category": "aspirateur", "features": ["balai"], "max_price": 300}
+        self.assertEqual(self.raw("POST", "/api/r/auth/request", {"email": "noa@test.local", "mission": mission})[0], 200)
+        self.assertEqual(outbox.mails[-1][1]["Subject"], "Confirmez votre mission : Aspirateur balai · 300 € max")
+        token = self.link().split("token=")[1]
+        st, h, _ = self.raw("GET", f"/api/r/auth/verify?token={token}")       # ouvert sur un autre appareil : rien dans le navigateur
+        self.assertTrue(h["Location"].startswith("/?mission="), h["Location"])
+        cookie = h["Set-Cookie"].split(";")[0].split("=", 1)[1]
+        mine = json.loads(self.raw("GET", "/api/r/missions", cookie=cookie)[2])["missions"]
+        self.assertEqual([(m["id"], m["label"]) for m in mine], [(int(h["Location"].split("=")[1]), "Aspirateur balai · 300 € max")])
+        self.raw("POST", "/api/r/auth/request", {"email": "noa@test.local"})  # une simple connexion ensuite : rien ne s'ajoute
+        st, h, _ = self.raw("GET", f"/api/r/auth/verify?token={self.link().split('token=')[1]}")
+        self.assertEqual((h["Location"], outbox.mails[-1][1]["Subject"]), ("/", "Votre lien de connexion Deals"))
+        self.assertEqual(len(json.loads(self.raw("GET", "/api/r/missions", cookie=cookie)[2])["missions"]), 1)
+
     def test_magic_link(self):
         st, _, body = self.raw("POST", "/api/r/auth/request", {"email": "Inconnu@Test.local"})
         self.assertEqual((st, json.loads(body)["ok"]), (200, True))           # même réponse qu'un compte existe ou non

@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -98,6 +98,15 @@ MIGRATIONS = {
     ],
     7: [  # la fiche ne montre plus de description (elle est chez l'enseigne) : plus calculée ni stockée
         "ALTER TABLE catalog DROP COLUMN specs",
+    ],
+    8: [  # affiliation : un clic sait s'il part chez un partenaire et de quelle mission il vient ; les fiches vues donnent le
+          # taux de clic ; une mission lancée avant la connexion attend avec son lien, sur le serveur
+        "ALTER TABLE clicks ADD COLUMN partner INTEGER",
+        "ALTER TABLE clicks ADD COLUMN mission_id INTEGER",
+        "CREATE TABLE views (id INTEGER PRIMARY KEY, at REAL NOT NULL, day TEXT NOT NULL, user_id INTEGER, "
+        "product_id INTEGER NOT NULL, source TEXT, mission_id INTEGER)",
+        "CREATE INDEX views_day ON views(day)",
+        "ALTER TABLE login_links ADD COLUMN mission TEXT",
     ],
 }
 

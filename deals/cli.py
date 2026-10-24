@@ -12,6 +12,8 @@
   python deals.py backup <dossier> [--keep 14]       sauvegarde à chaud vérifiée
 Option commune, avant la commande : --db (défaut : DEALS_DB, sinon deals.sqlite). Réglages : deals/config.py.
 Les commandes qui lisent les sites refusent de partir sans DEALS_USER_AGENT (nom du robot, page, contact).
+Enseignes partenaires : DEALS_AFFILIATE (affiliate.py) ; seules leurs offres sont publiées, chaque clic part par leur lien
+affilié. Sans ce fichier (développement), tout est publié et les liens partent tels quels ; la démo les simule.
 """
 import argparse
 import csv
@@ -22,7 +24,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-from . import config
+from . import affiliate, config
 from .accounts import outbox_for
 from .api import Api
 from .backup import backup
@@ -43,8 +45,8 @@ from .web import make_server
 NETWORK = ("nightly", "discover", "diagnose", "sample", "build", "explain")
 
 
-def _serve(store, settings, port):
-    srv = make_server(Api(store, settings), store, settings, port=port)
+def _serve(store, settings, port, rules=None):
+    srv = make_server(Api(store, settings, rules=rules), store, settings, port=port)
     print(f"App : http://127.0.0.1:{port}/")
     try:
         srv.serve_forever()
@@ -55,6 +57,7 @@ def _serve(store, settings, port):
 def main(argv=None):
     try:
         settings = config.load()
+        rules = affiliate.load(settings.affiliate)             # enseignes partenaires ; None : développement
     except ValueError as e:
         sys.exit(f"Réglage invalide : {e}")
     ap = argparse.ArgumentParser(prog="deals", description="DEALS — les bons deals du jour")
@@ -89,14 +92,18 @@ def main(argv=None):
         from .demo import FIRST_NIGHT, LAST_NIGHT, build
         store = Store(os.path.join(tempfile.mkdtemp(prefix="deals-demo-"), "demo.sqlite"))
         print(f"Marché simulé : {(LAST_NIGHT - FIRST_NIGHT).days + 1} nuits de collecte et de publication…")
-        build(store)
-        return _serve(store, settings, a.port)
+        rules = rules or affiliate.DEMO
+        build(store, partners=set(rules))
+        return _serve(store, settings, a.port, rules)
     if a.cmd == "backup":
         print(backup(settings.db, a.dest, a.keep))
         return 0
     store = Store(settings.db)
     if a.cmd == "serve":
-        return _serve(store, settings, a.port)
+        return _serve(store, settings, a.port, rules)
+    partners = set(rules) if rules else None
+    if partners is None and a.cmd in ("nightly", "publish"):
+        print("Aucune enseigne partenaire (DEALS_AFFILIATE) : tout est publié et les liens partent tels quels (développement).")
     missions = lambda: Missions(store, Catalog(store)).notify(outbox_for(settings), settings.public_url,
                                                              settings.mail_from or settings.smtp_user or "deals@localhost",
                                                              settings.mission_mails)
@@ -121,14 +128,19 @@ def main(argv=None):
         return flat[::max(1, len(flat) // n)][:n]
 
     if a.cmd == "nightly":
-        stats = crawler.nightly()
+        keys = None if partners is None else [k for k in RETAILERS if k in partners]   # on ne lit que les partenaires
+        if keys == []:
+            sys.exit("DEALS_AFFILIATE : aucune des enseignes déclarées n'est suivie (clés de deals/collect/retailers.py).")
+        if partners is not None and partners - set(RETAILERS):
+            print("Enseignes partenaires inconnues, ignorées :", ", ".join(sorted(partners - set(RETAILERS))))
+        stats = crawler.nightly(keys)
         name = report.write(stats, settings.reports_dir)
-        stats["publish"] = publish(store, market.today(), market.clock())
+        stats["publish"] = publish(store, market.today(), market.clock(), partners)
         print(Path(settings.reports_dir, f"{name}.md").read_text(encoding="utf-8"))
         print("Catalogue publié :", json.dumps(stats["publish"], ensure_ascii=False))
         print("Missions :", json.dumps(missions(), ensure_ascii=False))
     elif a.cmd == "publish":
-        print(json.dumps(publish(store, market.today(), market.clock()), ensure_ascii=False))
+        print(json.dumps(publish(store, market.today(), market.clock(), partners), ensure_ascii=False))
     elif a.cmd == "discover":
         Path("urls").mkdir(exist_ok=True)
         for k in keys():

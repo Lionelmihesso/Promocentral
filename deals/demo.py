@@ -18,9 +18,10 @@ FIRST_NIGHT, LAST_NIGHT = date(2025, 10, 1), date(2025, 12, 14)
 HORIZON = 200                     # jours simulés : fixe, pour que le même départ donne toujours le même marché
 
 
-def build(store, end=LAST_NIGHT, nights=None, seed=4, catalog=sim.SHOWCASE):
+def build(store, end=LAST_NIGHT, nights=None, seed=4, catalog=sim.SHOWCASE, partners=None):
     """Remplit `store` de nuits de marché simulé jusqu'au jour `end` (depuis FIRST_NIGHT, ou `nights` nuits avant `end`) ;
-    le catalogue est publié chaque nuit, comme en production. → (Market, horloge simulée)."""
+    le catalogue est publié chaque nuit, comme en production (partners : les enseignes partenaires, seules publiées).
+    → (Market, horloge simulée)."""
     start = end - timedelta(days=nights) if nights else FIRST_NIGHT
     days = (end - start).days
     m = sim.Market(start=start, days=HORIZON, seed=seed, catalog=catalog,
@@ -33,5 +34,5 @@ def build(store, end=LAST_NIGHT, nights=None, seed=4, catalog=sim.SHOWCASE):
     for k in range(days + 1):
         clock.set(start + timedelta(days=k))
         crawler.nightly()
-        publish(store, market.today(), clock())
+        publish(store, market.today(), clock(), partners)
     return market, clock

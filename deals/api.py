@@ -4,27 +4,32 @@ Lecture ouverte (sans compte) : today?category=&q= (remises du jour), search?q=&
 catalogue suivi ; filtres : catégorie, budget, remise minimale ; tri : relevance, price, discount ; categories : la
 facette des catégories trouvées ; sans mot ni filtre, le feed, orienté par recent : les dernières recherches gardées
 par le navigateur, séparées par « | »), categories et brands (celles qui ont des remises ; ?all=1 : toutes), brand/<nom> et category/<clé> (tous les
-produits, remises d'abord), item/<id>,
-out/<offer_id>?from=, missions/parse {text} et missions/preview {mission} (ce qui est compris, ce qui y répond déjà).
+produits, remises d'abord), item/<id>, view {product_id, from, m} (fiche vue : le taux de clic),
+out/<offer_id>?from=&m= (clic tracé → lien affilié de l'enseigne partenaire, avec l'identifiant du clic ; m : la mission
+d'où il part), missions/parse {text} et missions/preview {mission} (ce qui est compris, ce qui y répond déjà).
 Champs ajoutés depuis la v41 : since et ends (fiche), alternatives avec saving (fiche : comparables moins chers), kind
 (cartes : catégorie au singulier ; specs, les caractéristiques, retiré en v49 : plus montré), history (fiche : prix des 90
 derniers jours), position (fiche : le prix du jour sur ces 90 jours), published_at (today : heure de la dernière
-publication), saved_price (favoris), family, best et products (catégories), best, products, top et categories (marques).
+publication), saved_price (favoris), family, best et products (catégories), best, products, top et categories (marques),
+offer_id (cartes : l'offre la moins chère, pour un « Voir l'offre » direct).
 today?category= accepte plusieurs catégories séparées par des virgules.
 Session requise (sinon 401) : save, saves, brand/follow, follows, missions (GET : les miennes ; POST : lancer),
 missions/delete {id}.
-Connexion : auth/request {email}, auth/verify?token= (pose le cookie, ou renvoie vers /?auth=expired), auth/me, auth/logout.
+Connexion : auth/request {email, mission?} (la mission attend le lien, sur le serveur), auth/verify?token= (pose le cookie,
+lance la mission qui attendait et renvoie vers /?mission=<id> ; ou vers /?auth=expired), auth/me, auth/logout.
 """
+import json
 import re
 import time
 import traceback
 from dataclasses import dataclass, field
 from urllib.parse import unquote
 
+from . import affiliate
 from .accounts import Accounts
 from .activity import Activity
 from .catalog import SORTS, Catalog
-from .errors import BadRequest
+from .errors import BadRequest, NotFound
 from .missions import Missions
 
 
@@ -47,10 +52,11 @@ class Response:
 
 
 class Api:
-    def __init__(self, store, settings, outbox=None, clock=time.time):
+    def __init__(self, store, settings, outbox=None, clock=time.time, rules=None):
+        """rules : enseigne → règle d'affiliation ; par défaut, le fichier DEALS_AFFILIATE (aucun : liens directs)."""
         self.catalog = Catalog(store)
         self.accounts = Accounts(store, settings, outbox, clock)
-        self.activity = Activity(store, clock)
+        self.activity = Activity(store, clock, rules if rules is not None else affiliate.load(settings.affiliate))
         self.missions = Missions(store, self.catalog, clock)
         C, A, T, M = self.catalog, self.accounts, self.activity, self.missions
         uid = lambda r: A.user(r.session)
@@ -64,7 +70,9 @@ class Api:
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
             ("GET", r"/api/r/category/([a-z_]+)", lambda r, key: C.category(uid(r), key)),
             ("GET", r"/api/r/item/(\d+)", lambda r, pid: C.item(uid(r), int(pid))),
-            ("GET", r"/api/r/out/(\d+)", lambda r, oid: Response(302, location=T.click(uid(r), int(oid), r.query.get("from")))),
+            ("GET", r"/api/r/out/(\d+)", lambda r, oid: Response(302, location=T.click(uid(r), int(oid), r.query.get("from"),
+                                                                                         r.query.get("m")))),
+            ("POST", r"/api/r/view", lambda r: T.view(uid(r), r.body)),
             ("POST", r"/api/r/save", lambda r: T.save(need(r), r.body)),
             ("GET", r"/api/r/saves", lambda r: C.saves(need(r))),
             ("POST", r"/api/r/brand/follow", lambda r: T.follow(need(r), r.body)),
@@ -74,7 +82,7 @@ class Api:
             ("GET", r"/api/r/missions", lambda r: M.list(need(r))),
             ("POST", r"/api/r/missions", lambda r: M.create(need(r), r.body or {})),
             ("POST", r"/api/r/missions/delete", lambda r: M.remove(need(r), (r.body or {}).get("id"))),
-            ("POST", r"/api/r/auth/request", lambda r: A.request_link(r.body.get("email"), r.ip)),
+            ("POST", r"/api/r/auth/request", lambda r: A.request_link(r.body.get("email"), r.ip, *M.pending(r.body.get("mission")))),
             ("GET", r"/api/r/auth/verify", self._verify),
             ("GET", r"/api/r/auth/me", lambda r: A.me(r.session)),
             ("POST", r"/api/r/auth/logout", lambda r: Response(200, {"ok": True}, cookie=A.logout(r.session))),
@@ -100,7 +108,14 @@ class Api:
         return [t.strip()[:80] for t in (query.get("recent") or "").split("|") if t.strip()]
 
     def _verify(self, r):
-        location, cookie = self.accounts.verify(r.query.get("token", ""))
+        """Le lien ouvert connecte la personne ; la mission qui attendait ce lien est lancée, et l'app l'ouvre."""
+        location, cookie, waiting = self.accounts.verify(r.query.get("token", ""))
+        if waiting:
+            uid, mission = waiting
+            try:
+                location = f"/?mission={self.missions.create(uid, json.loads(mission))['id']}"
+            except (BadRequest, NotFound):
+                pass                                            # produit retiré depuis, ou 20 missions déjà : connecté quand même
         return Response(302, location=location, cookie=cookie)
 
     def handle(self, req):

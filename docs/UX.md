@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises, des missions (v51)
+# L'interface de DEALS — un flux vivant de remises, des missions (v52)
 
 ## Principe
 
@@ -29,6 +29,15 @@ budget. Les pages d'une marque et d'une catégorie se trient (remises d'abord, p
 décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
 technique et les autres enseignes restent chez l'enseigne.
 
+**La conversion d'abord (v52).** Le modèle est l'affiliation : seules les offres d'enseignes partenaires sont montrées,
+et le geste qui rapporte est le clic vers l'offre, suivi d'un achat. L'app aide à décider : savoir quels deals existent
+(l'accueil), être compris (le feed « Pour vous », les missions), acheter au bon moment (le verdict de prix). Les
+**missions** sont le moteur : qui a dit ce qu'il veut et son prix est le plus engagé ; une mission atteinte mène à
+l'offre en un geste, l'e-mail de la nuit aussi, et une mission lancée sans compte n'est jamais perdue (le serveur la
+garde avec le lien de connexion, ouvert sur n'importe quel appareil). Tout se mesure : fiches vues et clics, par écran et
+par personne ; l'identifiant de chaque clic part chez le réseau, qui rattache la vente. Et c'est dit : « enseigne
+partenaire » près de l'offre, « Comment ça marche » au pied de chaque écran.
+
 **Continuer, puis guetter (v48).** Arriver sur un produit, c'est s'intéresser à sa marque ou à sa catégorie : elles sont
 posées sur le visuel de la fiche comme des étiquettes et mènent à tous leurs produits, remises d'abord, même quand la
 marque n'a aucune remise aujourd'hui (plus de cul-de-sac). Et si ce n'est pas le bon prix : « Me prévenir sous un prix »,
@@ -50,11 +59,12 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 | Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) |
 | Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative |
 | Pièce | ses remises en mosaïque |
-| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne la moins chère, la seule montrée) ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
+| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère, la seule montrée), et dessous « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
 | Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
-| Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » ; **vos missions** : atteinte (les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
+| Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » (sans compte : « Ouvrez le lien reçu : votre mission démarre », sur ce téléphone ou un autre) ; **vos missions** : atteinte (**« Voir l'offre · 175 € chez … »** en un geste, puis les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
 | Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Remise** (en remise, −10 %, −20 % et plus) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute saisie, « Essayez » et cinq exemples sur une ligne (ou « Vos recherches », les quatre dernières, et « Effacer »), puis le **feed** : « À découvrir · 59 produits » (une catégorie à tour de rôle) ou « Pour vous · D'après vos recherches » ; dès qu'on tape ou filtre, le feed devient les résultats : la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, remise), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque ; sans résultat : « Rien pour « xyzzy » », « Pas encore là ? Lancer une mission », et le feed ; l'onglet touché à nouveau remonte en haut |
+| Comment ça marche | quelles offres (enseignes partenaires seulement, prix relus chaque nuit, remises réelles seulement), dans quel ordre (chaque écran), comment Deals est rémunéré (une commission, sans effet sur le prix ni sur le classement), vos données ; joignable depuis le pied de chaque écran et depuis l'offre |
 | Favoris | produits gardés en mosaïque ; l'onglet compte les baisses de prix ; la cloche de l'en-tête compte les missions atteintes et y mène |
 | Profil | connexion, marques suivies, déconnexion |
 
@@ -63,9 +73,10 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 L'extraction lit déjà l'adresse de la photo de chaque produit (`products.image`, JSON-LD ou `og:image`). La montrer
 demande un choix : la charger depuis le site de l'enseigne (requêtes vers un tiers à chaque ouverture, adresse IP des
 visiteurs transmise, images parfois bloquées), la copier sur notre serveur (stockage et bande passante, et une
-reproduction de photos dont les droits appartiennent aux marques ou aux enseignes), ou passer par des flux produits
-fournis sous licence (programmes d'affiliation : contraire au principe « sans affiliation »). Tant que ce n'est pas
-tranché, les illustrations tiennent la place ; elles restent de toute façon le repli d'un produit sans photo.
+reproduction de photos dont les droits appartiennent aux marques ou aux enseignes), ou passer par les flux produits
+que fournissent les programmes d'affiliation, photos comprises, à utiliser selon leurs conditions : depuis la v52
+(affiliation), c'est la voie naturelle. Tant que ce n'est pas tranché, les illustrations tiennent la place ; elles
+restent de toute façon le repli d'un produit sans photo.
 
 ## Historique
 
@@ -299,3 +310,32 @@ dans les six premières cartes), aucune image sans produit pendant la frappe, le
 la requête sans résultat (le message, la mission, le feed), les sources tracées (`feed`, `search`), « Pour vous » après
 une recherche puis son oubli, l'onglet qui remonte en haut ; et les étapes des versions précédentes. Planche :
 `docs/ux/11-v51.png`.
+
+## Mesures v51 → v52 : la conversion d'abord (affiliation)
+
+Mêmes produits et mêmes prix (démo du 14 décembre), téléphone 390 × 844 ; v51 et v52 côte à côte, sur la même base.
+
+| | v51 | v52 |
+|---|---|---|
+| Mission atteinte, dans l'app : gestes jusqu'à l'enseigne | 3 | **2** |
+| E-mail de mission : clics jusqu'à l'enseigne · d'où vient le clic | 2 · « fiche » | **1** · « e-mail », mission connue |
+| Mission lancée sans compte, lien ouvert sur un autre appareil | perdue | **lancée** |
+| Adresse envoyée à l'enseigne : l'identifiant du clic (sous-ID du réseau) | non | **oui** (`…?partenaire=deals&clic=3` en démo) |
+| Fiches vues comptées (taux de clic par écran, par personne) | non | **oui** |
+| « Enseigne partenaire » près de l'offre · « Comment ça marche » | non · non | **oui · au pied de chaque écran** |
+| Fiche : « Voir l'offre » visible sans défiler | 54 sur 59 | 54 sur 59 |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (28 écrans) | 0 · 0 (33 écrans) |
+
+Ce qui ne fuyait pas : le bouton de la fiche, déjà visible sans défiler sur 54 fiches sur 59. Ce qui fuyait : les
+missions, le canal le plus engagé, invisibles dans la mesure (le clic venu de l'e-mail était compté « fiche ») et
+fragiles (la mission lancée sans compte attendait dans le navigateur, 30 minutes, et se perdait si l'on ouvrait le lien
+ailleurs) ; et l'affiliation elle-même, impossible à suivre (aucun identifiant de clic transmis, aucune fiche vue
+comptée). `python deals.py metrics` donne désormais, par écran et par personne (avec mission, connectée sans mission,
+sans compte), les fiches vues, les clics vers l'enseigne et le taux de clic, la part des clics partis chez un partenaire
+et les clics venus des missions.
+
+Parcours vérifié dans un vrai navigateur (Chromium), 52 étapes, deux passages : la mission jointe à la demande de lien
+(rien dans le navigateur), lancée à l'ouverture du lien et ouverte dans Missions, lancée aussi depuis un autre appareil ;
+« Voir l'offre » direct sur une mission atteinte (source `mission`, identifiant de mission) ; la fiche ouverte depuis
+l'e-mail (source `mail`) ; le lien partenaire avec l'identifiant du clic ; la mention près de l'offre, « Comment ça
+marche » et son pied de page sur les cinq onglets ; et les étapes des versions précédentes. Planche : `docs/ux/12-v52.png`.

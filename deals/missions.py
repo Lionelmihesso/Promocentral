@@ -139,19 +139,25 @@ def label(m, name=None):
     return f"{head} · {euros(m['max_price'])} max" if m.get("max_price") is not None else head
 
 
+PARTNERS_NOTE = "Liens vers nos enseignes partenaires : si vous achetez, Deals touche une commission, sans surcoût pour vous."
+
+
 def mission_message(to, items, base, sender):
-    """Un e-mail par personne et par nuit : ses missions arrivées à son prix, et les produits concernés."""
-    n = sum(len(hits) for _, hits in items)
+    """Un e-mail par personne et par nuit : ses missions arrivées à son prix, et les produits concernés. Chaque produit
+    mène en un clic à l'offre (« Voir l'offre », lien tracé : l'e-mail et la mission sont la source du clic) ou à sa fiche.
+    items : (libellé, produits, identifiant de la mission)."""
+    n = sum(len(hits) for _, hits, _ in items)
     subject = f"Mission accomplie : {items[0][0]}" if len(items) == 1 else f"{len(items)} missions accomplies, {n} produits à votre prix"
     text, html = ["Bonjour,", ""], ["<p>Bonjour,</p>"]
-    for lab, hits in items:
+    for lab, hits, mid in items:
         text.append(f"Votre mission « {lab} » :")
         html.append(f"<p><b>Votre mission « {lab} »</b></p><ul>")
         for r in hits[:MAIL_PER_MISSION]:                  # les moins chers d'abord
             off = f" (−{r['pct']} %)" if r["pct"] else ""
             line = f"{r['brand']}, {r['name']} : {euros(r['price'])}{off}"
-            text.append(f"- {line} — {base}/?p={r['product_id']}")
-            html.append(f'<li><a href="{base}/?p={r["product_id"]}">{line}</a></li>')
+            page, offer = f"{base}/?p={r['product_id']}&from=mail&m={mid}", f"{base}/api/r/out/{r['offer_id']}?from=mail&m={mid}"
+            text.append(f"- {line}\n  Voir l'offre : {offer}\n  La fiche : {page}")
+            html.append(f'<li><a href="{page}">{line}</a> · <a href="{offer}" style="font-weight:700;color:#C2330B">Voir l\'offre</a></li>')
         if len(hits) > MAIL_PER_MISSION:
             more = len(hits) - MAIL_PER_MISSION
             text.append(f"- et {more} autre{'s' if more > 1 else ''} à votre prix : {base}/")
@@ -159,7 +165,9 @@ def mission_message(to, items, base, sender):
         text.append("")
         html.append("</ul>")
     text.append(f"Vos missions, pour les modifier ou les arrêter : {base}/")
+    text.append(PARTNERS_NOTE)
     html.append(f'<p style="color:#5E6166">Vos missions, pour les modifier ou les arrêter : <a href="{base}/">Deals</a></p>')
+    html.append(f'<p style="color:#5E6166;font-size:12px">{PARTNERS_NOTE}</p>')
     msg = EmailMessage()
     msg["Subject"], msg["From"], msg["To"] = subject, sender, to
     msg.set_content("\n".join(text))
@@ -185,7 +193,7 @@ class Missions:
         ne lit en détail que ceux sous son prix."""
         where, args = (" WHERE c.product_id=?", (spec["product_id"],)) if spec.get("product_id") else \
             (" WHERE c.category=?", (spec["category"],)) if spec.get("category") else (" WHERE lower(c.brand)=lower(?)", (spec["brand"],))
-        rows = self.s.q("SELECT c.product_id, c.category, c.brand, c.name, c.price, c.pct, c.attrs, o.availability FROM catalog c "
+        rows = self.s.q("SELECT c.product_id, c.category, c.brand, c.name, c.price, c.pct, c.attrs, c.offer_id, o.availability FROM catalog c "
                         "LEFT JOIN catalog_offers o ON o.product_id=c.product_id AND o.rank=0" + where + " ORDER BY c.price, c.product_id", args)
         return rows
 
@@ -284,6 +292,17 @@ class Missions:
     def preview(self, uid, body):
         return self._view(uid, self._spec(body or {}, need_price=False))
 
+    def pending(self, body):
+        """Une mission lancée avant la connexion : vérifiée tout de suite, puis gardée avec le lien de connexion et lancée
+        quand il est ouvert, sur n'importe quel appareil. → (la mission en JSON, son libellé), ou (None, None)."""
+        if body is None:
+            return None, None
+        if not isinstance(body, dict):
+            raise BadRequest("Mission invalide")
+        spec = self._spec(body, need_price=True)
+        keep = {k: spec[k] for k in ("product_id", "category", "brand", "features", "attrs", "max_price") if spec.get(k) not in (None, [], {})}
+        return json.dumps(keep, ensure_ascii=False), label(spec, spec.get("name"))
+
     # ------------------------------------------------------------------ les missions d'une personne
     def create(self, uid, body):
         """Lance une mission ; la même cible déjà suivie (même produit, ou mêmes catégorie, marque et souhaits) change
@@ -353,7 +372,7 @@ class Missions:
             by_user[r["email"]].append((r, fresh, sent))
         emails = products = deferred = 0
         for email, items in by_user.items():
-            todo = [(r["label"], fresh) for r, fresh, _ in items if fresh]
+            todo = [(r["label"], fresh, r["id"]) for r, fresh, _ in items if fresh]
             if todo and limit is not None and emails >= limit:
                 deferred += 1                                   # quota atteint : la nuit suivante
                 continue
@@ -363,7 +382,7 @@ class Missions:
                 except Unavailable:
                     continue                                    # rien n'est marqué : réessayé la nuit suivante
                 emails += 1
-                products += sum(len(f) for _, f in todo)
+                products += sum(len(f) for _, f, _ in todo)
             with self.s.tx() as c:                               # seulement ce qui a changé
                 c.executemany("UPDATE missions SET notified=? WHERE id=?",
                               [(j, r["id"]) for r, _, sent in items if (j := json.dumps(sent)) != r["notified"]])

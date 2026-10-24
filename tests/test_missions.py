@@ -105,8 +105,9 @@ class Night(unittest.TestCase):
 
     def put(self, pid, title, brand, price, stock=True):
         with self.s.tx() as c:
-            c.execute("INSERT OR REPLACE INTO catalog(product_id, name, title, brand, category, price, search, published_on, attrs) "
-                      "VALUES (?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, categorize(title)[0], price, " x ", "2026-10-24", json.dumps(attributes(title))))
+            c.execute("INSERT OR REPLACE INTO catalog(product_id, name, title, brand, category, price, search, published_on, attrs, offer_id) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, categorize(title)[0], price, " x ", "2026-10-24",
+                                                     json.dumps(attributes(title)), 100 + pid))
             c.execute("INSERT OR REPLACE INTO catalog_offers(product_id, offer_id, price, availability, rank) VALUES (?,?,?,?,0)",
                       (pid, pid, price, "in_stock" if stock else "out_of_stock"))
             self.night += 1                                                                           # comme une publication
@@ -123,7 +124,9 @@ class Night(unittest.TestCase):
         body = msg.get_body(("plain",)).get_content()
         self.assertEqual((to, msg["Subject"]), ("mia@test.local", "Mission accomplie : Aspirateur balai · 300 € max"))
         self.assertIn("Zephyr, Aspirateur balai sans fil V8 40 min : 289 €", body)
-        self.assertIn("https://deals.test/?p=2", body)
+        self.assertIn(f"https://deals.test/?p=2&from=mail&m={mission['id']}", body)                  # la fiche…
+        self.assertIn(f"Voir l'offre : https://deals.test/api/r/out/102?from=mail&m={mission['id']}", body)   # …ou l'offre, en un clic
+        self.assertIn("Deals touche une commission, sans surcoût pour vous", body)                     # liens partenaires : dit
         self.assertNotIn("Kessler", body)
         self.assertEqual(self.m.notify(box, "https://deals.test")["emails"], 0)                        # pas deux fois au même prix
         self.put(2, "Aspirateur balai sans fil V8 40 min", "Zephyr", 349)                             # remonte…

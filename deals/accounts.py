@@ -7,6 +7,8 @@
 - Limites d'envoi : 5 liens par adresse et par heure, 20 par adresse IP et par heure, et un plafond quotidien global
   (DEALS_MAILS_PER_DAY) pour qu'un envoi en masse ne puisse pas épuiser le quota du fournisseur et bloquer tout le monde.
 - Envoi : SMTP si DEALS_SMTP_HOST est défini, sinon en mémoire (et dans le fichier DEALS_OUTBOX) pour le développement.
+- Une mission lancée avant la connexion attend avec le lien, sur le serveur : elle est lancée quand le lien est ouvert,
+  sur n'importe quel appareil, et l'e-mail la nomme (« Confirmez votre mission : … »).
 """
 import hashlib
 import re
@@ -30,15 +32,18 @@ def _h(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def login_message(to, link, sender):
+def login_message(to, link, sender, about=None):
+    """Le lien de connexion ; about : la mission qui attend ce lien (« Aspirateur balai · 300 € max »)."""
     m = EmailMessage()
-    m["Subject"] = "Votre lien de connexion Deals"
+    m["Subject"] = f"Confirmez votre mission : {about}" if about else "Votre lien de connexion Deals"
     m["From"] = sender
     m["To"] = to
-    m.set_content(f"Bonjour,\n\nPour vous connecter à Deals, ouvrez ce lien sur l'appareil où vous utilisez l'app :\n{link}\n\n"
+    why = (f"Pour lancer votre mission « {about} », ouvrez ce lien : on guette chaque nuit et on vous prévient dès qu'un "
+           "produit est à votre prix." if about else "Pour vous connecter à Deals, ouvrez ce lien sur l'appareil où vous utilisez l'app :")
+    m.set_content(f"Bonjour,\n\n{why}\n{link}\n\n"
                   "Il est valable 15 minutes et ne sert qu'une fois. Si vous n'avez rien demandé, ignorez ce message.\n")
-    m.add_alternative(f"""<p>Bonjour,</p><p>Pour vous connecter à Deals, ouvrez ce lien sur l'appareil où vous utilisez l'app :</p>
-<p><a href="{link}" style="display:inline-block;background:#101112;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:700">Me connecter</a></p>
+    m.add_alternative(f"""<p>Bonjour,</p><p>{why}</p>
+<p><a href="{link}" style="display:inline-block;background:#101112;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:700">{"Lancer ma mission" if about else "Me connecter"}</a></p>
 <p style="color:#5E6166">Valable 15 minutes, à usage unique. Si vous n'avez rien demandé, ignorez ce message.</p>""", subtype="html")
     return m
 
@@ -49,8 +54,9 @@ class Outbox:
     def __init__(self, path=""):
         self.sent, self.mails, self.path = [], [], path
 
-    def send(self, to, link):
+    def send(self, to, link, about=None):
         self.sent.append((to, link))
+        self.mails.append((to, login_message(to, link, "deals@localhost", about)))
         if self.path:
             with open(self.path, "a", encoding="utf-8") as f:
                 f.write(f"{to}\t{link}\n")
@@ -70,8 +76,8 @@ class SmtpOutbox:
         self.cfg = settings
         self.sender = settings.mail_from or settings.smtp_user or "deals@localhost"
 
-    def send(self, to, link):
-        self.send_mail(to, login_message(to, link, self.sender))
+    def send(self, to, link, about=None):
+        self.send_mail(to, login_message(to, link, self.sender, about))
 
     def send_mail(self, to, message):
         c = self.cfg
@@ -107,7 +113,8 @@ class Accounts:
             raise BadRequest("Adresse e-mail invalide")
         return e
 
-    def request_link(self, email, ip=None):
+    def request_link(self, email, ip=None, mission=None, about=None):
+        """Envoie un lien de connexion ; mission (JSON vérifié par missions.py) attend avec lui, about la nomme."""
         e = self.normalize(email)
         now = self.clock()
         count = lambda where, args: self.s.q(f"SELECT COUNT(*) n FROM login_links WHERE {where}", args, one=True)["n"]
@@ -121,26 +128,27 @@ class Accounts:
         with self.s.tx():
             self.s.x("DELETE FROM login_links WHERE created_at<?", (now - 2 * 86400,))
             self.s.x("DELETE FROM sessions WHERE expires_at<?", (now,))
-            self.s.x("INSERT INTO login_links(token_hash, email, ip, created_at, expires_at) VALUES (?,?,?,?,?)",
-                     (_h(token), e, ip, now, now + LINK_TTL))
-        self.outbox.send(e, f"{self.base}/api/r/auth/verify?token={token}")
+            self.s.x("INSERT INTO login_links(token_hash, email, ip, created_at, expires_at, mission) VALUES (?,?,?,?,?,?)",
+                     (_h(token), e, ip, now, now + LINK_TTL, mission))
+        self.outbox.send(e, f"{self.base}/api/r/auth/verify?token={token}", about)
         return {"ok": True, "message": "Lien envoyé. Ouvrez-le depuis votre boîte mail."}
 
     def verify(self, token):
-        """Lien ouvert → (adresse de retour, cookie de session | None). Un lien expiré ou déjà utilisé renvoie à l'app."""
+        """Lien ouvert → (adresse de retour, cookie de session | None, (compte, mission en JSON) | None : la mission qui
+        attendait ce lien). Un lien expiré ou déjà utilisé renvoie à l'app."""
         now = self.clock()
         h = _h(token or "")
         with self.s.tx() as c:
-            row = c.execute("SELECT email FROM login_links WHERE token_hash=?", (h,)).fetchone()
+            row = c.execute("SELECT email, mission FROM login_links WHERE token_hash=?", (h,)).fetchone()
             used = c.execute("UPDATE login_links SET used=1 WHERE token_hash=? AND used=0 AND expires_at>?", (h, now)).rowcount
             if not row or used != 1:
-                return "/?auth=expired", None
+                return "/?auth=expired", None, None
             c.execute("INSERT OR IGNORE INTO users(email, created_at) VALUES (?,?)", (row["email"], now))
             uid = c.execute("SELECT id FROM users WHERE email=?", (row["email"],)).fetchone()["id"]
             session = secrets.token_urlsafe(32)
             c.execute("INSERT INTO sessions(token_hash, user_id, created_at, expires_at) VALUES (?,?,?,?)",
                       (_h(session), uid, now, now + SESSION_TTL))
-        return "/", self.cookie(session)
+        return "/", self.cookie(session), ((uid, row["mission"]) if row["mission"] else None)
 
     def cookie(self, session=None):
         secure = "; Secure" if self.base.startswith("https") else ""

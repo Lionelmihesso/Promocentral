@@ -14,10 +14,13 @@ sudo cp -r . /opt/deals                                   # depuis le dossier de
 sudo chown -R deals:deals /var/lib/deals /var/backups/deals
 sudo cp /opt/deals/deploy/deals.env.example /etc/deals/deals.env
 sudo chmod 600 /etc/deals/deals.env && sudoedit /etc/deals/deals.env       # robot, adresse publique, SMTP
+sudo cp /opt/deals/deploy/affiliate.example.json /etc/deals/affiliate.json  # enseignes partenaires : liens des réseaux
+sudo chgrp deals /etc/deals/affiliate.json && sudo chmod 640 /etc/deals/affiliate.json && sudoedit /etc/deals/affiliate.json
 sudo install -m 755 /opt/deals/deploy/deals /usr/local/bin/deals            # « sudo deals … » sur le serveur
 ```
 `sudo deals <commande>` lance `deals.py` comme les services : utilisateur `deals`, dossier `/var/lib/deals`, réglages
-de `/etc/deals/deals.env`. Un réglage invalide arrête la commande en nommant la variable.
+de `/etc/deals/deals.env`. Un réglage invalide arrête la commande en nommant la variable. Seules les enseignes de
+`/etc/deals/affiliate.json` (`DEALS_AFFILIATE`) sont lues la nuit et publiées.
 
 ## 2. Constituer la base (une fois)
 ```
