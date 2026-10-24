@@ -18,6 +18,9 @@ Session requise (sinon 401) : save, saves, brand/follow, follows, missions (GET 
 missions/delete {id}.
 Connexion : auth/request {email, mission?} (la mission attend le lien, sur le serveur), auth/verify?token= (pose le cookie,
 lance la mission qui attendait et renvoie vers /?mission=<id> ; ou vers /?auth=expired), auth/me, auth/logout.
+Surveillance : health (pour une sonde extérieure : status ok | degraded | critical, heure de la dernière nuit, taille du
+catalogue ; 503 si aucune nuit depuis 36 h, si la dernière a eu une étape en erreur ou si un incident critique est
+ouvert ; aucun détail de plus).
 """
 import json
 import re
@@ -32,6 +35,9 @@ from .activity import Activity
 from .catalog import SORTS, Catalog
 from .errors import BadRequest, NotFound
 from .missions import Missions
+from .ops import utc
+
+STALE_S = 36 * 3600            # plus de 36 h sans nuit terminée : la plateforme ne se met plus à jour
 
 
 @dataclass
@@ -59,6 +65,7 @@ class Api:
         self.accounts = Accounts(store, settings, outbox, clock)
         self.activity = Activity(store, clock, rules if rules is not None else affiliate.load(settings.affiliate))
         self.missions = Missions(store, self.catalog, clock)
+        self.store, self.clock = store, clock
         C, A, T, M = self.catalog, self.accounts, self.activity, self.missions
         uid = lambda r: A.user(r.session)
         need = lambda r: A.require(r.session)
@@ -89,6 +96,7 @@ class Api:
             ("GET", r"/api/r/auth/verify", self._verify),
             ("GET", r"/api/r/auth/me", lambda r: A.me(r.session)),
             ("POST", r"/api/r/auth/logout", lambda r: Response(200, {"ok": True}, cookie=A.logout(r.session))),
+            ("GET", r"/api/r/health", lambda r: self._health()),
         ]]
 
     @staticmethod
@@ -109,6 +117,20 @@ class Api:
         (80 caractères au plus chacune ; le catalogue lit les premières, catalog.RECENT_SEARCHES) ; jamais gardées par le
         serveur."""
         return [t.strip()[:80] for t in (query.get("recent") or "").split("|") if t.strip()]
+
+    def _health(self):
+        """État pour une sonde extérieure : elle prévient le responsable par un autre chemin que nos e-mails, même quand
+        la nuit ne tourne plus du tout (agent.py ne peut pas signaler une nuit qui n'a pas lieu)."""
+        last = self.store.q("SELECT ended, status FROM runs WHERE ended IS NOT NULL AND COALESCE(status, '') NOT IN ('retry', 'running') "
+                            "ORDER BY id DESC LIMIT 1", one=True)
+        open_ = {r["severity"]: r["n"] for r in self.store.q("SELECT severity, COUNT(*) n FROM incidents WHERE status='open' "
+                                                              "GROUP BY severity")}
+        late = last is None or self.clock() - last["ended"] > STALE_S
+        state = "critical" if late or open_.get("critical") or last["status"] == "failed" else \
+            "degraded" if open_.get("warning") else "ok"
+        body = {"status": state, "last_night": utc(last["ended"]) if last else None,
+                "catalog": self.store.q("SELECT COUNT(*) n FROM catalog", one=True)["n"]}
+        return Response(503 if state == "critical" else 200, body)
 
     def _verify(self, r):
         """Le lien ouvert connecte la personne ; la mission qui attendait ce lien est lancée, et l'app l'ouvre."""

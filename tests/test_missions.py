@@ -142,7 +142,7 @@ class Night(unittest.TestCase):
         self.m.create(bob, {"category": "aspirateur", "max_price": 300})
         self.put(3, "Aspirateur traîneau sans sac 750 W", "Ostra", 189)                               # baisse : nouveau pour les deux
         box = Outbox()
-        self.assertEqual(self.m.notify(box, "https://deals.test", limit=1), {"missions": 2, "emails": 1, "products": 1, "deferred": 1})
+        self.assertEqual(self.m.notify(box, "https://deals.test", limit=1), {"missions": 2, "emails": 1, "products": 1, "deferred": 1, "failed": 0})
         night2 = self.m.notify(box, "https://deals.test", limit=1)                                    # le reste part ensuite
         self.assertEqual((night2["emails"], night2["deferred"], box.mails[-1][0]), (1, 0, "bob@test.local"))
 

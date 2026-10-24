@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -112,6 +112,29 @@ MIGRATIONS = {
         "ALTER TABLE catalog ADD COLUMN level TEXT",
         "ALTER TABLE catalog ADD COLUMN span INTEGER",
         "ALTER TABLE catalog ADD COLUMN usual REAL",
+    ],
+    10: [  # autonomie : registre des sources et leur état, journal opérationnel, incidents, actions auditées, quarantaine
+        "CREATE TABLE sources (key TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'site', name TEXT NOT NULL, "
+        "partner INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', failures INTEGER NOT NULL DEFAULT 0, "
+        "last_success REAL, last_run REAL, reason TEXT, updated_at REAL)",
+        "CREATE TABLE events (id INTEGER PRIMARY KEY, at REAL NOT NULL, severity TEXT NOT NULL, component TEXT NOT NULL, "
+        "kind TEXT NOT NULL, entity TEXT, cid TEXT, payload TEXT)",
+        "CREATE INDEX events_cid ON events(cid)",
+        "CREATE INDEX events_at ON events(at)",
+        "CREATE TABLE incidents (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, entity TEXT NOT NULL DEFAULT '', severity TEXT NOT NULL, "
+        "status TEXT NOT NULL DEFAULT 'open', opened_at REAL NOT NULL, last_seen REAL NOT NULL, resolved_at REAL, "
+        "nights INTEGER NOT NULL DEFAULT 1, evidence TEXT, runbook TEXT, cid TEXT, escalated INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX incidents_open ON incidents(status, kind, entity)",
+        "CREATE TABLE actions (id INTEGER PRIMARY KEY, at REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, entity TEXT, "
+        "incident_id INTEGER, policy TEXT NOT NULL, status TEXT NOT NULL, justification TEXT NOT NULL, inputs TEXT, "
+        "preconditions TEXT, expected_effect TEXT, idempotency_key TEXT NOT NULL UNIQUE, result TEXT, verification TEXT, "
+        "rollback_plan TEXT, decided_by TEXT, decided_at REAL, cid TEXT, notified INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE quarantine (offer_id INTEGER PRIMARY KEY, since REAL NOT NULL, price REAL NOT NULL, usual REAL NOT NULL, "
+        "rule TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0, checked_day TEXT, status TEXT NOT NULL DEFAULT 'held', "
+        "released_at REAL, reason TEXT, price_id INTEGER)",
+        "ALTER TABLE prices ADD COLUMN rejected INTEGER NOT NULL DEFAULT 0",   # erreur de prix écartée : hors courbes et verdicts
+        "ALTER TABLE runs ADD COLUMN cid TEXT",
+        "ALTER TABLE runs ADD COLUMN status TEXT",
     ],
 }
 

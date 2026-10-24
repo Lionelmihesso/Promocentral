@@ -19,11 +19,24 @@ classées et rémunérées.
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
 d'octobre 2026, mesures avant / après : [`docs/AUDIT.md`](docs/AUDIT.md).
 
+**Exploitation quasi autonome** : un agent de nuit (des règles écrites, pas d'IA) relance une source en panne passagère,
+met de côté celle qui échoue trop sans jamais forcer un anti-robot, retient un prix suspect, garde le catalogue de la
+veille quand le nouveau fond, journalise tout et n'écrit au responsable que s'il y a lieu ; ce qui engage (reprendre une
+source, publier malgré la garde, envoi massif) attend `deals.py approve`. Politiques, règles et mesures sur pannes
+injectées : [`docs/AUTONOMIE.md`](docs/AUTONOMIE.md) ; que faire pour chaque incident : [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+
 ## Commandes
 ```
 python deals.py demo                         app sur http://127.0.0.1:8000/ : 75 nuits de marché simulé, 59 produits
 python deals.py serve                        l'app et /api/r/ (en production derrière Caddy, voir deploy/)
-python deals.py nightly                      la nuit : collecte → rapport du matin → publication du catalogue → e-mails des missions
+python deals.py nightly                      la nuit : collecte → agent → publication → e-mails des missions → contrôles →
+                                             rapport du matin → e-mail au responsable s'il y a lieu
+python deals.py status                       l'état : dernière nuit, catalogue, sources, incidents, décisions en attente
+python deals.py incidents|actions|events     incidents ouverts, actions auditées, journal d'une nuit (--cid)
+python deals.py approve|reject <n°>          décider d'une proposition de l'agent
+python deals.py sources [enable|disable <clé>]     registre des sources ; reprendre ou mettre de côté
+python deals.py quarantine [release <offre>] prix suspects retenus ; libérer un prix vérifié chez l'enseigne
+python deals.py partners                     enseignes partenaires déclarées et leur source
 python deals.py publish                      republier le catalogue sans relire le web
 python deals.py missions                     envoyer les e-mails des missions sur le catalogue publié
 python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
@@ -31,8 +44,8 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (75, ~11 s)
-python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale     mesures
+python -m unittest discover -s tests -t .    tests (107, ~23 s)
+python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale | bench.autonomy     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
 `--db` (avant la commande) choisit la base ; réglages par variables `DEALS_*` (`deals/config.py`,
@@ -58,6 +71,9 @@ lues, pour les missions) ; retiré en v49 : `specs` (la description n'est plus m
 Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`, `missions` (GET : les miennes et leur état ;
 POST : lancer, ou changer le prix d'une même cible), `missions/delete` {id}.
 Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`, `auth/logout`.
+Surveillance : `health` (pour une sonde extérieure : `status` ok, degraded ou critical, heure de la dernière nuit, taille
+du catalogue ; 503 si aucune nuit depuis 36 h, si la dernière a eu une étape en erreur ou si un incident critique est
+ouvert).
 
 ## Règles du produit
 - **Seulement des remises réelles.** Une remise affichée par l'enseigne est crue, sauf preuve du contraire : notre
@@ -119,8 +135,13 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
 - **Missions vers l'achat** : une mission atteinte propose « Voir l'offre » en un geste ; dans l'e-mail, chaque produit
   mène en un clic à l'offre ou à sa fiche (source `mail`, mission connue).
 - **Fraîcheur** : toutes les offres sont relues chaque nuit tant que la passe tient dans le budget (4 h) ; sinon, par
-  ordre de valeur (deal en cours, favori, clic récent, puis le plus ancien relu). Un prix non relu depuis 3 jours n'est
-  plus montré.
+  ordre de valeur (prix en quarantaine à revérifier, deal en cours, favori, clic récent, puis le plus ancien relu). Un
+  prix non relu depuis 3 jours n'est plus montré.
+- **Seulement des données validées** : un prix relu à moins de 30 % du prix habituel du produit est retenu (ni publié
+  ni envoyé aux missions) jusqu'à ce qu'il revienne à la normale (il est alors écarté des courbes) ou soit relu au même
+  prix les deux nuits suivantes (il est cru) ; un catalogue qui perdrait plus de 20 % de ses produits ou de ses offres
+  n'est pas publié, celui de la veille reste en ligne (au plus deux nuits) ; un envoi d'e-mails de missions bien plus
+  nombreux que d'habitude attend une décision (`deals/quarantine.py`, `deals/publish.py`, `deals/night.py`).
 
 ## Interface
 
@@ -206,6 +227,9 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
 - Pas de navigateur : un site dont les prix n'existent qu'après exécution du JavaScript reste illisible (Conforama).
 - Une baisse sans prix barré n'est pas montrée (choix produit et juridique, voir `docs/AUDIT.md`).
 - Les favoris choisis avant connexion ne sont pas repris (la connexion est demandée avant l'action) ; une mission, si.
+- Exploitation : l'agent prévient le responsable par le SMTP de la plateforme ; s'il tombe, seule une sonde extérieure
+  sur `/api/r/health` le voit (à brancher, voir `docs/RUNBOOK.md#sonde`). L'agent conseille une règle de lecture quand
+  une page change ; il ne l'écrit pas.
 - Missions : prévenues par e-mail, la nuit, et dans l'app (onglet, cloche) ; pas de notification sur le téléphone (l'app
   est une page web, pas une app installée). Une phrase n'est comprise que dans ce que l'extraction sait lire (catégories
   suivies, marques présentes au catalogue, fonctions et tailles connues) : « une marque inconnue » ou « un joli

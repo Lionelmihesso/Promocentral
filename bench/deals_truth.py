@@ -20,7 +20,7 @@ from pathlib import Path
 
 from deals import sim
 from deals.collect.crawl import Crawler
-from deals.demo import SIM_RETAILER
+from deals.demo import retailers
 from deals.market import Market
 from deals.publish import publish
 from deals.store import Store
@@ -34,9 +34,9 @@ def run(seed, days, tmp):
     store = Store(Path(tmp, f"truth-{seed}.sqlite"))
     clock = sim.SimClock(START)
     market = Market(store, clock)
-    crawler = Crawler(market, sim.SimFetcher(m, clock), SIM_RETAILER, budget_s=10 ** 9, clock=clock)
+    crawler = Crawler(market, sim.SimFetcher(m, clock), retailers(sim.MERCHANTS), budget_s=10 ** 9, clock=clock)
     for o in m.offers:
-        market.track(o["url"], "sim", o["merchant"])
+        market.track(o["url"], sim.slug(o["merchant"]), o["merchant"])
     sim_id = {p["gtin"]: p["id"] for p in m.products}
     res = {"cold": Counter(), "warm": Counter()}
     for k in range(days):

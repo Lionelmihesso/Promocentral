@@ -6,13 +6,11 @@ Règles (réglage DEALS_AFFILIATE : un fichier JSON, clé d'enseigne → règle)
 - ou des paramètres ajoutés à l'adresse de la fiche : "tag=deals-21&ascsubtag={subid}".
 L'identifiant du clic revient dans les rapports du réseau : chaque vente se rattache au clic, donc à l'écran, à la
 mission et à la personne d'où il est parti (activity.py). Sans fichier (développement), rien n'est filtré et les liens
-partent tels quels ; la démo utilise DEMO.
+partent tels quels ; la démo a les siennes (demo.RULES).
 """
 import json
 from pathlib import Path
 from urllib.parse import quote
-
-DEMO = {"sim": "partenaire=deals&clic={subid}"}     # les enseignes simulées de la démo, toutes partenaires
 
 
 def load(path):

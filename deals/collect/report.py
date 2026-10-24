@@ -2,7 +2,9 @@
 
 Par enseigne : pages relues, inchangées (304), prix changés, bloquées, disparues, sans prix, erreurs, hors catalogue,
 taux de prix barré lu, réussite. Alertes : réussite sous 80 %, passe interrompue (coupe-circuit), budget atteint,
-taux de prix barré en chute (la page a sans doute changé). Plus fortes baisses de la nuit.
+taux de prix barré en chute alors que les prix, eux, n'ont pas bougé (la page a sans doute changé ; une fin de promotion
+fait remonter les prix : ce n'est pas une alerte). Plus fortes baisses de la nuit (celles retenues en quarantaine
+sont signalées). La nuit complète (night.py) y ajoute ce que l'agent a vu et fait (agent.py).
 """
 import json
 from collections import Counter, defaultdict
@@ -12,11 +14,13 @@ from .retailers import BREAKER, KEEP_THRESHOLD
 
 
 def previous_retailers(store, day):
-    row = store.q("SELECT stats FROM runs WHERE day<? AND stats IS NOT NULL ORDER BY id DESC LIMIT 1", (day.isoformat(),), one=True)
+    row = store.q("SELECT stats FROM runs WHERE day<? AND stats IS NOT NULL AND COALESCE(status, '')!='retry' ORDER BY id DESC LIMIT 1",
+                  (day.isoformat(),), one=True)
     return json.loads(row["stats"])["retailers"] if row else {}
 
 
-def summarize(market, day, results, names, interrupted=None, not_read=None, confirmed=0, previous=None):
+def summarize(market, day, results, names, interrupted=None, not_read=None, confirmed=0, previous=None, late=None):
+    """Bilan de la passe ; late : les relectures des variations énormes (comptées dans les plus fortes baisses seulement)."""
     interrupted, not_read, previous = interrupted or {}, not_read or {}, previous or {}
     per = defaultdict(Counter)
     for r in results:
@@ -24,28 +28,35 @@ def summarize(market, day, results, names, interrupted=None, not_read=None, conf
         c[r["status"]] += 1
         c["changed"] += r.get("outcome") == "changed"
         c["with_was"] += r["status"] == "ok" and bool(r.get("was"))
+        if r.get("outcome") == "changed" and not r.get("was"):            # prix barré perdu ce soir : prix inchangé ?
+            last = market.last_prices(r["offer_id"])
+            if len(last) == 2 and last[1]["was"] and not last[0]["was"]:
+                c["lost_was"] += 1
+                c["lost_was_same"] += abs(last[0]["price"] - last[1]["price"]) <= 0.01 * last[1]["price"]
     retailers = {}
     for k in set(per) | set(interrupted) | set(not_read):
         c = per[k]
-        total = sum(v for s, v in c.items() if s not in ("changed", "with_was"))
+        total = sum(v for s, v in c.items() if s not in ("changed", "with_was", "lost_was", "lost_was_same"))
         good = c["ok"] + c["not_modified"]
         was_rate = round(c["with_was"] / c["ok"], 3) if c["ok"] else None
         before = (previous.get(k) or {}).get("was_rate")
         retailers[k] = {"name": names.get(k, k), "pages": total, "ok": c["ok"], "unchanged_304": c["not_modified"], "changed": c["changed"],
                         "blocked": c["blocked"], "gone": c["gone"], "no_price": c["no_price"], "errors": c["error"] + c["rate_limited"],
+                        "rate_limited": c["rate_limited"],
                         "out_of_scope": c["out_of_scope"], "was_rate": was_rate,
-                        "was_drop": bool(before and before >= 0.10 and was_rate is not None and c["ok"] >= 10 and was_rate < before * 0.3),
+                        "was_drop": bool(before and before >= 0.10 and was_rate is not None and c["ok"] >= 10 and was_rate < before * 0.3
+                                         and c["lost_was"] and c["lost_was_same"] >= 0.5 * c["lost_was"]),
                         "interrupted": interrupted.get(k, 0), "not_read": not_read.get(k, 0),
                         "success": round(good / total, 3) if total else None, "alert": bool(total) and good / total < KEEP_THRESHOLD}
     drops = []
-    for r in results:
+    for r in [*results, *(late or ())]:
         if r.get("outcome") != "changed":
             continue
         last = market.last_prices(r["offer_id"])
         if len(last) == 2 and last[0]["price"] < last[1]["price"]:
             o = market.s.q("SELECT o.url, p.title, p.brand FROM offers o LEFT JOIN products p ON p.id=o.product_id WHERE o.id=?",
                            (r["offer_id"],), one=True)
-            drops.append({"title": o["title"], "brand": o["brand"], "retailer": names.get(r["retailer"], r["retailer"]),
+            drops.append({"offer_id": r["offer_id"], "title": o["title"], "brand": o["brand"], "retailer": names.get(r["retailer"], r["retailer"]),
                           "before": last[1]["price"], "after": last[0]["price"], "drop": round(1 - last[0]["price"] / last[1]["price"], 3),
                           "url": o["url"]})
     drops.sort(key=lambda d: -d["drop"])
@@ -58,8 +69,9 @@ def euros(v):
     return f"{v:,.2f} €".replace(",", " ").replace(".", ",")
 
 
-def write(stats, report_dir):
-    """Rapport du matin ; une relance le même jour n'écrase pas le rapport précédent. → nom du rapport."""
+def write(stats, report_dir, agent=None):
+    """Rapport du matin ; agent : les lignes de la section « Agent » (night.py) ; une relance le même jour n'écrase pas le
+    rapport précédent. → nom du rapport."""
     d = Path(report_dir)
     d.mkdir(parents=True, exist_ok=True)
     s = stats
@@ -72,7 +84,9 @@ def write(stats, report_dir):
                      f"{r['blocked']} | {r['gone']} | {r['no_price']} | {r['errors']} | {pct(r['was_rate'])} | {pct(r['success'])} |")
     if s["price_drops"]:
         lines += ["", "## Plus fortes baisses", ""] + [f"- {x['brand'] or ''} {x['title'] or x['url']} ({x['retailer']}) : "
-                                                       f"{euros(x['before'])} → {euros(x['after'])} (−{x['drop'] * 100:.0f} %)" for x in s["price_drops"][:15]]
+                                                       f"{euros(x['before'])} → {euros(x['after'])} (−{x['drop'] * 100:.0f} %)"
+                                                       f"{' — retenu : prix suspect, en quarantaine' if x.get('held') else ''}"
+                                                       for x in s["price_drops"][:15]]
     notes = []
     for r in s["retailers"].values():
         if r["interrupted"]:
@@ -88,6 +102,8 @@ def write(stats, report_dir):
                      "(python deals.py diagnose <enseigne>)")
     if notes:
         lines += [""] + notes
+    if agent:
+        lines += ["", "## Agent", ""] + agent
     name, k = s["day"], 2
     while (d / f"{name}.md").exists():
         name, k = f"{s['day']}-{k}", k + 1

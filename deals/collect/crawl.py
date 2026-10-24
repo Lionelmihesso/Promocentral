@@ -4,9 +4,11 @@ Décision pour une page lue :
   page liste, page introuvable, autre produit à la même adresse → offre « gone », rien n'est enregistré
   première lecture hors catalogue (accessoire, autre famille, sous le seuil) → « out_of_scope », jamais enregistrée
   aucun prix fiable → « no_price » : l'offre reste suivie ;  sinon → prix enregistré (au changement seulement)
-Passe de nuit : un fil par site, à son rythme poli ; par site, ordre de valeur (deal en cours, favori, clic récent, puis
-le plus ancien relu) ; 5 refus de suite → arrêt du site pour la nuit ; budget de nuit atteint → arrêt, ce qui n'est pas
-relu garde son prix, qui vieillit (au-delà de 3 jours il n'est plus montré).
+Passe de nuit : un fil par site, à son rythme poli ; par site, ordre de valeur (prix en quarantaine à revérifier, deal en
+cours, favori, clic récent, puis le plus ancien relu) ; 5 refus de suite → arrêt du site pour la nuit ; budget de nuit
+atteint → arrêt, ce qui n'est pas relu garde son prix, qui vieillit (au-delà de 3 jours il n'est plus montré).
+Chaque passe laisse une ligne dans runs : identifiant de corrélation de la nuit, état (succeeded, partial_success : au
+moins une enseigne sous le seuil ou interrompue, retry : relance d'une enseigne par l'agent), bilan.
 """
 import json
 import threading
@@ -105,11 +107,12 @@ class Crawler:
             return []
         rows = self.m.s.q(
             "SELECT o.*, COALESCE(c.pct, 0) AS deal, EXISTS(SELECT 1 FROM saves s WHERE s.product_id=o.product_id) AS saved, "
-            "EXISTS(SELECT 1 FROM clicks k WHERE k.product_id=o.product_id AND k.at>?) AS clicked "
+            "EXISTS(SELECT 1 FROM clicks k WHERE k.product_id=o.product_id AND k.at>?) AS clicked, "
+            "EXISTS(SELECT 1 FROM quarantine q WHERE q.offer_id=o.id AND q.status='held') AS held "
             f"FROM offers o LEFT JOIN catalog c ON c.product_id=o.product_id WHERE o.retailer IN ({','.join('?' * len(keys))}) "
             "AND (o.status IN ('new', 'active', 'blocked', 'disallowed') OR (o.status='gone' AND (o.id + ?) % 7 = 0))",
             (self.clock() - 3 * 86400, *keys, day.toordinal()))
-        rows.sort(key=lambda o: (o["deal"] <= 0, not o["saved"], not o["clicked"], o["checked_at"] or 0, o["id"]))
+        rows.sort(key=lambda o: (not o["held"], o["deal"] <= 0, not o["saved"], not o["clicked"], o["checked_at"] or 0, o["id"]))
         return rows
 
     def estimate(self, keys=None):
@@ -119,10 +122,12 @@ class Crawler:
         return {"sites": len(per), "offers": sum(per.values()), "minutes": round(worst / 60, 1)}
 
     # ------------------------------------------------------------ la nuit
-    def nightly(self, retailers=None):
+    def nightly(self, retailers=None, cid=None, retry=False):
+        """La passe : retailers, les clés à lire (None : toutes les enseignes activées ; [] : aucune) ; cid, l'identifiant de
+        corrélation de la nuit ; retry : relance d'une enseigne par l'agent. → bilan (collect/report.py), avec son numéro."""
         day, started = self.m.today(), self.clock()
-        keys = [k for k in (retailers or self.R) if self.R[k].get("enabled")]
-        run = self.m.s.x("INSERT INTO runs(day, started) VALUES (?,?)", (day.isoformat(), started))
+        keys = [k for k in (self.R if retailers is None else retailers) if self.R[k].get("enabled")]
+        run = self.m.s.x("INSERT INTO runs(day, started, cid, status) VALUES (?,?,?,'running')", (day.isoformat(), started, cid))
         by_host = defaultdict(list)
         for o in self.plan(keys, day):
             by_host[o["host"]].append(o)
@@ -158,9 +163,10 @@ class Crawler:
             t.join()
         pending = self.m.s.q(f"SELECT * FROM offers WHERE pending_price IS NOT NULL AND retailer IN ({','.join('?' * len(keys))})",
                              keys) if keys else []
-        for o in pending:                                    # variations énormes : relues une fois avant d'être crues
-            self.read(o)
+        late = [self.read(o) for o in pending]               # variations énormes : relues une fois avant d'être crues
         stats = summarize(self.m, day, results, {k: self.R[k]["name"] for k in self.R}, interrupted, not_read, len(pending),
-                          previous_retailers(self.m.s, day))
-        self.m.s.x("UPDATE runs SET ended=?, stats=? WHERE id=?", (self.clock(), json.dumps(stats, ensure_ascii=False), run))
-        return stats
+                          previous_retailers(self.m.s, day), late)
+        status = "retry" if retry else "partial_success" if any(r["alert"] or r["interrupted"] for r in stats["retailers"].values()) \
+            else "succeeded"
+        self.m.s.x("UPDATE runs SET ended=?, stats=?, status=? WHERE id=?", (self.clock(), json.dumps(stats, ensure_ascii=False), status, run))
+        return {**stats, "run": run}

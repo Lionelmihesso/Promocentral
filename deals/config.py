@@ -31,6 +31,9 @@ class Settings:
     mails_per_day: int = 250                        # plafond global d'e-mails de connexion (offre gratuite courante : 300/jour)
     mission_mails: int = 50                         # plafond d'e-mails de missions par nuit ; le reste part la nuit suivante
     affiliate: str = ""                             # fichier JSON des enseignes partenaires (affiliate.py) ; vide : développement
+    operator_email: str = ""                        # responsable d'exploitation : l'agent lui écrit si c'est utile (agent.py)
+    env: str = "dev"                                # dev | prod : noté dans chaque ligne du journal
+    log_json: bool = False                          # journal opérationnel aussi en JSON sur la sortie d'erreur (journald)
 
 
 TRUE, FALSE = ("1", "true", "yes", "oui", "on"), ("0", "false", "no", "non", "off")

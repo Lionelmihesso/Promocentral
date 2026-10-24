@@ -1,5 +1,5 @@
 [Unit]
-Description=DEALS — passe de nuit (collecte, rapport du matin, publication du catalogue)
+Description=DEALS — la nuit (collecte, agent, publication, missions, contrôles, rapport, e-mail au responsable s'il y a lieu)
 After=network-online.target
 Wants=network-online.target
 

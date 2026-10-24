@@ -8,7 +8,14 @@ les offres par enseigne, et, par alternatives.py, jusqu'à trois produits compar
 comparables au prix le plus proche.
 Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un catalogue complet au suivant, jamais un état
 intermédiaire. Avec des enseignes partenaires (affiliate.py), seules leurs offres sont publiées : chaque offre montrée
-mène à un lien rémunéré.
+mène à un lien rémunéré. Seules les données validées sont publiées : une offre en quarantaine (prix suspect,
+quarantine.py) ne l'est pas, un prix écarté comme erreur ne compte ni dans les courbes ni dans les verdicts.
+
+Garde (guard=True, la nuit) : si le nouveau catalogue perd plus de 20 % des produits ou des offres publiés (une enseigne
+qui disparaît retire ses offres sans forcément retirer de produits), il n'est pas écrit et celui de la veille reste en
+ligne (« held » dans le bilan ; l'agent prévient le responsable, qui peut publier quand même). Les offres d'une source
+mise de côté (sources.py) ne comptent pas : leur départ est attendu, et déjà signalé. La garde retient au plus deux nuits :
+le catalogue de la veille vieillit, et ses prix doivent rester relus depuis moins de 3 jours.
 """
 import json
 import re
@@ -23,6 +30,9 @@ from .judge import LOOKBACK, judge
 
 FRESH_S = 3 * 86400          # un prix non relu depuis 3 jours n'est plus montré comme disponible
 CHART_DAYS = 90              # courbe de la fiche : meilleur prix de chaque jour, aujourd'hui compris
+SHRINK = 0.80                # garde : le nouveau catalogue garde au moins 80 % des produits et des offres publiés…
+MIN_GUARD = 20               # … à partir de 20 publiés (en dessous, chaque produit pèse trop)
+HOLD_S = FRESH_S - 3600      # garde : au plus deux nuits (publié il y a moins de 3 jours, à l'heure près)
 
 
 def day_start(d):
@@ -58,17 +68,19 @@ def daily_best(offer_intervals, first, last):
     return out
 
 
-def publish(store, today, now, partners=None):
+def publish(store, today, now, partners=None, guard=False):
     """Recalcule et remplace le catalogue publié ; partners : les enseignes partenaires (clés), seules publiées (None :
-    toutes, en développement). → statistiques de publication."""
+    toutes, en développement) ; guard : la garde de la nuit (voir plus haut). → statistiques de publication."""
     products = {r["id"]: r for r in store.q("SELECT id, title, brand, category, attributes FROM products")}
     before = {r["product_id"]: r for r in store.q("SELECT product_id, pct, since FROM catalog")}
     offers = [o for o in store.q("SELECT id, product_id, merchant, retailer FROM offers WHERE product_id IS NOT NULL "
-                                 "AND status NOT IN ('gone', 'out_of_scope')") if partners is None or o["retailer"] in partners]
+                                 "AND status NOT IN ('gone', 'out_of_scope') "
+                                 "AND id NOT IN (SELECT offer_id FROM quarantine WHERE status='held')")
+              if partners is None or o["retailer"] in partners]
     since = day_start(today - timedelta(days=LOOKBACK + 1)) - FRESH_S
     intervals = defaultdict(list)
     for r in store.q("SELECT offer_id, first_seen, last_seen, price, was, availability, lowest_30d, valid_until FROM prices "
-                     "WHERE last_seen >= ? ORDER BY offer_id, first_seen, id", (since,)):
+                     "WHERE last_seen >= ? AND rejected=0 ORDER BY offer_id, first_seen, id", (since,)):
         intervals[r["offer_id"]].append(r)
     by_product = defaultdict(list)
     for o in offers:
@@ -114,6 +126,16 @@ def publish(store, today, now, partners=None):
         published.append({"id": pid, "category": p["category"], "family": FAMILY_OF.get(p["category"]), "brand": p["brand"],
                           "price": best["price"], "in_stock": best["availability"] != "out_of_stock", "attrs": attrs})
 
+    if guard:
+        alive = store.q("SELECT COUNT(DISTINCT co.product_id) p, COUNT(*) o FROM catalog_offers co JOIN offers o ON o.id=co.offer_id "
+                        "WHERE o.retailer NOT IN (SELECT key FROM sources WHERE status='disabled')", one=True)
+        shrink = {"before": alive["p"], "after": len(catalog), "offers_before": alive["o"], "offers_after": len(catalog_offers)}
+        if (shrink["before"] >= MIN_GUARD and shrink["after"] < SHRINK * shrink["before"]) or \
+                (shrink["offers_before"] >= MIN_GUARD and shrink["offers_after"] < SHRINK * shrink["offers_before"]):
+            last = store.q("SELECT value FROM meta WHERE key='published_at'", one=True)
+            if last is not None and now - float(last["value"]) < HOLD_S:
+                return {**stats, "held": shrink}
+            stats["unguarded"] = shrink                      # deux nuits retenu : le catalogue de la veille a trop vieilli
     by_cat = defaultdict(list)
     for item in published:
         if item["category"]:

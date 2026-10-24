@@ -4,17 +4,21 @@ DEALS montre chaque jour les bonnes affaires qui existent. Le marché est relu u
 découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcule, une app de jour qui lit**.
 
 ```
-                    NUIT (deals.py nightly, une fois par jour)                      JOUR (deals.py serve)
+                    NUIT (deals.py nightly → night.py, une fois par jour)                   JOUR (deals.py serve)
 
  sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v53)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
-                                               (écrit)      moins cher transaction)             accounts, activity,
-                                                            comparable    │                     missions (connexion,
-                                                            (purs)        ▼                     favoris, marques,
-                                                                       missions ─► e-mails      clics, missions)
-                                                                       prix atteints : un par personne
+                                               (écrit)      moins cher transaction,             accounts, activity,
+                                                            comparable  garde)                  missions (connexion,
+                                                            (purs)        │                     favoris, marques,
+                                       agent : relance, mise de côté,     ▼                     clics, missions)
+                                       page témoin, quarantaine ─►  missions ─► e-mails
+                                       (sources, quarantine)        prix atteints : un par personne
+                                                │
+                       health : contrôles ─► agent : incidents, conseils, propositions ─► rapport, e-mail au responsable
+                       ops : journal (events), corrélation de la nuit                      deals.py status | approve | …
 ```
 
 ## Principes (ce qui rend le système juste par construction)
@@ -36,7 +40,12 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
    Les garde-fous sont dans le code qui lit (`extract`) et dans la règle qui juge (`judge`), pas dans des correctifs.
 6. **Échouer tôt, avec la cause.** Réglage invalide, robot sans nom ni contact, base d'un autre schéma : arrêt au
    démarrage avec un message qui nomme le problème, plutôt qu'un service qui tourne mal.
-7. **Pas de fonction sans usage.** Ce que le produit ne montre pas n'est ni calculé, ni stocké, ni testé.
+7. **Pas de fonction sans usage.** Ce que le produit ne montre pas n'est ni calculé, ni stocké, ni testé. Le journal
+   d'exploitation (événements, incidents, actions) est lu : par l'agent la nuit, par le responsable (`status`, e-mail du
+   matin, `approve`), par la sonde extérieure.
+8. **Agir seul seulement quand c'est sans risque.** L'agent relance, met de côté, retient, garde le catalogue de la
+   veille ; ce qui engage attend une décision humaine ; contourner une protection est interdit. Chaque action est
+   journalisée avec sa justification, sa vérification et son retour arrière (`docs/AUTONOMIE.md`).
 
 ## Modules
 
@@ -58,15 +67,24 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/activity.py` | favoris, marques suivies, fiches vues, clics sortants par le lien affilié, mesures de conversion (taux de clic par écran et par personne, part partenaire, missions) | store, affiliate | saves, follows, views, clicks |
 | `deals/api.py` | contrat `/api/r/` (inchangé pour l'app, routes ajoutées) | catalog, accounts, activity, missions | — |
 | `deals/web.py` | serveur HTTP : app statique, routes, cookie, taille des requêtes, en-têtes | api | — |
-| `deals/sim.py`, `deals/demo.py` | marché simulé à vérité connue ; démo par la vraie chaîne | collect, market, publish | — |
-| `deals/cli.py` (`deals.py`) | une seule ligne de commande | tout | — |
+| `deals/ops.py` | journal opérationnel : événements datés (UTC), gravité, composant, entité, corrélation de la nuit ; JSON sur la sortie d'erreur ; jamais d'adresse ni de secret (`scrub`) | store | events |
+| `deals/sources.py` | registre des sources (enseignes lues, partenaires ou non) et leur état : active, en difficulté (nuits ratées), mise de côté | store | sources |
+| `deals/quarantine.py` | prix suspects : à moins de 30 % du prix habituel, retenus jusqu'au retour à la normale (le prix faux écarté) ou relus au même prix deux nuits de plus (cru) | store | quarantine, prices.rejected |
+| `deals/health.py` | contrôles de santé de la nuit : `snapshot` lit l'état, `findings` (**pur**) en tire les constats d'après des seuils versionnés ; `cause` dit pourquoi une source va mal | store, sources | — |
+| `deals/agent.py` | l'agent opérateur : politiques (auto, alert, approval, recommend, forbidden), actions auditées et idempotentes, incidents, conseils, propositions, e-mail au responsable ; gestes humains (`approve`, `reject`, gestes manuels) | health, sources, quarantine, ops | incidents, actions |
+| `deals/night.py` | la nuit de bout en bout : sources, collecte, agent, publication (garde), missions (garde contre l'envoi massif), contrôles, incidents, rapport, e-mail ; une étape qui casse n'arrête pas les suivantes | tout ce qui précède | runs (bilan complet) |
+| `deals/sim.py`, `deals/demo.py` | marché simulé à vérité connue (une source par enseigne simulée) ; démo par la vraie nuit | collect, market, night | — |
+| `deals/cli.py` (`deals.py`) | une seule ligne de commande ; centre de commande (`status`, `incidents`, `actions`, `events`, `approve`, `reject`, `sources`, `quarantine`, `partners`) | tout | — |
 
 Lectures croisées autorisées, et seulement celles-ci : `publish` lit `products/offers/prices` (pour calculer) ;
 `collect` lit `catalog/saves/clicks` (pour ordonner la relecture de nuit : deal en cours, favori, clic récent) ;
 `activity` lit `offers` (pour rediriger un clic vers l'adresse connue) et `catalog` (prix au moment d'un favori) ;
 `catalog` lit `follows/saves` (pour personnaliser l'ordre, les signets et la baisse d'un favori) ; `missions` lit
 `catalog/catalog_offers` (produits publiés, disponibilité de la meilleure offre) et `users` (l'adresse où écrire, la
-nuit).
+nuit). Exploitation : `health` lit `runs`, `sources`, `quarantine`, `catalog`, `catalog_offers`, `offers`, `prices`
+et `clicks` (l'état de la nuit) ; `quarantine` lit `offers`, `prices` et `catalog` (prix habituel) ; `publish` et
+`collect` lisent `quarantine` (pas de publication, relecture en priorité) et `publish` lit `sources` (la garde ignore
+les sources mises de côté) ; l'agent écrit `sources` et `quarantine` par leurs modules, `incidents` et `actions` lui-même.
 
 ## Données
 
@@ -95,7 +113,19 @@ login_links.mission                    la mission lancée avant la connexion, la
 missions   (id, user_id, product_id, category, brand, want, max_price, label, created_at, notified)
             ce qui est guetté (un produit, ou catégorie, marque et souhaits : fonctions, tailles), le prix maximum ;
             notified : produit → prix du dernier e-mail (rien n'est renvoyé au même prix)
-site_rules (host, rules) · runs (day, started, ended, stats)
+site_rules (host, rules) · runs (day, started, ended, stats, cid, status)
+            status : running | succeeded | partial_success | failed | retry (relance d'une enseigne par l'agent) ;
+            stats : le bilan complet de la nuit (passe, publication, missions, offres publiées par source) : la
+            référence des nuits suivantes
+prices.rejected                        erreur de prix écartée (quarantaine) : hors courbes et verdicts
+sources    (key, kind, name, partner, status, failures, last_success, last_run, reason, updated_at)
+            status : active | degraded | disabled ; failures : nuits ratées de suite ; reason : qui l'a mise de côté
+events     (at, severity, component, kind, entity, cid, payload)       journal opérationnel, sans adresse ni secret
+incidents  (kind, entity, severity, status, opened_at, last_seen, resolved_at, nights, evidence, runbook, cid, escalated)
+actions    (at, actor, action, entity, incident_id, policy, status, justification, inputs, preconditions,
+            expected_effect, idempotency_key unique, result, verification, rollback_plan, decided_by, decided_at, cid,
+            notified)        status : verified | failed | proposed | recommended | refused | executed | rejected | expired
+quarantine (offer_id, since, price, usual, rule, confirmed, checked_day, status, released_at, reason, price_id)
 ```
 Le schéma vit dans `store.py` et nulle part ailleurs : `SCHEMA` (version 1) puis `MIGRATIONS`, dans l'ordre, en une
 transaction. Une base neuve suit exactement le même chemin qu'une base existante : chaque migration est exécutée par
@@ -103,25 +133,37 @@ chaque test. `PRAGMA user_version` date la base ; un code plus ancien que la bas
 schéma = `SCHEMA_VERSION + 1` et une entrée dans `MIGRATIONS` (version 2 : durées de la fiche, prix des favoris ;
 version 3 : alternatives ; version 4 : description de la fiche ; version 5 : courbe de prix, heure de publication ;
 version 6 : missions ; version 7 : la description retirée, `ALTER TABLE … DROP COLUMN`, d'où SQLite 3.35 au moins,
-vérifié au démarrage).
+vérifié au démarrage ; version 8 : affiliation, fiches vues ; version 9 : verdict de prix publié ; version 10 :
+exploitation autonome — sources, journal, incidents, actions, quarantaine).
 
-## La nuit (`python deals.py nightly`)
+## La nuit (`python deals.py nightly`, `deals/night.py`)
 
-1. **Plan** : toutes les offres suivies des enseignes activées (les fiches disparues sont revérifiées une nuit sur
-   sept). Par site, ordre de valeur : produit en deal, en favori, cliqué depuis 3 jours, puis le plus ancien relu.
+0. **Sources** : le registre suit les enseignes partenaires ; une source mise de côté n'est pas lue (page témoin tous
+   les 3 jours).
+1. **Plan** : toutes les offres suivies des sources lisibles (les fiches disparues sont revérifiées une nuit sur
+   sept). Par site, ordre de valeur : prix en quarantaine, produit en deal, en favori, cliqué depuis 3 jours, puis le
+   plus ancien relu.
 2. **Collecte** : un fil par site, à son rythme poli (5 s ou le Crawl-delay du site) ; coupe-circuit après 5 refus de
    suite ; arrêt au budget de nuit (ce qui n'est pas relu garde son prix, qui vieillit : au-delà de 3 jours il n'est
    plus montré). Chaque page : `fetch` → `extract` → décision → `market` dans une transaction courte.
 3. **Confirmation** : une variation de prix énorme (÷2, ×2) est relue une fois avant d'être enregistrée.
-4. **Rapport** : réussite par enseigne, passe interrompue, chute du taux de prix barré lu, plus fortes baisses.
+4. **Agent** : une source en panne passagère est relancée une fois et vérifiée ; les nuits ratées sont comptées, une
+   source qui en accumule 3 est mise de côté (jamais de contournement d'un anti-robot) ; les prix suspects sont mis en
+   quarantaine, confirmés ou libérés.
 5. **Publication** : `publish` lit le marché, juge chaque produit avec `judge`, choisit avec `alternatives` ce qui le
    remplace pour moins cher, réécrit le catalogue en une transaction (l'app passe d'un catalogue complet au suivant,
-   jamais un état intermédiaire).
+   jamais un état intermédiaire). Sans les offres en quarantaine ni les prix écartés ; garde : un catalogue qui perdrait
+   plus de 20 % de ses produits ou de ses offres n'est pas écrit (au plus deux nuits).
 6. **Missions** : `missions.notify` relit les missions sur le catalogue publié (chaque catégorie lue une fois, du moins
    cher au plus cher : une mission ne détaille que les produits sous son prix) ; un e-mail par personne avec ce qui est
    nouveau à son prix ; un envoi qui échoue, ou qui dépasserait le plafond de la nuit, ne marque rien : il repart la
-   nuit suivante. Le jour, l'état des missions se lit sur le même catalogue (produits lus gardés jusqu'à la
-   publication suivante).
+   nuit suivante ; un envoi bien plus nombreux que d'habitude attend une décision. Le jour, l'état des missions se lit
+   sur le même catalogue (produits lus gardés jusqu'à la publication suivante).
+7. **Contrôles et incidents** : `health` relève les constats (sources, prix suspects, budget, garde, taille et
+   fraîcheur du catalogue, e-mails, clics, étapes en erreur) ; l'agent ouvre, suit ou résout les incidents et joint ses
+   conseils ou propositions.
+8. **Rapport du matin** (réussite par enseigne, passe interrompue, prix barré perdu à prix inchangé, plus fortes
+   baisses, section « Agent ») et **e-mail au responsable** s'il y a lieu.
 
 ## Les règles du produit (où elles vivent)
 
@@ -147,13 +189,15 @@ vérifié au démarrage).
 | Mesure de conversion : fiches vues → clics vers l'enseigne (taux de clic), par écran (source) et par personne (avec mission, connectée sans mission, sans compte) ; part des clics partis chez un partenaire ; clics venus des missions (app, e-mail) | `activity.py` (`metrics`) |
 | Transparence : « enseigne partenaire » près de l'offre, page « Comment ça marche » (référencement, classement, rémunération) depuis chaque écran ; mention dans les e-mails | `web/src/App.jsx`, `missions.py` |
 | Connexion : lien à usage unique 15 min ; 5 liens par adresse et par heure, 20 par adresse IP, plafond quotidien global | `accounts.py` |
+| Exploitation : qui décide quoi (auto, alert, approval, recommend, forbidden) ; source mise de côté après 3 nuits ratées, page témoin tous les 3 jours ; quarantaine q1 ; garde de publication ; envoi massif ; e-mail au responsable seulement s'il y a lieu | `agent.py`, `sources.py`, `quarantine.py`, `publish.py`, `health.py` ; `docs/AUTONOMIE.md` |
 | Interface des missions : une phrase, ce qui est compris et ce qui y répond déjà avant de lancer ; connexion au lancement, la mission attend le lien sur le serveur et démarre à son ouverture, sur n'importe quel appareil ; mission atteinte : « Voir l'offre » en un geste | `web/src/App.jsx`, `accounts.py`, `api.py` |
 
 ## Vérifier
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (75 tests, ~11 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Contrats (107 tests, ~23 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Pannes injectées (6 scénarios × 6 nuits) | `python -m bench.autonomy` | anti-robot : mis de côté nuit 3, jamais forcé · panne passagère relancée, 100 % relu · erreur de prix ni publiée ni envoyée · catalogue qui fond retenu 2 nuits · 8 e-mails au responsable en 36 nuits (voir `docs/AUTONOMIE.md`) |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |
@@ -164,7 +208,9 @@ vérifié au démarrage).
 
 Le moteur de « veille de marché » des générations précédentes : événements, signaux, surveillances, webhooks, flux
 temps réel, console interne, planification par offre toutes les 15 minutes, flux marchands, motifs saisonniers. Le
-produit n'en lit rien ; tout était calculé, stocké et testé quand même (voir `docs/AUDIT.md`). Si un jour un flux
+produit n'en lit rien ; tout était calculé, stocké et testé quand même (voir `docs/AUDIT.md`). Le journal
+d'exploitation de la v54 (événements, incidents, actions) n'est pas ce moteur : il ne sert qu'à faire tourner la nuit
+sans surveillance, et chaque ligne a un lecteur (l'agent, le responsable, la sonde extérieure). Si un jour un flux
 marchand devient une source, il s'ajoute comme une source de `collect/` qui produit des offres pour `market`, sans
 toucher au reste.
 

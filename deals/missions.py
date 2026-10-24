@@ -349,10 +349,12 @@ class Missions:
         return {"ok": True}
 
     # ------------------------------------------------------------------ la nuit
-    def notify(self, outbox, base, sender="deals@localhost", limit=None):
+    def notify(self, outbox, base, sender="deals@localhost", limit=None, hold_above=None):
         """Après la publication : un e-mail par personne, pour les produits nouveaux à son prix ou moins chers qu'au
-        dernier e-mail. Un envoi qui échoue, ou qui dépasserait `limit` e-mails cette nuit (quota du fournisseur), ne
-        marque rien comme envoyé : il repartira la nuit suivante."""
+        dernier e-mail. Un envoi qui échoue (compté dans `failed`), ou qui dépasserait `limit` e-mails cette nuit (quota du
+        fournisseur), ne marque rien comme envoyé : il repartira la nuit suivante. hold_above : garde contre un envoi
+        massif anormal (night.py) : au-delà de ce nombre de personnes à prévenir, rien ne part ni n'est marqué (« held »),
+        un responsable décide (deals.py approve)."""
         base = base.rstrip("/")
         rows = self.s.q("SELECT m.*, u.email FROM missions m JOIN users u ON u.id=m.user_id ORDER BY m.user_id, m.id")
         cache, by_user = {}, defaultdict(list)
@@ -370,7 +372,10 @@ class Missions:
                 k = str(h["product_id"])
                 sent[k] = min(h["price"], sent.get(k, h["price"]))
             by_user[r["email"]].append((r, fresh, sent))
-        emails = products = deferred = 0
+        emails = products = deferred = failed = 0
+        due = sum(any(fresh for _, fresh, _ in items) for items in by_user.values())
+        if hold_above is not None and due > hold_above:
+            return {"missions": len(rows), "emails": 0, "products": 0, "deferred": 0, "failed": 0, "held": due}
         for email, items in by_user.items():
             todo = [(r["label"], fresh, r["id"]) for r, fresh, _ in items if fresh]
             if todo and limit is not None and emails >= limit:
@@ -380,10 +385,11 @@ class Missions:
                 try:
                     outbox.send_mail(email, mission_message(email, todo, base, sender))
                 except Unavailable:
+                    failed += 1
                     continue                                    # rien n'est marqué : réessayé la nuit suivante
                 emails += 1
                 products += sum(len(f) for _, f, _ in todo)
             with self.s.tx() as c:                               # seulement ce qui a changé
                 c.executemany("UPDATE missions SET notified=? WHERE id=?",
                               [(j, r["id"]) for r, _, sent in items if (j := json.dumps(sent)) != r["notified"]])
-        return {"missions": len(rows), "emails": emails, "products": products, "deferred": deferred}
+        return {"missions": len(rows), "emails": emails, "products": products, "deferred": deferred, "failed": failed}
