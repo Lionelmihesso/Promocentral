@@ -101,6 +101,10 @@ class Flow(unittest.TestCase):
         self.assertEqual([p["kind"] for p in today["products"]], ["Matelas", "Lave-linge"])     # la liste : marque et catégorie
         item = self.get(f"item/{today['products'][1]['id']}")[1]
         self.assertEqual((item["name"], item["specs"]), ("Lave-linge hublot Série 6 9 kg", ["9 kg"]))  # la fiche : la description
+        self.assertEqual((len(item["history"]["p"]), item["history"]["p"][-1]), (90, 649))     # courbe 90 jours, aujourd'hui compris
+        self.assertIsInstance(today["published_at"], float)                                     # « mis à jour à … »
+        self.assertEqual({c["key"]: c["best"] for c in self.get("categories")[1]}, {"matelas": 40, "lave_linge": 19})
+        self.assertEqual(self.get("today?category=matelas,lave_linge")[1]["total"], 2)           # un univers = plusieurs catégories
         self.assertEqual([(o["merchant"], o["price"], o["best"]) for o in item["offers"]], [("Site A", 649.0, True), ("Site B", 679.0, False)])
         self.assertNotIn("url", item["offers"][0])                          # l'app passe par le clic tracé
         st, _, headers = self.get(f"out/{item['offers'][0]['offer_id']}?from=item")

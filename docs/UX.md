@@ -1,38 +1,48 @@
-# L'interface de DEALS — minimaliste, sans friction (v46)
+# L'interface de DEALS — un flux vivant de remises (v47)
 
 ## Principe
 
-Une liste se lit en un regard : **quelle marque, quelle catégorie, quelle remise**. Une ligne = le pictogramme de la
-catégorie, la marque, la catégorie en un mot, la remise en grand, le prix. Pas de titre de produit, pas de
-caractéristique (taille, capacité, classe énergie) : elles sont dans la fiche, sous « Description ». Une remise par
-marque × catégorie : « Nordvik · Lit · 2 remises, dès 612 € » ouvre la liste de ces produits, départagés par leurs
-caractéristiques (« 160 × 200 cm », « 180 × 200 cm »). La qualité est implicite : l'app ne montre que de vraies remises, elle n'a pas à l'écrire (aucune mention « vérifiée »,
-aucun compteur de fausses promos). Les durées (depuis quand la remise court, jusqu'à quand l'enseigne la déclare) ne
-sont que dans la fiche, en une ligne, à côté du bouton « Voir l'offre ».
+**Pinterest × Bloomberg.** Pinterest pour donner envie : des visuels, une mosaïque, l'inspiration par pièce. Bloomberg
+pour la vie et la décision : un bandeau où défilent les remises du jour avec l'heure de mise à jour, et dans chaque fiche
+la courbe du prix sur 90 jours avec un verdict (« Au plus bas depuis 90 jours », ou « 148 € au-dessus du plus bas »).
 
-Deux entrées, une seule app : **les belles remises du moment** (l'accueil), et **le produit qu'on regarde** (la
-recherche couvre tout le catalogue suivi, pas seulement les remises). La fiche répond alors à la question qu'on se pose
-devant un produit cher : existe-t-il moins cher, et aussi bien ? « Moins cher, comparable » : jusqu'à trois produits
-qui le remplacent vraiment (même usage, pas moins bien), au moins 10 % moins chers, avec l'économie en euros. Une
-suggestion est une promesse : un appareil d'une autre largeur, une literie d'une autre taille, un aspirateur à fil à la
-place d'un sans fil n'y apparaissent jamais (règles : `deals/alternatives.py`). Sans produit comparable, la fiche ne
-propose rien plutôt qu'un produit qui ne convient pas.
+Les visuels sont des **illustrations originales** par catégorie (`web/src/art.jsx`), déclinées par produit (couleurs
+tirées du produit, proportions de l'objet : une armoire est haute, un canapé est large, d'où la mosaïque). Aucune image
+extérieure, aucune requête vers un tiers, aucun droit de tiers. Les photos des enseignes sont lues par l'extraction mais
+pas montrées : c'est une décision à prendre (droits, vie privée, coût), voir plus bas.
 
-Gardé des maquettes v27 à v45 : le produit comme entrée (l'enseigne n'est qu'un attribut), un deal identique pour tous,
-pas d'image en V1, le signet sur chaque ligne, le suivi des marques, la connexion demandée au moment de l'action,
-l'identité visuelle (noir, blanc, orange, Manrope).
+La qualité reste implicite : seulement des remises réelles, aucune mention « vérifiée ». Les durées (depuis quand,
+jusqu'à quand) restent dans la fiche. Deux entrées : **les belles remises du moment** (l'accueil) et **le produit qu'on
+regarde** (la recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins cher, et aussi
+bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (la courbe).
+
+Gardé des versions précédentes : le produit comme entrée (l'enseigne n'est qu'un attribut), un deal identique pour tous,
+le suivi des marques, la connexion demandée au moment de l'action, contrastes et zones à toucher aux normes. Retiré de
+la v46 : la liste à pictogrammes et le regroupement par marque × catégorie (les cartes portent un visuel et un nom
+court, qui suffisent à départager), le signet (remplacé par le cœur).
 
 ## Ce que montre chaque écran
 
 | Écran | Contenu |
 |---|---|
-| Aujourd'hui | « 13 remises aujourd'hui », recherche, catégories (un geste pour filtrer), la meilleure remise en grand, puis une ligne par marque × catégorie |
-| Ligne de liste | pictogramme, marque, catégorie, remise (en grand), prix, signet ; plusieurs produits de la même marque et catégorie : « 2 remises », « jusqu'à −17 % », « dès 618 € », et la ligne ouvre leur liste |
-| Liste d'un groupe | en-tête marque · catégorie ; une ligne par produit, départagée par ses caractéristiques |
-| Recherche | tout le catalogue suivi, les remises d'abord ; un produit sans remise montre son prix seul ; deux produits de même marque et catégorie sont départagés par leurs caractéristiques |
-| Fiche | pictogramme, marque, catégorie, remise, prix et prix barré, « En remise depuis 3 jours, jusqu'au ven. 19 déc. », « Voir l'offre chez … » ; **description** (titre complet, caractéristiques lues : « 160 × 200 cm », « 14 couverts », « Classe B ») ; **moins cher, comparable** (« 481 € de moins ») ; autres enseignes ; à défaut d'alternative moins chère, produits similaires. « Retour » ramène à l'écran d'où l'on vient |
-| Explorer | recherche ; catégories par famille (pictogramme et nom) ; marques |
-| Favoris | produits gardés (« Baisse de 64 € » seulement quand le prix a baissé, pastille sur l'onglet), marques suivies |
+| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », « 13 remises en ce moment », recherche, univers (Pour vous, Électroménager, Ameublement, Literie), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **nos sélections** en mosaïque |
+| Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative |
+| Pièce | ses remises en mosaïque |
+| Fiche | grand visuel, partager (lien vers la fiche), cœur ; marque · catégorie, nom ; remise, prix, prix barré ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » ; **prix sur 90 jours** (courbe en marches, un prix par jour, verdict, aujourd'hui · plus bas · habituel) ; **à propos** (caractéristiques avec pictogramme) ; **moins cher, comparable** ; autres enseignes ; à défaut, produits similaires |
+| Explorer | toutes les remises en mosaïque, catégories, tri (meilleures remises, prix croissant, décroissant), marques ; recherche dans tout le catalogue |
+| Favoris | produits gardés en mosaïque ; la cloche de l'en-tête compte les baisses de prix |
+| Profil | connexion, marques suivies, déconnexion |
+
+## À décider : les photos des produits
+
+L'extraction lit déjà l'adresse de la photo de chaque produit (`products.image`, JSON-LD ou `og:image`). La montrer
+demande un choix : la charger depuis le site de l'enseigne (requêtes vers un tiers à chaque ouverture, adresse IP des
+visiteurs transmise, images parfois bloquées), la copier sur notre serveur (stockage et bande passante, et une
+reproduction de photos dont les droits appartiennent aux marques ou aux enseignes), ou passer par des flux produits
+fournis sous licence (programmes d'affiliation : contraire au principe « sans affiliation »). Tant que ce n'est pas
+tranché, les illustrations tiennent la place ; elles restent de toute façon le repli d'un produit sans photo.
+
+## Historique
 
 Retiré de la v43, à la demande (trop d'informations, lecture alourdie) : « Toutes vérifiées », « fausses promos
 écartées », « Depuis hier » (nouvelles, finissent bientôt), le signal de chaque ligne (finit bientôt, nouveau, plus bas
@@ -112,3 +122,28 @@ produits). Le parcours navigateur v46 (19 étapes, deux passages) vérifie en pl
 l'accueil, un pictogramme par ligne, une ligne par marque × catégorie, un groupe qui s'ouvre sur ses produits
 départagés, la description de la fiche, « Retour » qui ramène au groupe puis à l'accueil ; les mêmes contrôles échouent
 sur la v45. Planche : `docs/ux/6-v46.png`.
+
+## Mesures v46 → v47 : Pinterest × Bloomberg
+
+Mêmes données (démo du 14 décembre), téléphone 390 × 844.
+
+| | v46 | v47 |
+|---|---|---|
+| Part du premier écran de l'accueil occupée par des visuels | 5 % | **32 %** |
+| Part de toute la page d'accueil occupée par des visuels | 5 % | **52 %** |
+| Part du premier écran de la fiche occupée par des visuels | 1 % | **49 %** |
+| Fraîcheur visible sur l'accueil | rien | bandeau défilant, heure de mise à jour |
+| Prix sur 90 jours dans la fiche | non | courbe, plus bas, habituel, verdict |
+| Mots sur le premier écran : accueil · fiche | 55 · 56 | 76 · 42 |
+| Entrées entièrement visibles sans défiler (accueil) | 5 lignes | 2 pièces, la mosaïque commence dessous |
+| Textes sous le contraste minimal · zones à toucher sous 44 px (7 écrans) | 0 · 0 | 0 · 0 ; texte blanc des pièces mesuré au pixel : 5,5:1 au pire |
+| Requêtes vers un tiers à l'ouverture | 0 | 0 |
+| Poids de la page | 271 Ko | 354 Ko (deux polices de plus, les illustrations) |
+
+L'accueil porte plus de mots qu'en v46 : ceux du titre, du bandeau et des pièces de la maquette. La mosaïque porte, par
+carte, la marque, un nom sur une ligne et le prix. Parcours vérifié dans un vrai navigateur (Chromium), 21 étapes, deux
+passages : bandeau et compteur justes, une carte par remise (visuel, remise, prix, prix barré), un univers et une pièce
+qui filtrent, recherche dans tout le catalogue, courbe et verdict, alternatives et leur économie, lien partagé qui
+rouvre la fiche, durées et clic tracé, connexion, favori, tri d'Explorer, marque suivie dans Profil, mosaïque de 4
+colonnes et plus sur ordinateur, bandeau immobile quand l'appareil demande moins d'animations. Planche :
+`docs/ux/7-v47.png`.

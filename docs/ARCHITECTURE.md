@@ -6,7 +6,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 ```
                     NUIT (deals.py nightly, une fois par jour)                      JOUR (deals.py serve)
 
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v46)
+ sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v47)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
@@ -48,7 +48,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/collect/` | découverte (plans de site), passe de nuit (un fil par site, coupe-circuit, budget), diagnostic, rapport | fetch, extract, market | runs |
 | `deals/judge.py` | **pur** : vraie remise ou fausse remise, à partir des preuves disponibles | — | — |
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même usage, pas moins bien) et coûte au moins 10 % de moins | — | — |
-| `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, alternatives moins chères, similaires) et l'écrit d'un bloc | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar |
+| `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires) et l'écrit d'un bloc | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
 | `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue, catégories, marques, fiche et ses alternatives, favoris) ; libellés et caractéristiques lisibles | store, extract (familles) | — |
 | `deals/accounts.py` | connexion par lien magique, sessions, limites d'envoi, SMTP | store, config | users, login_links, sessions |
 | `deals/activity.py` | favoris, marques suivies, clics sortants, mesures | store | saves, follows, clicks |
@@ -72,8 +72,9 @@ offers     (id, url unique, host, retailer, merchant, product_id, category_hint,
 prices     (offer_id, first_seen, last_seen, price, was, availability, seller, valid_until, lowest_30d, source,
             was_source)                                    une ligne par CHANGEMENT ; last_seen avance sinon
 catalog    (product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, search, published_on,
-            since, ends, specs)          depuis quand la remise court, fin déclarée par l'enseigne, caractéristiques lues
-                                         (fiche ; dans une liste, seulement pour départager deux produits semblables)
+            since, ends, specs, history) depuis quand la remise court, fin déclarée par l'enseigne, caractéristiques lues,
+                                         meilleur prix de chaque jour sur 90 jours (fiche)
+meta       (key, value)                  heure de la dernière publication (« MAJ » du bandeau), écrite avec le catalogue
 catalog_offers (product_id, offer_id, merchant, price, was, pct, availability, rank)
 alternatives (product_id, other_id, rank)       comparables, disponibles, au moins 10 % moins chers (fiche)
 similar    (product_id, other_id, rank)         les autres comparables, au prix le plus proche (fiche, à défaut)
@@ -85,7 +86,7 @@ Le schéma vit dans `store.py` et nulle part ailleurs : `SCHEMA` (version 1) pui
 transaction. Une base neuve suit exactement le même chemin qu'une base existante : chaque migration est exécutée par
 chaque test. `PRAGMA user_version` date la base ; un code plus ancien que la base refuse de démarrer. Une évolution du
 schéma = `SCHEMA_VERSION + 1` et une entrée dans `MIGRATIONS` (version 2 : durées de la fiche, prix des favoris ;
-version 3 : alternatives ; version 4 : description de la fiche).
+version 3 : alternatives ; version 4 : description de la fiche ; version 5 : courbe de prix, heure de publication).
 
 ## La nuit (`python deals.py nightly`)
 
@@ -109,7 +110,8 @@ version 3 : alternatives ; version 4 : description de la fiche).
 | Alternative : même catégorie ; même usage (taille de literie, largeur, places, forme : balai, traîneau, encastrable, d'angle, américain) ; au moins les mêmes fonctions (sans fil, laveur, convertible, induction, électrique) ; pas moins bien (énergie, capacité, couverts, foyers, volume, autonomie, bruit) ; moins chère = au moins 10 % de moins et disponible ; la plus forte économie d'abord, une marque par ligne | `alternatives.py` |
 | Recherche : tout le catalogue suivi, les remises d'abord, puis du moins cher au plus cher | `catalog.py` |
 | Une remise est réelle sauf preuve du contraire ; preuve = historique hors promotion (≥ 14 jours) ou mention légale « plus bas 30 jours » ; prix barré permanent (≥ 60 jours) = pas un deal | `judge.py` |
-| Minimaliste : une ligne = pictogramme, marque, catégorie, remise, prix ; une ligne par marque × catégorie ; titre, caractéristiques et durées seulement dans la fiche ; la qualité est implicite | `web/src/App.jsx` (caractéristiques lisibles : `catalog.specs`) |
+| Interface : flux de cartes (visuel, remise, marque, nom, prix) ; caractéristiques, durées et courbe seulement dans la fiche ; la qualité est implicite | `web/src/App.jsx`, illustrations `web/src/art.jsx` (caractéristiques lisibles : `catalog.specs`) |
+| Prix sur 90 jours : meilleur prix disponible de chaque jour, toutes enseignes, calculé à la publication ; plus bas, habituel = médiane | `publish.py` (`chart`), `web/src/App.jsx` |
 | Classement : remise, × 1,5 pour une marque suivie | `catalog.py` |
 | Clic sortant : seulement vers l'adresse d'une offre connue, tracé | `activity.py` |
 | Connexion : lien à usage unique 15 min ; 5 liens par adresse et par heure, 20 par adresse IP, plafond quotidien global | `accounts.py` |
@@ -122,7 +124,7 @@ version 3 : alternatives ; version 4 : description de la fiche).
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |
-| Tenue en charge (3 000 produits) | `python -m bench.scale` | publication ~2 s par nuit · lectures de l'app ~2 ms (recherche dans tout le catalogue ~6 ms) |
+| Tenue en charge (3 000 produits) | `python -m bench.scale` | publication ~2,5 s par nuit (courbes de 90 jours comprises) · lectures de l'app ~2 ms (recherche dans tout le catalogue ~6 ms) |
 
 ## Ce qui a été retiré, et pourquoi
 

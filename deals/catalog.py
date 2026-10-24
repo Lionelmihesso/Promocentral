@@ -110,15 +110,22 @@ class Catalog:
                 "followed": r["brand"] in followed, "saved": r["product_id"] in saved}
 
     def today(self, uid=None, category=None, q=None):
+        """Remises du jour ; category : une catégorie ou plusieurs, séparées par des virgules (univers, pièce)."""
         followed, saved = self._personal(uid)
-        where, args = (" AND category=?", (category,)) if category else ("", ())
+        cats = [c for c in (category or "").split(",") if c]
+        where, args = (f" AND category IN ({','.join('?' * len(cats))})", tuple(cats)) if cats else ("", ())
         toks = tokens(q) if q else []
         # colonnes légères pour filtrer et classer, lignes complètes pour le seul haut de liste montré
         rows = self.s.q("SELECT product_id, pct, brand" + (", search" if toks else "") + " FROM catalog WHERE pct > 0" + where, args)
         hits = [r for r in rows if not toks or matches(r["search"], toks)]
         score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
         hits.sort(key=lambda r: (-score(r), r["product_id"]))
-        return self._page(hits, score, uid, followed, saved)
+        return {**self._page(hits, score, uid, followed, saved), "published_at": self.published_at()}
+
+    def published_at(self):
+        """Heure de la dernière publication (horodatage), pour « mis à jour à … »."""
+        r = self.s.q("SELECT value FROM meta WHERE key='published_at'", one=True)
+        return float(r["value"]) if r else None
 
     def search(self, uid=None, q=None):
         """Tout le catalogue suivi, pas seulement les remises : c'est l'entrée « je regarde ce produit » (sa fiche montre
@@ -141,8 +148,8 @@ class Catalog:
         return {"products": cards, "total": len(hits), "signed_in": uid is not None}
 
     def categories(self):
-        rows = self.s.q("SELECT category, COUNT(*) n FROM catalog WHERE pct > 0 GROUP BY category")
-        out = [{"key": r["category"], "label": CATEGORY_LABEL.get(r["category"], r["category"]), "count": r["n"],
+        rows = self.s.q("SELECT category, COUNT(*) n, MAX(pct) best FROM catalog WHERE pct > 0 GROUP BY category")
+        out = [{"key": r["category"], "label": CATEGORY_LABEL.get(r["category"], r["category"]), "count": r["n"], "best": r["best"],
                 "family": FAMILY_OF.get(r["category"]), "family_label": FAMILY_LABEL.get(FAMILY_OF.get(r["category"]))} for r in rows]
         return sorted(out, key=lambda e: (-e["count"], e["label"] or ""))
 
@@ -171,7 +178,8 @@ class Catalog:
                            (product_id,))
         cheaper = self.s.q("SELECT c.* FROM alternatives a JOIN catalog c ON c.product_id=a.other_id WHERE a.product_id=? "
                            "ORDER BY a.rank", (product_id,))
-        return {**self._card(r, followed, saved), "offers": offers, "similar": [self._card(x, followed, saved) for x in similar],
+        return {**self._card(r, followed, saved), "history": json.loads(r["history"] or "null"), "offers": offers,
+                "similar": [self._card(x, followed, saved) for x in similar],
                 "alternatives": [{**self._card(x, followed, saved), "saving": round(r["price"] - x["price"])} for x in cheaper],
                 "signed_in": uid is not None}
 

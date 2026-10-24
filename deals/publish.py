@@ -2,7 +2,8 @@
 
 Pour chaque produit : la meilleure offre disponible et fraîche (prix relu il y a moins de 3 jours), le verdict de
 judge.py (vraie remise, fausse remise ou pas de remise), depuis quand la remise court et jusqu'à quand l'enseigne la
-déclare (montrés dans la fiche), la description (caractéristiques lues), les offres par enseigne, et, par
+déclare (montrés dans la fiche), la description (caractéristiques lues), la courbe du prix sur 90 jours, les offres
+par enseigne, et, par
 alternatives.py, jusqu'à trois produits comparables moins chers et trois produits comparables au prix le plus proche.
 Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un catalogue complet au suivant, jamais un état
 intermédiaire.
@@ -19,6 +20,7 @@ from .extract.categories import FAMILY_OF
 from .judge import LOOKBACK, judge
 
 FRESH_S = 3 * 86400          # un prix non relu depuis 3 jours n'est plus montré comme disponible
+CHART_DAYS = 90              # courbe de la fiche : meilleur prix de chaque jour, aujourd'hui compris
 
 
 def day_start(d):
@@ -82,9 +84,9 @@ def publish(store, today, now):
             catalog_offers.append((pid, o["id"], o["merchant"], r["price"], r["was"] if pct else None, pct, r["availability"], rank))
         best_o, best = fresh[0]
         verdict = None
+        series = daily_best([intervals[o["id"]] for o in offs], today - timedelta(days=LOOKBACK), today)
         if best["availability"] != "out_of_stock":
-            history = daily_best([intervals[o["id"]] for o in offs], today - timedelta(days=LOOKBACK), today - timedelta(days=1))
-            verdict = judge(best["price"], best["was"], history, today, best["lowest_30d"])
+            verdict = judge(best["price"], best["was"], [x for x in series if x[0] < today], today, best["lowest_30d"])
         p = products[pid]
         deal = bool(verdict and verdict.deal)
         fake = bool(verdict and not verdict.deal and verdict.reason.startswith("fausse"))
@@ -100,7 +102,7 @@ def publish(store, today, now):
         catalog.append((pid, display_name(p["title"], p["brand"]), p["title"], p["brand"], p["category"], best["price"],
                         verdict.was if deal else None, verdict.pct if deal else 0, best_o["merchant"], best_o["id"],
                         int(bool(deal and verdict.verified)), haystack(p["title"], p["brand"], best_o["merchant"], p["category"]),
-                        day, deal_since, ends, json.dumps(specs(attrs), ensure_ascii=False)))
+                        day, deal_since, ends, json.dumps(specs(attrs), ensure_ascii=False), chart(series, today)))
         published.append({"id": pid, "category": p["category"], "family": FAMILY_OF.get(p["category"]), "brand": p["brand"],
                           "price": best["price"], "in_stock": best["availability"] != "out_of_stock", "attrs": attrs})
 
@@ -120,9 +122,18 @@ def publish(store, today, now):
         c.execute("DELETE FROM similar")
         c.execute("DELETE FROM alternatives")
         c.executemany("INSERT INTO catalog(product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, "
-                      "search, published_on, since, ends, specs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
+                      "search, published_on, since, ends, specs, history) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
         c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank) "
                       "VALUES (?,?,?,?,?,?,?,?)", catalog_offers)
         c.executemany("INSERT INTO similar(product_id, other_id, rank) VALUES (?,?,?)", similar)
         c.executemany("INSERT INTO alternatives(product_id, other_id, rank) VALUES (?,?,?)", cheaper_rows)
+        c.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('published_at', ?)", (str(now),))
     return stats
+
+
+def chart(series, today):
+    """Courbe de la fiche : {"from": premier jour, "p": prix arrondi de chaque jour (None si aucun prix ce jour-là)}."""
+    first = today - timedelta(days=CHART_DAYS - 1)
+    by_day = {d: p for d, p in series if d >= first}
+    return json.dumps({"from": first.isoformat(), "p": [round(by_day[first + timedelta(days=k)]) if first + timedelta(days=k) in by_day
+                                                         else None for k in range(CHART_DAYS)]})

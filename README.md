@@ -33,7 +33,9 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 Lecture ouverte : `today?category=&q=` (remises du jour), `search?q=` (tout le catalogue suivi, remises d'abord),
 `categories`, `brands`, `brand/<nom>`, `item/<id>`, `out/<offer_id>?from=`.
 Ajoutés depuis la v41, sans rien retirer : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche),
-`kind` et `specs` (cartes : catégorie au singulier, caractéristiques lues), `saved_price` (favoris), `family` (catégories).
+`kind` et `specs` (cartes : catégorie au singulier, caractéristiques lues), `history` (fiche : prix des 90 derniers jours),
+`published_at` (today : heure de la dernière publication), `saved_price` (favoris), `family` et `best` (catégories) ;
+`today?category=` accepte plusieurs catégories séparées par des virgules (univers, pièce).
 Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`.
 Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`, `auth/logout`.
 
@@ -42,10 +44,12 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
   historique hors promotion (au moins 14 jours observés), la mention légale « prix le plus bas des 30 derniers jours »,
   ou un « prix barré » inchangé depuis 60 jours (c'est alors le prix). Fausse remise : 10 points de plus que la remise
   réelle, sauf si celle-ci dépasse 30 %. Une fiche reste consultable, sans remise affichée (`deals/judge.py`).
-- **Minimaliste** : dans les listes, le pictogramme de la catégorie, la marque, la catégorie, la remise et le prix,
-  rien d'autre ; une ligne par marque × catégorie (plusieurs produits : « 2 remises, dès 612 € », la ligne ouvre leur
-  liste, départagée par les caractéristiques). Le titre, les caractéristiques (« 160 × 200 cm », « Classe B ») et les
-  durées (depuis quand, jusqu'à quand) ne sont que dans la fiche. La qualité est implicite.
+- **Une carte** : le visuel (illustration de la catégorie), la remise posée dessus, la marque, un nom sur une ligne, le
+  prix et le prix barré. Les caractéristiques (« 160 × 200 cm », « Classe B »), les durées (depuis quand, jusqu'à quand)
+  et la courbe du prix ne sont que dans la fiche. La qualité est implicite.
+- **Prix sur 90 jours** (fiche) : le meilleur prix disponible de chaque jour, toutes enseignes suivies, calculé à la
+  publication ; plus bas et prix habituel (médiane) des 90 jours ; verdict « Au plus bas depuis 90 jours » ou « X €
+  au-dessus du plus bas ».
 - **Classement** : remise en %, × 1,5 si la marque est suivie par la personne connectée. Rien d'autre.
 - **Moins cher, comparable** (fiche) : jusqu'à trois produits qui remplacent vraiment celui qu'on regarde et coûtent au
   moins 10 % de moins, disponibles, la plus forte économie d'abord, une marque par ligne, avec l'économie en euros.
@@ -71,10 +75,13 @@ Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvo
 
 ## Interface
 
-Une page (`web/src/App.jsx` → `web/app.html`, police Manrope incluse, aucune requête vers un tiers) : téléphone d'abord,
-deux colonnes sur ordinateur, minimaliste (une ligne = catégorie, marque, remise, prix). Pictogrammes de catégorie sur
-chaque ligne et dans Explorer (pas de photo en V1), contrastes et zones à toucher aux normes WCAG AA. Principe, écrans et
-mesures v41 à v46 :
+Une page (`web/src/App.jsx` → `web/app.html`, polices incluses, aucune requête vers un tiers) : un flux vivant de
+remises, à la croisée d'un Pinterest (mosaïque de visuels, inspiration par pièce) et d'un Bloomberg (bandeau défilant
+avec l'heure de mise à jour, courbe du prix sur 90 jours). Les visuels sont des illustrations originales par catégorie
+(`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
+Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
+immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Principe, écrans et
+mesures v41 à v47 :
 [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
@@ -125,7 +132,7 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
 
 ## Coût de fonctionnement
 - ~4 600 fiches (40 par catégorie et par enseigne) ; le site le plus chargé (~840 fiches × 5 s) fixe la passe : ~70 min
-  par nuit. Publication, alternatives comprises : ~2 s pour 3 000 produits.
+  par nuit. Publication, alternatives et courbes de 90 jours comprises : ~2,5 s pour 3 000 produits.
 - Base : quelques dizaines de Mo par an (seuls les changements sont écrits).
 - Serveur : Hetzner CX23, 5,49 € HT + 0,50 € d'IPv4 = **5,99 € HT par mois** (tarifs d'août 2026).
 - E-mails de connexion : Brevo gratuit jusqu'à 300 par jour. Nom de domaine : quelques euros par an. Aucun proxy, aucune
