@@ -1,7 +1,9 @@
 # Mise en ligne — un seul petit serveur (Debian ou Ubuntu)
 
-Prérequis : Python 3.11 ou plus récent (bibliothèque standard uniquement), Caddy pour le HTTPS, un compte SMTP.
-Trois services : l'app (`deals-web`), la passe de nuit (`deals-daily`, 3 h), la sauvegarde (`deals-backup`, 6 h).
+Prérequis : Python 3.11 ou plus récent (bibliothèque standard uniquement), Caddy pour le HTTPS, un compte SMTP (liens
+de connexion, e-mails des missions).
+Trois services : l'app (`deals-web`), la passe de nuit (`deals-daily`, 3 h : collecte, publication, e-mails des
+missions), la sauvegarde (`deals-backup`, 6 h).
 
 ## 1. Code, données, réglages
 ```
@@ -41,7 +43,7 @@ sudo systemctl reload caddy
 curl -s https://deals.example.fr/api/r/categories                       # 200 et des catégories
 curl -s -o /dev/null -w "%{http_code}\n" https://deals.example.fr/admin  # 404 : rien d'autre que l'app et /api/r/
 sudo deals metrics                                                       # clics sortants, comptes, catalogue, dernière nuit
-journalctl -u deals-daily --since today                                  # rapport de la nuit (aussi dans /var/lib/deals/reports/)
+journalctl -u deals-daily --since today                                  # rapport de la nuit (aussi dans /var/lib/deals/reports/), e-mails des missions
 ```
 
 ## Mettre à jour le code

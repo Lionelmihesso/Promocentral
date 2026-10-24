@@ -29,6 +29,7 @@ class Settings:
     mail_from: str = ""
     outbox: str = ""                                # développement : fichier où écrire les liens de connexion
     mails_per_day: int = 250                        # plafond global d'e-mails de connexion (offre gratuite courante : 300/jour)
+    mission_mails: int = 50                         # plafond d'e-mails de missions par nuit ; le reste part la nuit suivante
 
 
 TRUE, FALSE = ("1", "true", "yes", "oui", "on"), ("0", "false", "no", "non", "off")

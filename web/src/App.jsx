@@ -2,11 +2,15 @@
    Pinterest (des visuels, une mosaïque, l'inspiration par pièce) et d'un Bloomberg (un bandeau qui défile, l'heure de
    mise à jour, la courbe du prix sur 90 jours, « au plus bas depuis 90 jours »).
 
+   v48 : sur la fiche, la marque et la catégorie se touchent et mènent à tous leurs produits (jamais de cul-de-sac) ;
+   « Me prévenir sous un prix » pour ce produit ou tous les comparables ; les Missions, un onglet : une envie et un prix
+   en une phrase (« aspirateur balai sous 300 € »), ce qui y répond déjà, puis un e-mail la nuit où c'est le cas.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
    la recherche dans tout le catalogue, la connexion au moment de l'action, contrastes et zones à toucher aux normes. */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Vignette, ratioOf } from "./art.jsx";
 
 /* ---------------------------------------------------------------- pictogrammes (dessins originaux, 24 × 24) */
@@ -36,6 +40,7 @@ const UI = {
   box: ["M4.5 7.5L12 4l7.5 3.5v9L12 20l-7.5-3.5z", "M4.5 7.5L12 11l7.5-3.5", "M12 11v9"],
   flame: ["M12 20.5c-3.6 0-6-2.4-6-5.6 0-3.9 3.6-5.7 4.4-10.4 2.6 1.9 3.3 4.3 3 6.2 1-.7 1.8-1.9 2-3 1.7 1.8 2.6 4.3 2.6 6.9 0 3.4-2.4 5.9-6 5.9z"],
   seat: ["M6.5 11V7.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2V11", "M4.5 13a2 2 0 0 1 4 0v1.5h7V13a2 2 0 0 1 4 0v4.5h-15z", "M6.5 17.5v2", "M17.5 17.5v2"],
+  target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
   fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -51,7 +56,9 @@ const dayLabel = d => new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: 
 const daysBetween = (a, b) => Math.round((iso(b) - iso(a)) / 86400000);
 const clock = ts => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts * 1000));
 const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(ts * 1000));
+const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const FAMILY = { electromenager: "Électroménager", ameublement: "Ameublement", literie: "Literie" };
+const EXAMPLES = ["Aspirateur balai sous 300 €", "Lave-linge 9 kg sous 500 €", "Matelas 160x200 sous 600 €", "Canapé d'angle sous 900 €"];
 // L'inspiration par pièce : des catégories regroupées comme on pense son intérieur.
 const ROOMS = [
   { key: "chambre", label: "Chambre", art: "lit", cats: ["lit", "matelas", "sommier", "armoire", "commode"] },
@@ -86,6 +93,24 @@ async function api(path, body) {
   return data;
 }
 
+/* Une mission lancée avant la connexion attend ici le retour du lien (30 minutes au plus) ; le serveur ne garde
+   qu'une mission par cible : deux onglets qui la lancent n'en font qu'une. */
+const PENDING = "deals.mission";
+const pending = {
+  get() { try { const p = JSON.parse(localStorage.getItem(PENDING) || "null"); return p && Date.now() - p.at < 1800000 ? p.spec : null; } catch { return null; } },
+  set(spec) { try { localStorage.setItem(PENDING, JSON.stringify({ spec, at: Date.now() })); } catch { /* stockage indisponible */ } },
+  clear() { try { localStorage.removeItem(PENDING); } catch { /* idem */ } },
+};
+/* Prix proposés pour une alerte : le plus bas des 90 jours s'il est sous le prix du jour, puis −10 % et −20 %. */
+const lowOf = h => { const v = (h?.p || []).filter(x => x != null); return v.length ? Math.min(...v) : null; };
+function suggestions(p) {
+  const out = [], low = lowOf(p.history);
+  if (low != null && Math.round(low) < Math.round(p.price)) out.push([Math.round(low), "plus bas 90 j"]);
+  for (const f of [0.9, 0.8]) { const v = Math.floor(p.price * f); if (!out.some(([x]) => x === v)) out.push([v, `−${Math.round((1 - f) * 100)} %`]); }
+  return out;
+}
+const specOf = d => ({ product_id: d.product_id, category: d.category, brand: d.brand, features: d.features, attrs: d.attrs });
+
 const withOut = (set, id) => { const n = new Set(set); n.delete(id); return n; };
 const withIn = (set, id) => { const n = new Set(set); n.add(id); return n; };
 const useWidth = () => {
@@ -108,7 +133,7 @@ const CSS = `
 .d .logo{font-family:var(--serif);font-size:32px;line-height:1;letter-spacing:-.01em;border:0;background:none;min-height:44px;padding:0 4px;margin-left:-4px}
 .d .logo b{color:var(--accent);font-weight:400}
 .d .tabs{display:none}
-.d .ibtn{position:relative;border:0;background:none;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center}
+.d .ibtn{position:relative;flex:0 0 auto;border:0;background:none;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center}
 .d .ibtn .dot{position:absolute;top:6px;right:5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:800;line-height:18px;padding:0 5px}
 /* bandeau défilant */
 .d .ticker{display:flex;align-items:center;height:34px;background:var(--terminal);color:#E7E5E0;font-family:var(--mono);font-size:12px;letter-spacing:.02em;overflow:hidden}
@@ -141,7 +166,7 @@ const CSS = `
 .d .chips button{flex:0 0 auto;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 18px;font-size:14.5px;font-weight:700;white-space:nowrap}
 .d .chips button.on{background:var(--ink);color:#fff}
 /* inspirations par pièce */
-.d .rooms{display:flex;gap:10px;overflow-x:auto;padding:0 16px 4px;scroll-snap-type:x mandatory;scrollbar-width:none}
+.d .rooms{display:flex;gap:10px;overflow-x:auto;padding:0 16px 4px;scroll-snap-type:x mandatory;scroll-padding-inline:16px;scrollbar-width:none}
 .d .rooms::-webkit-scrollbar{display:none}
 .d .room{position:relative;flex:0 0 auto;width:156px;height:208px;border:0;padding:0;border-radius:18px;overflow:hidden;scroll-snap-align:start;text-align:left;background:var(--tint)}
 .d .room .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.5) 56%,rgba(0,0,0,.82))}
@@ -235,10 +260,77 @@ const CSS = `
 .d .opts{display:flex;flex-direction:column;gap:6px}
 .d .opts button{display:flex;justify-content:space-between;align-items:center;border:0;background:var(--tint);border-radius:14px;min-height:48px;padding:0 16px;font-size:15px;font-weight:700;text-align:left}
 .d .opts button.on{background:var(--ink);color:#fff}
+.d .opts button{padding:10px 16px}
+.d .opts small{display:block;font-size:13px;font-weight:600;color:var(--mid);margin-top:2px}
+.d .opts button.on small{color:#D9D7D2}
+/* fiche : marque et catégorie, alerte de prix */
+.d .crumbs{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px}
+.d .crumbs button{display:flex;align-items:center;gap:3px;border:0;background:rgba(255,255,255,.95);border-radius:999px;min-height:44px;padding:0 11px 0 15px;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;box-shadow:0 1px 4px rgba(0,0,0,.14)}
+.d .crumbs .i{color:var(--mid)}
+.d .alertbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;min-height:52px;border-radius:15px;border:1.5px solid var(--ink);background:var(--paper);font-size:15px;font-weight:800}
+.d .alertbtn.on{border-color:var(--good);color:var(--good);background:#EAF5EF}
+/* prix voulu */
+.d .pchips{display:flex;flex-wrap:wrap;gap:8px}
+.d .pchips button{border:0;background:var(--tint);border-radius:14px;min-height:56px;padding:7px 14px;text-align:left;display:flex;flex-direction:column;justify-content:center}
+.d .pchips button b{font-size:17px;font-weight:800;letter-spacing:-.02em}
+.d .pchips button span{font-size:12px;font-weight:700;color:var(--mid)}
+.d .pchips button.on{background:var(--ink);color:#fff}.d .pchips button.on span{color:#D9D7D2}
+.d .pinput{display:flex;align-items:center;gap:10px;margin-top:10px;border:1px solid #CFCFCA;border-radius:14px;padding:0 16px;min-height:56px;background:var(--paper)}
+.d .pinput:focus-within{border-color:var(--ink)}
+.d .pinput span{font-size:13px;font-weight:800;color:var(--mid);white-space:nowrap}
+.d .pinput input,.d .sheet .pinput input{flex:1;align-self:stretch;min-width:0;width:auto;border:0;margin:0;padding:0;outline:0;background:transparent;font-size:20px;font-weight:800;color:var(--ink);text-align:right;-moz-appearance:textfield;appearance:textfield}
+.d .pinput input::-webkit-outer-spin-button,.d .pinput input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.d .pinput b{font-size:20px;font-weight:800}
+.d .state{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:14.5px;font-weight:700;color:var(--mid)}
+.d .state i{width:9px;height:9px;border-radius:50%;background:var(--icon);flex:0 0 auto}
+.d .state.ok{color:var(--good)}.d .state.ok i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
+/* missions : une envie et un prix, en une phrase */
+.d .mbox{margin:16px 16px 0;background:var(--terminal);color:#F2F0EC;border-radius:22px;padding:18px}
+.d .mbox.feed{margin-top:24px}
+.d .mbox .k{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:#FF9A70}
+.d .mbox .k i{width:7px;height:7px;border-radius:50%;background:#FF6A3D;box-shadow:0 0 0 3px rgba(255,106,61,.2)}
+.d .mbox h2{color:#fff;margin-top:8px}
+.d .mbox p{margin:6px 0 0;color:#BDBBB6;font-size:14px;line-height:1.45}
+.d .mform{display:flex;gap:8px;margin-top:14px}
+.d .mform input{flex:1;min-width:0;height:52px;border-radius:14px;border:1px solid #3A3C40;background:#1E2023;color:#fff;padding:0 14px;font-size:16px;outline:0}
+.d .mform input::placeholder{color:#9A9CA1}
+.d .mform input:focus{border-color:#FF9A70}
+.d .mform button{flex:0 0 auto;width:52px;height:52px;border-radius:14px;border:0;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center}
+.d .mform button:disabled{opacity:.6}
+.d .merr{color:#FFB599;font-size:14px;font-weight:700;margin-top:10px;line-height:1.4}
+.d .draft{margin:12px 16px 0;border:1px solid var(--line);border-radius:22px;padding:18px}
+.d .draft h2{margin-top:6px}
+.d .draft .scroller{padding:14px 0 2px;margin:0 -18px;padding-left:18px;padding-right:18px}
+.d .draft .cta{margin-top:18px}
+.d .draft .ghost{margin:6px auto 0}
+.d .draft .near{width:100%}
+.d .draft .hint,.d .note{color:var(--mid);font-size:13.5px;margin:10px 0 0;line-height:1.45}
+.d .note{padding:0 16px}
+.d .mlist{display:flex;flex-direction:column;gap:12px;padding:0 16px}
+.d .mi{border:1px solid var(--line);border-radius:20px;padding:14px 6px 14px 16px}
+.d .mi .row{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+.d .mi .st{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--soft);margin-top:4px}
+.d .mi .st i{width:8px;height:8px;border-radius:50%;background:var(--icon)}
+.d .mi.ok .st{color:var(--good)}.d .mi.ok .st i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
+.d .mi h3{font-size:17px;font-weight:800;letter-spacing:-.02em;margin:5px 0 0;line-height:1.25}
+.d .mi .nums{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-family:var(--mono);font-size:12.5px;color:var(--mid)}
+.d .mi .nums b{color:var(--ink)}.d .mi .nums b.ok{color:var(--good)}
+.d .mi .scroller{padding:12px 10px 2px 0}
+.d .near{display:flex;align-items:center;gap:12px;width:calc(100% - 10px);margin-top:12px;border:0;background:var(--tint);border-radius:14px;padding:8px 10px 8px 8px;text-align:left;min-height:64px}
+.d .near .th{flex:0 0 48px;width:48px;height:48px;border-radius:10px;overflow:hidden;background:var(--tint2)}
+.d .near .tx{flex:1;min-width:0;font-size:13.5px;font-weight:700;line-height:1.3}
+.d .near .tx small{display:block;font-size:12px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em}
+.d .near .tx span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d .near b{font-size:16px;font-weight:800;letter-spacing:-.02em}
+.d .mline{display:flex;align-items:center;gap:10px;width:calc(100% - 32px);margin:0 16px 16px;min-height:52px;border:0;border-radius:16px;background:var(--terminal);color:#F2F0EC;padding:0 14px;text-align:left;font-size:14.5px;font-weight:600}
+.d .mline span{flex:1}.d .mline b{color:#FF9A70;font-weight:800}
 .d .toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:700;z-index:11;white-space:nowrap}
-nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:5;padding:6px 8px calc(10px + env(safe-area-inset-bottom))}
+nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:5;padding:6px 8px calc(10px + env(safe-area-inset-bottom))}
 .d-nav button{position:relative;border:0;background:none;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:700;color:var(--soft);border-radius:16px}
 .d-nav button.on{color:var(--ink);font-weight:800}
+.d-nav .ic{position:relative}
+.d-nav .dot,.d .tabs .dot{min-width:17px;height:17px;border-radius:9px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:800;line-height:17px;padding:0 5px;text-align:center}
+.d-nav .dot{position:absolute;top:-5px;left:15px}
 @media (min-width:1000px){
   .d .app{max-width:1240px;padding:0 32px 56px}
   .d .top{height:76px;padding:0;position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);z-index:6}
@@ -251,10 +343,15 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .ticker{border-radius:12px;margin-bottom:8px}
   .d .intro,.d .sechead,.d .pagehead{padding-left:0;padding-right:0}
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
-  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .about,.d .offers,.d .chart,.d .me{padding-left:0;padding-right:0}
+  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .about,.d .offers,.d .chart,.d .me,.d .mlist,.d .note{padding-left:0;padding-right:0}
+  .d .mbox,.d .draft,.d .mline{margin-left:0;margin-right:0}
+  .d .mline{width:100%;max-width:640px}
+  .d .mbox{padding:26px 28px}.d .mbox .mform{max-width:640px}
+  .d .mwrap{max-width:760px}
   .d h1{font-size:64px}
   .d .intro p{font-size:17px;max-width:640px}
   .d .room{width:228px;height:292px}
+  .d .rooms{scroll-padding-inline:0}
   .d .masonry{gap:20px}
   .d .item{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:44px;align-items:start;padding-top:8px}
   .d .item .hero{position:sticky;top:96px;border-radius:24px;overflow:hidden}
@@ -265,11 +362,22 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
 @media (hover:hover){.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover{background:var(--tint2)}.d .chips button.on:hover{background:var(--ink)}}
 `;
 
+/* Une feuille se ferme aussi avec Échap. */
+function useEscape(onClose, on = true) {
+  useEffect(() => {
+    if (!on) return;
+    const f = e => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
+  }, [onClose, on]);
+}
+
 function Toast({ text }) {
   return text ? <div className="toast" role="status">{text}</div> : null;
 }
 
 function LoginSheet({ message, onClose, onDone }) {
+  useEscape(onClose);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -297,6 +405,55 @@ function LoginSheet({ message, onClose, onDone }) {
         <button type="button" className="cta" onClick={onDone}>J'ai ouvert le lien</button>
       </>}
     </form>
+  </div>;
+}
+
+/* « Me prévenir sous un prix », depuis la fiche : ce produit, ou tous les comparables (même catégorie, mêmes fonctions,
+   même taille : la règle est côté serveur) ; trois prix proposés ou le sien. */
+function AlertSheet({ item, current, onClose, onLaunch, onStop }) {
+  useEscape(onClose);
+  const box = useRef(null);
+  useEffect(() => { box.current?.focus(); }, []);           // le focus entre dans la feuille
+  const sugg = suggestions(item);
+  const [mode, setMode] = useState("product");
+  const [price, setPrice] = useState(String(current ? Math.round(current.max_price) : sugg[0]?.[0] ?? ""));
+  const [like, setLike] = useState(null);                  // aperçu des comparables : ce qui est guetté, ce qui y répond déjà
+  const [busy, setBusy] = useState(false);
+  const n = Number(price), ok = price !== "" && n >= 1;
+  useEffect(() => {
+    const t = setTimeout(() => api("missions/preview", { like: item.id, max_price: ok ? n : null }).then(setLike).catch(() => setLike(null)), 250);
+    return () => clearTimeout(t);
+  }, [price]);
+  const status = !ok ? null : mode === "product"
+    ? (item.price <= n ? { ok: true, text: `Déjà à ${eur(item.price)} aujourd'hui` } : { text: `Aujourd'hui ${eur(item.price)} : encore ${eur(item.price - n)}` })
+    : like && (like.total > 0 ? { ok: true, text: `${plural(like.total, "comparable")} déjà sous ${eur(n)} aujourd'hui` }
+      : like.nearest ? { text: `Le moins cher aujourd'hui : ${eur(like.nearest.price)}` } : { text: "Aucun comparable pour l'instant : la mission guette les nouveaux" });
+  const launch = async () => {
+    setBusy(true);
+    const done = await onLaunch(mode === "like" ? { like: item.id, max_price: n } : { product_id: item.id, max_price: n });
+    setBusy(false);
+    if (done) onClose();
+  };
+  return <div className="sheet-wrap" onClick={onClose}>
+    <div className="sheet" ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="alert-h" onClick={e => e.stopPropagation()}>
+      <div className="eyebrow">Mission</div>
+      <h2 id="alert-h">Me prévenir sous un prix</h2>
+      <h3>Pour</h3>
+      <div className="opts">
+        {[["product", "Ce produit", `${item.brand} ${item.name || item.title}`], ["like", "Tous les comparables", like ? like.title : item.kind]].map(([k, l, sub]) =>
+          <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => setMode(k)}>
+            <span><b>{l}</b><small>{sub}</small></span>{mode === k && <Icon d={UI.check} size={18} sw={2.4} />}</button>)}
+      </div>
+      <h3>Prix maximum</h3>
+      <div className="pchips">{sugg.map(([v, l]) => <button key={v} className={ok && n === v ? "on" : ""} aria-pressed={ok && n === v}
+        onClick={() => setPrice(String(v))}><b>{eur(v)}</b><span>{l}</span></button>)}</div>
+      <label className="pinput"><span>Mon prix</span>
+        <input type="number" inputMode="numeric" min="1" value={price} onChange={e => setPrice(e.target.value)} aria-label="Mon prix maximum, en euros" /><b>€</b></label>
+      {status && <div className={`state ${status.ok ? "ok" : ""}`} role="status"><i />{status.text}</div>}
+      <button className="cta" disabled={!ok || busy} onClick={launch}>{ok ? `Me prévenir sous ${eur(n)}` : "Me prévenir"}</button>
+      {current && <button className="ghost" onClick={() => { onStop(current); onClose(); }}>Arrêter l'alerte à {eur(current.max_price)}</button>}
+      <p className="hint">Un e-mail la nuit où c'est le cas. Vos missions sont dans l'onglet Missions.</p>
+    </div>
   </div>;
 }
 
@@ -355,7 +512,7 @@ function PriceChart({ history, price }) {
 
 export default function App() {
   const [tab, setTab] = useState("home");
-  const [view, setView] = useState(null);          // null | item | brand | room — chacune garde `from` (« Retour »)
+  const [view, setView] = useState(null);          // null | item | brand | category | room — chacune garde `from` (« Retour »)
   const [family, setFamily] = useState("");        // univers choisi sur l'accueil ; "" = pour vous
   const [q, setQ] = useState("");
   const [all, setAll] = useState(null);            // remises du jour (bandeau, inspirations)
@@ -370,6 +527,17 @@ export default function App() {
   const [list, setList] = useState(null);          // pièce
   const [item, setItem] = useState(null);
   const [brandPage, setBrandPage] = useState(null);
+  const [catPage, setCatPage] = useState(null);
+  const [missions, setMissions] = useState(null);  // { missions, reached } de la personne connectée
+  const [mtext, setMtext] = useState("");          // la phrase de la mission
+  const [draft, setDraft] = useState(null);        // ce qui est compris, avant de lancer
+  const [mprice, setMprice] = useState("");
+  const [mbusy, setMbusy] = useState(false);
+  const [merr, setMerr] = useState(null);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const mfield = useRef(null);
+  const mpriceNow = useRef("");
+  mpriceNow.current = mprice;
   const [session, setSession] = useState({ checked: false, email: null });
   const [saved, setSaved] = useState(new Set());
   const [followed, setFollowed] = useState(new Set());
@@ -382,7 +550,9 @@ export default function App() {
   const cols = width >= 1200 ? 5 : width >= 1000 ? 4 : width >= 700 ? 3 : 2;
 
   const flash = t => { setToast(t); setTimeout(() => setToast(null), 2200); };
+  useEscape(() => setSheet(false), sheet);
   const askLogin = message => setLogin({ message });
+  const loadMissions = () => api("missions").then(setMissions).catch(() => {});
   const refreshSession = () => api("auth/me")
     .then(d => setSession({ checked: true, email: d.email }))
     .catch(() => setSession({ checked: true, email: null }));
@@ -411,6 +581,31 @@ export default function App() {
     api("saves").then(d => setSavedList(d.products)).catch(() => {});
   }, [tab, session.email]);
 
+  useEffect(() => {                                                         // missions : l'état du jour de chacune
+    if (!session.checked) return;
+    if (!session.email) { setMissions(null); return; }
+    loadMissions();
+  }, [session.checked, session.email, version, tab]);
+
+  useEffect(() => {                                                         // la mission lancée avant la connexion
+    if (!session.email) return;
+    const spec = pending.get();
+    if (!spec) return;
+    pending.clear();
+    api("missions", spec).then(() => { flash("Mission lancée : on vous prévient"); setDraft(null); setMtext(""); loadMissions(); })
+      .catch(ex => flash(ex.message));
+  }, [session.email]);
+
+  useEffect(() => {                                                         // le prix change : ce qui y répond déjà
+    if (!draft) return;
+    const n = mprice === "" ? null : Number(mprice);
+    if (n === draft.max_price || (n !== null && !(n >= 1))) return;
+    const t = setTimeout(() => api("missions/preview", { ...specOf(draft), max_price: n })
+      .then(v => { const now = mpriceNow.current === "" ? null : Number(mpriceNow.current); if (v.max_price === now) setDraft(d => d && v); })
+      .catch(ex => setMerr(ex.message)), 300);
+    return () => clearTimeout(t);
+  }, [mprice, draft]);
+
   useEffect(() => {
     api("categories").then(setCategories).catch(() => setError("Impossible de charger les catégories."));
     api("brands").then(setBrands).catch(() => {});
@@ -438,12 +633,14 @@ export default function App() {
 
   useEffect(() => {
     if (!view) return;
+    setError(null);
     if (view.kind === "item") api(`item/${view.id}`).then(setItem).catch(() => setError("Produit introuvable."));
     if (view.kind === "brand") api(`brand/${encodeURIComponent(view.name)}`).then(setBrandPage).catch(() => setError("Marque introuvable."));
+    if (view.kind === "category") api(`category/${view.key}`).then(setCatPage).catch(() => setError("Catégorie introuvable."));
     if (view.kind === "room") api(`today?category=${view.room.cats.join(",")}`).then(setList).catch(() => setError("Pièce introuvable."));
   }, [view, version]);
 
-  useEffect(() => { window.scrollTo(0, 0); }, [view, tab]);
+  useEffect(() => { window.scrollTo(0, 0); setAlertOpen(false); }, [view, tab]);
 
   const isSaved = id => saved.has(id);
   const isFollowed = b => followed.has(b);
@@ -485,12 +682,41 @@ export default function App() {
     } catch { /* partage annulé */ }
   };
 
-  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setList(null); setTab(t); setQ(""); setXsearch(false); };
+  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ(""); setXsearch(false); };
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
   const open = (id, via) => { setItem(null); setView(v => ({ kind: "item", id, via, from: v })); };
   const openBrand = name => { setBrandPage(null); setView(v => ({ kind: "brand", name, from: v })); };
+  const openCategory = key => { setCatPage(null); setView(v => ({ kind: "category", key, from: v })); };
   const openRoom = room => { setList(null); setView(v => ({ kind: "room", room, from: v })); };
-  const goBack = () => { setItem(null); setBrandPage(null); setList(null); setView(view?.from || null); };
+  const goBack = () => { setItem(null); setBrandPage(null); setCatPage(null); setList(null); setView(view?.from || null); };
+
+  // Missions : une phrase → ce qui est compris et ce qui y répond déjà → lancer (connexion au moment de l'action).
+  const parseMission = async text => {
+    const t = (text || "").trim();
+    if (!t) return;
+    setMbusy(true); setMerr(null);
+    try { const d = await api("missions/parse", { text: t }); setDraft(d); setMprice(d.max_price == null ? "" : String(Math.round(d.max_price))); }
+    catch (ex) { setDraft(null); setMerr(ex.message); }
+    finally { setMbusy(false); }
+  };
+  const goMission = (text, focus) => {
+    goTab("missions"); setMtext(text); setMerr(null);
+    if (focus) { setDraft(null); setTimeout(() => { const el = mfield.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length); } }, 60); }
+    else parseMission(text);
+  };
+  const launch = async spec => {
+    if (!session.email) { pending.set(spec); askLogin("Connectez-vous pour lancer la mission"); return false; }
+    try { await api("missions", spec); flash("Mission lancée : on vous prévient"); loadMissions(); return true; }
+    catch (ex) {
+      if (ex.status === 401) { pending.set(spec); askLogin("Connectez-vous pour lancer la mission"); }
+      else flash(ex.message);
+      return false;
+    }
+  };
+  const stopMission = async m => {
+    setMissions(x => x && { ...x, missions: x.missions.filter(y => y.id !== m.id), reached: x.reached - (m.total > 0 ? 1 : 0) });
+    try { await api("missions/delete", { id: m.id }); flash("Mission arrêtée"); } catch { loadMissions(); }
+  };
   const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
   const said = p => `${p.brand}, ${p.name || p.title}, ${p.pct > 0 ? `moins ${p.pct} %, ` : ""}${eur(p.price)}`;
@@ -517,8 +743,43 @@ export default function App() {
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Une marque, un produit, une envie…" aria-label="Rechercher" enterKeyHint="search" />
     {q && <button className="sx" aria-label="Effacer" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
-  const tabsList = [["home", "Accueil", UI.home], ["explore", "Explorer", UI.search], ["saved", "Favoris", UI.heart], ["me", "Profil", UI.user]];
-  const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+  const tabsList = [["home", "Accueil", UI.home], ["explore", "Explorer", UI.search], ["missions", "Missions", UI.target],
+    ["saved", "Favoris", UI.heart], ["me", "Profil", UI.user]];
+  const reached = missions?.reached || 0;
+  const badge = { missions: reached, saved: drops };
+  const reachedSaid = reached > 1 ? `${reached} missions atteintes` : reached === 1 ? "1 mission atteinte" : "";
+  const tabSaid = (k, l) => k === "missions" && reached ? `${l}, ${reachedSaid}` : k === "saved" && drops ? `${l}, ${plural(drops, "baisse")} de prix` : undefined;
+  const missionLine = q.trim().length >= 3 && <button className="mline" onClick={() => goMission(q.trim())}>
+    <Icon d={UI.target} size={20} /><span>Pas au bon prix ? <b>Lancer une mission</b></span><Icon d={UI.next} size={18} sw={2.2} /></button>;
+  const composer = (home) => <form className={`mbox ${home ? "feed" : ""}`} onSubmit={e => { e.preventDefault(); home ? goMission(mtext) : parseMission(mtext); }}>
+    <div className="k"><i />{home ? "MISSION" : "NOUVELLE MISSION"}</div>
+    {home && <><h2>Une envie précise ?</h2><p>Dites-la avec votre prix : on guette chaque nuit et on vous prévient.</p></>}
+    <div className="mform">
+      <input ref={home ? undefined : mfield} value={mtext} onChange={e => setMtext(e.target.value)} placeholder="aspirateur balai sous 300 €"
+        aria-label="Votre mission en une phrase : le produit et votre prix" enterKeyHint="go" />
+      <button aria-label={home ? "Lancer la mission" : "Voir la mission"} disabled={mbusy}><Icon d={UI.next} size={22} sw={2.4} /></button></div>
+    {!home && merr && <div className="merr" role="alert">{merr}</div>}
+  </form>;
+  const nearRow = (p, label) => <button className="near" onClick={() => open(p.id, "mission")} aria-label={`${label} : ${said(p)}`}>
+    <span className="th"><Vignette category={p.category} seed={p.id} ratio={1} /></span>
+    <span className="tx"><small>{label}</small><span>{p.brand} {p.name || p.title}</span></span><b>{eur(p.price)}</b>
+    <Icon d={UI.next} size={16} sw={2.2} /></button>;
+  const missionItem = m => {
+    const ok = m.total > 0, now = ok ? m.matches[0].price : m.nearest?.price;
+    return <article key={m.id} className={`mi ${ok ? "ok" : ""}`}>
+      <div className="row"><div style={{ minWidth: 0 }}>
+        <div className="st"><i />{ok ? `ATTEINTE · ${plural(m.total, "produit").toUpperCase()}` : "EN VEILLE"}</div>
+        <h3>{m.title}</h3>
+        <div className="nums"><span>Objectif <b>{eur(m.max_price)}</b></span>
+          {now != null && <span>Aujourd'hui <b className={ok ? "ok" : ""}>{eur(now)}</b></span>}
+          {!ok && now != null && <span>Encore <b>{eur(now - m.max_price)}</b></span>}
+          {!ok && now == null && <span>{m.product_id ? "Indisponible aujourd'hui" : "Rien de suivi pour l'instant"}</span>}</div>
+      </div>
+      <button className="ibtn" aria-label={`Arrêter la mission ${m.title}`} onClick={() => stopMission(m)}><Icon d={UI.x} size={18} /></button></div>
+      {ok && <div className="scroller">{m.matches.map(card("mission"))}</div>}
+      {!ok && m.nearest && nearRow(m.nearest, m.product_id ? "Voir la fiche" : "Le plus proche")}
+    </article>;
+  };
   const loginCard = (title, msg) => <div className="login"><h3>{title}</h3><p>Votre e-mail suffit, sans mot de passe.</p>
     <button className="cta" onClick={() => askLogin(msg)}>Me connecter</button></div>;
   const rooms = ROOMS.map(r => {
@@ -530,6 +791,7 @@ export default function App() {
   let body;
   if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
+    const mine = (missions?.missions || []).find(m => m.product_id === item.id);
     const when = timing(item);
     const source = view.via || "item";
     body = <div className="item">
@@ -539,16 +801,21 @@ export default function App() {
           <div><button className="fbtn" onClick={() => share(item)} aria-label="Partager"><Icon d={UI.share} size={19} /></button>
             <button className={`fbtn ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
               aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Icon d={UI.heart} size={20} fill={isSaved(item.id)} /></button></div></div>
+        <div className="crumbs">
+          {item.brand && <button onClick={() => openBrand(item.brand)} aria-label={`Voir tous les produits ${item.brand}`}>{item.brand}<Icon d={UI.next} size={14} sw={2.6} /></button>}
+          <button onClick={() => openCategory(item.category)} aria-label={`Voir la catégorie ${item.kind}`}>{item.kind}<Icon d={UI.next} size={14} sw={2.6} /></button>
+        </div>
       </div>
       <div>
         <div className="info">
-          <div className="brand">{item.brand} · {item.kind}</div>
           <h1 className="title">{item.name || item.title}</h1>
           <div className="prices">{item.pct > 0 && <span className="pct">−{item.pct} %</span>}<span className="now">{eur(item.price)}</span>
             {item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div>
           {when && <div className="when"><Icon d={UI.cal} size={20} />{when}</div>}
           {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}`} target="_blank" rel="noopener">
             Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
+          <button className={`alertbtn ${mine ? "on" : ""}`} onClick={() => setAlertOpen(true)}>
+            <Icon d={mine ? UI.check : UI.bell} size={19} sw={2.1} />{mine ? `Alerte à ${eur(mine.max_price)}` : "Me prévenir sous un prix"}</button>
         </div>
         {item.history && <><div className="sechead"><h2>Prix sur 90 jours</h2></div><PriceChart history={item.history} price={item.price} /></>}
         {item.specs.length > 0 && <><div className="sechead"><h2>À propos</h2></div>
@@ -571,16 +838,27 @@ export default function App() {
           <div className="scroller">{item.similar.map(card("similar"))}</div>
         </>}
       </div>
+      {alertOpen && <AlertSheet item={item} current={mine} onClose={() => setAlertOpen(false)} onLaunch={launch} onStop={stopMission} />}
     </div>;
   } else if (view?.kind === "brand" && brandPage) {
     const on = isFollowed(brandPage.brand);
     body = <>
       {back}
-      <div className="pagehead"><div><h1>{brandPage.brand}</h1><div className="sub">{plural(brandPage.products.length, "remise")} aujourd'hui</div></div>
+      <div className="pagehead"><div><h1>{brandPage.brand}</h1>
+        <div className="sub">{brandPage.deals ? `${plural(brandPage.deals, "remise")} aujourd'hui · ` : ""}{plural(brandPage.products.length, "produit")}</div></div>
         <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleFollow(brandPage.brand)} aria-pressed={on}>
           <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Suivie" : "Suivre"}</button></div>
       <div style={{ height: 18 }} />
-      {grid(brandPage.products)}
+      {grid(brandPage.products, "brand")}
+    </>;
+  } else if (view?.kind === "category" && catPage) {
+    body = <>
+      {back}
+      <div className="pagehead"><div><h1>{catPage.label}</h1>
+        <div className="sub">{catPage.deals ? `${plural(catPage.deals, "remise")} aujourd'hui · ` : ""}{plural(catPage.products.length, "produit")}</div></div>
+        <button className="pill" onClick={() => goMission(`${catPage.kind.toLowerCase()} `, true)}><Icon d={UI.target} size={17} sw={2.2} />Mission</button></div>
+      <div style={{ height: 18 }} />
+      {grid(catPage.products, "category")}
     </>;
   } else if (view?.kind === "room") {
     body = <>
@@ -614,8 +892,14 @@ export default function App() {
       </>}
       <div className="sechead"><h2>{q ? (feed ? plural(feed.total, "résultat") : "…") : family ? FAMILY[family] : "Nos sélections pour vous"}</h2>
         {!q && feed && <span className="n">{plural(feed.total, "remise")}</span>}</div>
+      {q && missionLine}
       {feed && items.length === 0 && <div className="empty">{q ? "Aucun produit ne correspond." : "Aucune remise dans cet univers aujourd'hui."}</div>}
-      {grid(items)}
+      {q || family ? grid(items) : <>                        {/* le module mission, après deux rangées de remises */}
+        {grid(items.slice(0, cols * 2))}
+        {feed && composer(true)}
+        {items.length > cols * 2 && <div style={{ height: 18 }} />}
+        {grid(items.slice(cols * 2))}
+      </>}
     </>;
   } else if (tab === "explore") {
     const items = [...(xlist?.products || [])];
@@ -631,6 +915,7 @@ export default function App() {
         {categories.map(c => <button key={c.key} className={xcat === c.key ? "on" : ""} aria-pressed={xcat === c.key}
           onClick={() => setXcat(k => k === c.key ? "" : c.key)}>{c.label}</button>)}</div>}
       <div style={{ height: 16 }} />
+      {xsearch && missionLine}
       {xlist && items.length === 0 && <div className="empty">{xsearch && q.trim() ? "Aucun produit ne correspond." : "Aucune remise ici aujourd'hui."}</div>}
       {grid(items)}
       {sheet && <div className="sheet-wrap" onClick={() => setSheet(false)}><div className="sheet" onClick={e => e.stopPropagation()}>
@@ -643,6 +928,49 @@ export default function App() {
           onClick={() => { setSheet(false); openBrand(b.name); }}>{b.name}</button>)}</div>
       </div></div>}
     </>;
+  } else if (tab === "missions") {
+    const mine = missions?.missions || [];
+    const n = Number(mprice), priced = mprice !== "" && n >= 1;
+    let draftBox = null;
+    if (draft) {
+      const cheapest = draft.total > 0 ? draft.matches[0].price : draft.nearest?.price;
+      const sugg = !priced && cheapest ? [0.9, 0.8].map(f => [Math.floor(cheapest * f), `−${Math.round((1 - f) * 100)} %`]) : [];
+      const state = draft.total > 0
+        ? { ok: priced, text: priced ? `${plural(draft.total, "produit")} déjà sous ${eur(n)} aujourd'hui`
+          : `${plural(draft.total, "produit")} ${draft.total > 1 ? "correspondent" : "correspond"}, dès ${eur(cheapest)}` }
+        : draft.nearest ? { text: priced ? `Aujourd'hui dès ${eur(draft.nearest.price)} : encore ${eur(draft.nearest.price - n)}`
+          : `Le moins cher aujourd'hui : ${eur(draft.nearest.price)}` }
+          : { text: "Rien de suivi n'y répond encore : la mission guette les nouveaux produits" };
+      draftBox = <div className="draft">
+        <div className="eyebrow">Vous cherchez</div>
+        <h2>{draft.title}</h2>
+        <label className="pinput"><span>Prix maximum</span>
+          <input type="number" inputMode="numeric" min="1" value={mprice} onChange={e => setMprice(e.target.value)} placeholder="—"
+            aria-label="Votre prix maximum, en euros" /><b>€</b></label>
+        {sugg.length > 0 && <div className="pchips" style={{ marginTop: 10 }}>{sugg.map(([v, l]) =>
+          <button key={v} onClick={() => setMprice(String(v))}><b>{eur(v)}</b><span>{l}</span></button>)}</div>}
+        <div className={`state ${state.ok ? "ok" : ""}`} role="status"><i />{state.text}</div>
+        {draft.total > 0 && <div className="scroller">{draft.matches.map(card("mission"))}</div>}
+        {draft.total === 0 && draft.nearest && nearRow(draft.nearest, "Le plus proche")}
+        <button className="cta" disabled={!priced} onClick={async () => { if (await launch({ ...specOf(draft), max_price: n })) { setDraft(null); setMtext(""); } }}>
+          {priced ? `Lancer la mission · ${eur(n)} max` : "Indiquez votre prix"}</button>
+        <button className="ghost" onClick={() => { setDraft(null); setMerr(null); }}>Annuler</button>
+        <p className="hint">Un e-mail la nuit où c'est le cas, jamais deux fois pour le même prix.</p>
+      </div>;
+    }
+    body = <div className="mwrap">
+      <div className="pagehead"><div><h1>Missions</h1><div className="sub">Votre envie, votre prix : on guette pour vous.</div></div></div>
+      {composer(false)}
+      {!draft && <div className="chips" role="group" aria-label="Exemples de missions">{EXAMPLES.map(x =>
+        <button key={x} onClick={() => { setMtext(x); parseMission(x); }}>{x}</button>)}</div>}
+      {draftBox}
+      {session.email && mine.length > 0 && <>
+        <div className="sechead"><h2>Vos missions</h2><span className="n">{reached}/{mine.length} atteinte{reached > 1 ? "s" : ""}</span></div>
+        <div className="mlist">{mine.map(missionItem)}</div>
+      </>}
+      {session.email && missions && mine.length === 0 && !draft && <p className="note" style={{ marginTop: 18 }}>Aucune mission en cours. Une phrase suffit : le produit, et votre prix.</p>}
+      {session.checked && !session.email && !draft && <p className="note" style={{ marginTop: 18 }}>Essayez sans compte : on vous montre ce qui y répond déjà. Votre e-mail n'est demandé qu'au lancement.</p>}
+    </div>;
   } else if (tab === "saved") {
     body = <>
       <div className="pagehead"><h1>Favoris</h1></div>
@@ -672,16 +1000,17 @@ export default function App() {
   return <div className="d"><style>{CSS}</style><div className="app">
     {!(view?.kind === "item" && width < 1000) && <header className="top">
       <button className="logo" onClick={() => goTab("home")} aria-label="Deals, accueil">Deals<b>.</b></button>
-      <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k && !view ? "on" : ""} onClick={() => goTab(k)}>
-        <Icon d={d} size={18} />{l}</button>)}</div>
-      <button className="ibtn" aria-label={drops ? `${drops} baisse${drops > 1 ? "s" : ""} de prix sur vos favoris` : "Alertes de prix"} onClick={() => goTab("saved")}>
-        <Icon d={UI.bell} size={22} />{drops > 0 && <span className="dot">{drops}</span>}</button>
+      <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k && !view ? "on" : ""} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
+        <Icon d={d} size={18} />{l}{badge[k] > 0 && <span className="dot">{badge[k]}</span>}</button>)}</div>
+      <button className="ibtn" aria-label={reached ? reachedSaid : "Missions"} onClick={() => goTab("missions")}>
+        <Icon d={UI.bell} size={22} />{reached > 0 && <span className="dot">{reached}</span>}</button>
     </header>}
     {error && <div className="empty">{error}</div>}
     {body}
     <nav className="d-nav" aria-label="Navigation">{tabsList.map(([k, l, d]) =>
-      <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)}>
-        <Icon d={d} size={23} fill={tab === k && k !== "explore"} />{l}</button>)}</nav>
+      <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
+        <span className="ic"><Icon d={d} size={23} fill={tab === k && k !== "explore" && k !== "missions"} />
+          {badge[k] > 0 && <span className="dot" aria-hidden="true">{badge[k]}</span>}</span>{l}</button>)}</nav>
     {login && <LoginSheet message={login.message} onClose={() => setLogin(null)}
       onDone={() => { setLogin(null); refreshSession(); setVersion(v => v + 1); }} />}
     <Toast text={toast} />

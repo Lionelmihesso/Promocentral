@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises (v47)
+# L'interface de DEALS — un flux vivant de remises, des missions (v48)
 
 ## Principe
 
@@ -16,6 +16,15 @@ jusqu'à quand) restent dans la fiche. Deux entrées : **les belles remises du m
 regarde** (la recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins cher, et aussi
 bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (la courbe).
 
+**Continuer, puis guetter (v48).** Arriver sur un produit, c'est s'intéresser à sa marque ou à sa catégorie : elles sont
+posées sur le visuel de la fiche comme des étiquettes et mènent à tous leurs produits, remises d'abord, même quand la
+marque n'a aucune remise aujourd'hui (plus de cul-de-sac). Et si ce n'est pas le bon prix : « Me prévenir sous un prix »,
+pour ce produit ou pour tous les comparables (même catégorie, mêmes fonctions, même taille), avec trois prix proposés
+(le plus bas des 90 jours, −10 %, −20 %). Plus largement, **une mission** : une envie et un prix en une phrase
+(« aspirateur balai sous 300 € ») ; l'app dit ce qu'elle a compris et ce qui y répond déjà, et un e-mail part la nuit où
+c'est le cas (`deals/missions.py`). Un onglet à part entière, un module dans le flux de l'accueil, la cloche qui compte
+les missions atteintes.
+
 Gardé des versions précédentes : le produit comme entrée (l'enseigne n'est qu'un attribut), un deal identique pour tous,
 le suivi des marques, la connexion demandée au moment de l'action, contrastes et zones à toucher aux normes. Retiré de
 la v46 : la liste à pictogrammes et le regroupement par marque × catégorie (les cartes portent un visuel et un nom
@@ -25,12 +34,15 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 
 | Écran | Contenu |
 |---|---|
-| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », « 13 remises en ce moment », recherche, univers (Pour vous, Électroménager, Ameublement, Literie), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **nos sélections** en mosaïque |
+| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », « 13 remises en ce moment », recherche, univers (Pour vous, Électroménager, Ameublement, Literie), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **nos sélections** en mosaïque ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) ; sous des résultats de recherche, « Pas au bon prix ? Lancer une mission » |
 | Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative |
 | Pièce | ses remises en mosaïque |
-| Fiche | grand visuel, partager (lien vers la fiche), cœur ; marque · catégorie, nom ; remise, prix, prix barré ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » ; **prix sur 90 jours** (courbe en marches, un prix par jour, verdict, aujourd'hui · plus bas · habituel) ; **à propos** (caractéristiques avec pictogramme) ; **moins cher, comparable** ; autres enseignes ; à défaut, produits similaires |
+| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **prix sur 90 jours** (courbe en marches, un prix par jour, verdict, aujourd'hui · plus bas · habituel) ; **à propos** (caractéristiques avec pictogramme) ; **moins cher, comparable** ; autres enseignes ; à défaut, produits similaires |
+| Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
+| Marque, catégorie | tous leurs produits en mosaïque, remises d'abord ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
+| Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » ; **vos missions** : atteinte (les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
 | Explorer | toutes les remises en mosaïque, catégories, tri (meilleures remises, prix croissant, décroissant), marques ; recherche dans tout le catalogue |
-| Favoris | produits gardés en mosaïque ; la cloche de l'en-tête compte les baisses de prix |
+| Favoris | produits gardés en mosaïque ; l'onglet compte les baisses de prix ; la cloche de l'en-tête compte les missions atteintes et y mène |
 | Profil | connexion, marques suivies, déconnexion |
 
 ## À décider : les photos des produits
@@ -147,3 +159,39 @@ qui filtrent, recherche dans tout le catalogue, courbe et verdict, alternatives 
 rouvre la fiche, durées et clic tracé, connexion, favori, tri d'Explorer, marque suivie dans Profil, mosaïque de 4
 colonnes et plus sur ordinateur, bandeau immobile quand l'appareil demande moins d'animations. Planche :
 `docs/ux/7-v47.png`.
+
+## Mesures v47 → v48 : continuer depuis un produit, guetter son prix
+
+Mêmes produits et mêmes prix (démo du 14 décembre, 59 produits), téléphone 390 × 844. Depuis chacune des 59 fiches, on
+cherche à rejoindre la marque et la catégorie du produit ; « produits vus » additionne, fiche par fiche, ce que la page
+atteinte montre de cette marque ou de cette catégorie.
+
+| | v47 | v48 |
+|---|---|---|
+| Fiches d'où l'on rejoint la marque du produit | 40 / 59, en 3 gestes (Explorer, réglages, la marque) ; 19 fiches sans issue (marque sans remise : page introuvable) | **59 / 59, en 1 geste** |
+| Produits de la marque vus depuis une fiche | 78 / 341 (23 %, les remises seulement) | **341 / 341** |
+| Fiches d'où l'on rejoint la catégorie du produit | 36 / 59, en 2 gestes (Explorer, la catégorie) | **59 / 59, en 1 geste** |
+| Produits de la catégorie vus depuis une fiche | 61 / 247 (25 %) | **247 / 247** |
+| Être prévenu à un prix | impossible | depuis la fiche, 2 gestes (un prix proposé est déjà choisi) ; e-mail demandé la première fois |
+| Une envie et un prix en une phrase | non | 37 / 37 phrases comprises (`python -m bench.missions`) |
+| Part du premier écran occupée par des visuels : accueil · fiche | 32 % · 49 % | 31 % · 43 % |
+| Mots sur le premier écran : accueil · fiche | 76 · 42 | 76 · 46 |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (7 écrans) | 0 · 0 (18 écrans) |
+| Poids de la page | 354 Ko | 374 Ko |
+
+Les 37 phrases : 25 écrites d'abord (toutes comprises), puis 12 tournures du quotidien ajoutées pour chercher les
+failles ; 6 échouaient (« aspi », « 250 balles », « 160 sur 200 », « lit 2 places » pris pour des places assises,
+« meuble télé », un prix impossible retenu, « TV » non reconnue) et ont été corrigées : ce second lot n'est donc plus une
+mesure indépendante. Sur la fiche, les deux actions (« Voir l'offre », « Me prévenir ») font passer la courbe sous le
+premier écran ; les étiquettes posées sur le visuel évitent d'y ajouter une ligne. Sur l'accueil, le point de moins
+vient d'une correction : la première pièce n'est plus collée au bord de l'écran ; le module mission prend place après
+deux rangées de remises, pour garder la mosaïque visible dès le premier écran.
+
+La nuit, sur 10 000 missions de 2 000 personnes (catalogue de 3 000 produits) : 5,6 s la première nuit, 2,3 s une nuit
+sans changement (`python -m bench.scale`) ; un e-mail au plus par personne, les cinq produits les moins chers par
+mission, jamais deux fois le même produit au même prix. Parcours vérifié dans un vrai navigateur (Chromium), 34 étapes,
+deux passages : les 21 étapes de la v47, plus les étiquettes de la fiche vers une marque sans remise et vers la
+catégorie (remises d'abord, « Retour »), « Mission » depuis une catégorie, les prix proposés et l'état du jour, les
+comparables, la connexion demandée au lancement puis la mission lancée au retour du lien, l'alerte visible sur la fiche
+et relancée sans doublon, le module de l'accueil, l'aperçu qui suit le prix, une phrase non suivie expliquée, la cloche,
+la mission depuis une recherche, l'arrêt d'une mission. Planche : `docs/ux/8-v48.png`.

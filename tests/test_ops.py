@@ -70,6 +70,7 @@ class Ops(unittest.TestCase):
         self.assertEqual(s.q("SELECT COUNT(*) n FROM alternatives", one=True)["n"], 0)          # version 3
         self.assertIsNone(row["specs"])                                                          # version 4
         self.assertEqual((row["history"], s.q("SELECT COUNT(*) n FROM meta", one=True)["n"]), (None, 0))   # version 5
+        self.assertEqual((row["attrs"], s.q("SELECT COUNT(*) n FROM missions", one=True)["n"]), (None, 0))  # version 6
         s.close()
 
     def test_hot_backup(self):

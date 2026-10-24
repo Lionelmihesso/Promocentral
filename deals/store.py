@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -88,6 +88,13 @@ MIGRATIONS = {
     5: [  # fiche : courbe du prix sur 90 jours ; accueil : heure de la dernière publication
         "ALTER TABLE catalog ADD COLUMN history TEXT",
         "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)",
+    ],
+    6: [  # missions : « je veux un aspirateur balai sous 300 €, préviens-moi » (écrit par missions.py)
+        "ALTER TABLE catalog ADD COLUMN attrs TEXT",
+        "CREATE TABLE missions (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+        "product_id INTEGER, category TEXT, brand TEXT, want TEXT NOT NULL DEFAULT '{}', max_price REAL NOT NULL, "
+        "label TEXT NOT NULL, created_at REAL NOT NULL, notified TEXT NOT NULL DEFAULT '{}')",
+        "CREATE INDEX missions_user ON missions(user_id)",
     ],
 }
 

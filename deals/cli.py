@@ -2,7 +2,8 @@
 
   python deals.py serve [--port 8000]                l'app et son API (en production, derrière Caddy)
   python deals.py demo [--port 8000]                 l'app sur un marché simulé (base temporaire)
-  python deals.py nightly                            la nuit : collecte → publication → rapport du matin
+  python deals.py nightly                            la nuit : collecte → publication → rapport du matin → missions
+  python deals.py missions                           e-mails des missions arrivées à leur prix (fait par nightly)
   python deals.py publish                            republier le catalogue sans relire le web
   python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
   python deals.py explain <adresse>                  ce que l'extraction voit sur une page
@@ -22,6 +23,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from . import config
+from .accounts import outbox_for
 from .api import Api
 from .backup import backup
 from .collect import diagnose as D
@@ -30,7 +32,9 @@ from .collect.crawl import Crawler
 from .collect.discover import discover
 from .collect.retailers import RETAILERS
 from .fetch import Fetcher
+from .catalog import Catalog
 from .market import Market
+from .missions import Missions
 from .publish import publish
 from .store import Store
 from .web import make_server
@@ -60,6 +64,7 @@ def main(argv=None):
         sub.add_parser(name).add_argument("--port", type=int, default=settings.port)
     sub.add_parser("nightly")
     sub.add_parser("publish")
+    sub.add_parser("missions")
     for name in ("discover", "diagnose", "sample", "build"):
         s = sub.add_parser(name)
         s.add_argument("retailer", help="clé d'enseigne ou « all »")
@@ -92,6 +97,12 @@ def main(argv=None):
     store = Store(settings.db)
     if a.cmd == "serve":
         return _serve(store, settings, a.port)
+    missions = lambda: Missions(store, Catalog(store)).notify(outbox_for(settings), settings.public_url,
+                                                             settings.mail_from or settings.smtp_user or "deals@localhost",
+                                                             settings.mission_mails)
+    if a.cmd == "missions":
+        print(json.dumps(missions(), ensure_ascii=False))
+        return 0
 
     market = Market(store)
     fetcher = Fetcher(user_agent=settings.user_agent, min_interval=settings.min_interval_s)
@@ -115,6 +126,7 @@ def main(argv=None):
         stats["publish"] = publish(store, market.today(), market.clock())
         print(Path(settings.reports_dir, f"{name}.md").read_text(encoding="utf-8"))
         print("Catalogue publié :", json.dumps(stats["publish"], ensure_ascii=False))
+        print("Missions :", json.dumps(missions(), ensure_ascii=False))
     elif a.cmd == "publish":
         print(json.dumps(publish(store, market.today(), market.clock()), ensure_ascii=False))
     elif a.cmd == "discover":

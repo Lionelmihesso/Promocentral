@@ -4,7 +4,7 @@ Ce que le produit promet, vérifié une fois : un vrai deal est visible dès le 
 catalogue ; un même EAN chez deux enseignes = un produit ; une page inchangée n'est pas retéléchargée ; une fiche devenue
 page liste ou montrant un autre produit est retirée sans rien enregistrer ; un site qui refuse est laissé tranquille ;
 l'app lit le catalogue publié (classement, filtres, recherche dans tout le catalogue, fiche avec depuis quand et jusqu'à
-quand, marque, favoris et leur prix suivi, marques suivies, clic sortant tracé).
+quand, marque et catégorie navigables, favoris et leur prix suivi, marques suivies, missions, clic sortant tracé).
 """
 import json
 import tempfile
@@ -162,6 +162,20 @@ class Flow(unittest.TestCase):
         self.assertEqual([(p["id"], p["saved_price"]) for p in saves], [(last["id"], last["price"])])   # prix suivi depuis le favori
         self.assertEqual(self.get("saves", lea)[1]["products"], [])
         self.assertEqual(self.get("saves")[0], 401)
+        seen = self.post("missions/parse", {"text": "lave-linge 9 kg sous 700 €"}, None)           # sans compte : l'aperçu
+        self.assertEqual((seen["label"], seen["total"]), ("Lave-linge 9 kg · 700 € max", 1))
+        with self.assertRaises(urllib.error.HTTPError) as refused:                                  # lancer : connecté
+            self.post("missions", {"category": "lave_linge", "max_price": 700}, None)
+        self.assertEqual(refused.exception.code, 401)
+        refused.exception.close()
+        made = self.post("missions", {"category": "lave_linge", "attrs": {"capacity_kg": 9}, "max_price": 700}, mia)
+        self.assertEqual((made["total"], self.get("missions", mia)[1]["reached"]), (1, 1))
+        self.assertEqual(self.get("missions", lea)[1]["missions"], [])                             # chacun ses missions
+        self.post("missions/delete", {"id": made["id"]}, mia)
+        self.assertEqual(self.get("missions", mia)[1]["missions"], [])
+        self.assertEqual([p["brand"] for p in self.get("category/lave_linge")[1]["products"]], ["Bosch"])   # depuis la fiche
+        self.assertEqual(self.get("category/inconnue")[0], 404)
+        self.assertEqual(self.get("brand/Nils")[1]["products"][0]["pct"], 0)                     # marque sans remise : visitable
 
     def test_5_a_refusing_site_is_left_alone(self):
         for i in range(8):

@@ -47,13 +47,20 @@ class Outbox:
     """Développement et tests : les liens restent en mémoire (et dans un fichier si demandé)."""
 
     def __init__(self, path=""):
-        self.sent, self.path = [], path
+        self.sent, self.mails, self.path = [], [], path
 
     def send(self, to, link):
         self.sent.append((to, link))
         if self.path:
             with open(self.path, "a", encoding="utf-8") as f:
                 f.write(f"{to}\t{link}\n")
+
+    def send_mail(self, to, message):
+        """Autres e-mails (missions) : gardés en mémoire ; une ligne « adresse, MAIL, objet » dans le fichier."""
+        self.mails.append((to, message))
+        if self.path:
+            with open(self.path, "a", encoding="utf-8") as f:
+                f.write(f"{to}\tMAIL\t{message['Subject']}\n")
 
 
 class SmtpOutbox:
@@ -64,6 +71,9 @@ class SmtpOutbox:
         self.sender = settings.mail_from or settings.smtp_user or "deals@localhost"
 
     def send(self, to, link):
+        self.send_mail(to, login_message(to, link, self.sender))
+
+    def send_mail(self, to, message):
         c = self.cfg
         try:
             if c.smtp_tls == "ssl":
@@ -75,9 +85,9 @@ class SmtpOutbox:
                     conn.starttls(context=ssl.create_default_context())
                 if c.smtp_user:
                     conn.login(c.smtp_user, c.smtp_password)
-                conn.send_message(login_message(to, link, self.sender))
+                conn.send_message(message)
         except (OSError, smtplib.SMTPException) as e:
-            raise Unavailable("Envoi du lien impossible pour le moment, réessayez dans un instant") from e
+            raise Unavailable("Envoi impossible pour le moment, réessayez dans un instant") from e
 
 
 def outbox_for(settings):
