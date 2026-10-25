@@ -1,8 +1,9 @@
 # DEALS — les bons deals du jour, au même endroit
 
 On ouvre l'app pour savoir quelles bonnes affaires existent aujourd'hui, et, pour le produit qu'on regarde (en remise ou
-non), ce qui le remplace pour moins cher. Un deal est un deal : le même pour tout le monde, sans onboarding. L'entrée est le produit ; la marque et la catégorie sont des entrées secondaires ; l'enseigne n'est qu'un
-attribut de l'offre. Quand ce n'est pas encore le bon prix, on dit ce qu'on veut et son prix (« aspirateur balai sous
+non), ce qui le remplace pour moins cher. Un deal est un deal : le même pour tout le monde, sans onboarding ; seul l'ordre
+s'adapte à vos goûts. L'entrée est le produit ; la marque et la catégorie sont des entrées secondaires ; l'enseigne n'est
+qu'un attribut de l'offre. Quand ce n'est pas encore le bon prix, on dit ce qu'on veut et son prix (« aspirateur balai sous
 300 € ») : une **mission**, et un e-mail la nuit où c'est le cas. On lit sans compte ; un e-mail suffit pour garder des
 favoris, suivre des marques et lancer des missions.
 
@@ -14,6 +15,13 @@ affilié avec son identifiant, qui revient dans les rapports du réseau (la vent
 la personne). La plateforme est une aide à la décision d'achat : savoir quels deals existent, être compris (feed
 « Pour vous », missions), acheter au bon moment. Une page « Comment ça marche » dit comment les offres sont choisies,
 classées et rémunérées.
+
+**Vos goûts d'abord, l'intérêt du deal toujours** : un profil simple (pas d'IA) pèse les rayons et les marques de la
+personne d'après ce qu'elle choisit (ses rayons, d'un geste et sans bloquer l'entrée ; ses marques suivies ; ses
+missions) et ce qu'elle regarde (favoris, clics vers l'enseigne, recherches, fiches ouvertes). Ses deals passent devant,
+au plus × 1,5 : une forte remise ailleurs reste devant ; une place sur quatre va au meilleur deal, quels que soient les
+goûts. Sans compte, rien n'est gardé par le serveur ; une visite sur dix est témoin, pour mesurer ce que ça rapporte.
+Modèle, vie privée et mesures : [`docs/PERSONNALISATION.md`](docs/PERSONNALISATION.md).
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
@@ -44,8 +52,9 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (107, ~23 s)
-python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale | bench.autonomy     mesures
+python -m unittest discover -s tests -t .    tests (133, ~22 s)
+python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale | bench.autonomy
+          | bench.profiles [--scale]           mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
 `--db` (avant la commande) choisit la base ; réglages par variables `DEALS_*` (`deals/config.py`,
@@ -70,7 +79,15 @@ lues, pour les missions) ; retiré en v49 : `specs` (la description n'est plus m
 `today?category=` accepte plusieurs catégories séparées par des virgules (univers, pièce).
 Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`, `missions` (GET : les miennes et leur état ;
 POST : lancer, ou changer le prix d'une même cible), `missions/delete` {id}.
-Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`, `auth/logout`.
+Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`
+(et `variant` : `p` personnalisé, `t` témoin), `auth/logout`.
+Goûts (v55) : `today`, `top`, le feed de `search` et `foryou` (« pour vous » : les deals et prix bas de vos rayons et de
+vos marques, dix au plus ; `taste` : ce que l'app a compris) suivent le profil. Sans compte, l'app envoie `p` (fiches
+ouvertes `v<id>.<âge en jours>`, clics `c…`, au plus 60), `i` (rayons choisis, séparés par des virgules) et `v=t`
+(témoin) ; le serveur n'en garde rien. `profile` : rayons choisis, ce qui est compris, apprentissage, variante ; avec un
+compte : `interests` {categories} (rayons choisis, douze au plus, la liste remplace la précédente), `profile` {learn}
+(tenir compte des fiches ouvertes et des clics, ou non), `profile/reset` (oublier ce qui a été déduit). `view` {v} et
+`out?v=` rapportent la variante dans les mesures.
 Surveillance : `health` (pour une sonde extérieure : `status` ok, degraded ou critical, heure de la dernière nuit, taille
 du catalogue ; 503 si aucune nuit depuis 36 h, si la dernière a eu une étape en erreur ou si un incident critique est
 ouvert).
@@ -91,7 +108,19 @@ ouvert).
   médiane) ; « Son prix habituel » sinon, prix immobile compris ; rien avant 14 jours relevés. « N mois » est arrondi en
   dessous. La jauge va du plus bas au plus haut relevés ; le point place le jour parmi les jours relevés, dans la zone
   du verdict (`catalog.position`).
-- **Classement** : remise en %, × 1,5 si la marque est suivie par la personne connectée. Rien d'autre.
+- **Classement** : l'intérêt du deal (remise en % ; pour un prix bas, ce qu'il fait économiser sur le prix habituel)
+  × (1 + ½ affinité de la personne pour le rayon ou la marque), donc au plus × 1,5 : une remise de 40 % hors de vos
+  rayons passe devant une remise de 26 % dans vos rayons. Une place sur quatre va au meilleur deal restant, sans les
+  goûts ; jamais plus de deux produits d'un même rayon sur quatre de suite dans les listes, ni plus de trois dans les
+  top deals. Sans
+  goûts connus, ou pour un témoin (une personne sur dix) : remise, × 1,5 pour une marque suivie, comme avant ; une
+  recherche ou un filtre répond à ce qui est demandé, sans les goûts (`deals/profile.py`).
+- **Vos goûts** : choisis (rayons de l'encart de l'accueil ou du Profil, marques suivies, rayon et marque d'une mission :
+  affinité 1) ou vus (favori 2 points, clic vers l'enseigne 1,5, recherche qui nomme un rayon ou une marque 1, fiche
+  ouverte 0,5 ; moitié moins tous les 30 jours ; un rayon vu vaut au plus 0,8, une marque vue 0,4 et seulement à partir
+  d'un point ; la famille du rayon reçoit 30 %). « Pour vous » : affinité d'au moins 0,3 pour le rayon ou la marque
+  eux-mêmes. Le Profil dit ce qui est compris et permet de l'oublier ; un compte peut refuser l'apprentissage par ses
+  fiches et ses clics (`docs/PERSONNALISATION.md`).
 - **Moins cher, comparable** (fiche) : jusqu'à trois produits qui remplacent vraiment celui qu'on regarde et coûtent au
   moins 10 % de moins, disponibles, la plus forte économie d'abord, une marque par ligne, avec l'économie en euros.
   Remplacer = même catégorie ; même usage (même taille de literie, largeur à 6 % près en électroménager et 20 % en
@@ -104,8 +133,8 @@ ouvert).
   budget et remise minimale, même sans mot ; tri par pertinence (d'abord les produits dont la requête nomme la
   catégorie ou la marque, puis les remises, puis le prix), par prix croissant ou par remise ; insensible aux accents, à
   la casse et aux tirets, synonymes courants (frigo, sofa, congélo…). Jamais vide : sans mot ni filtre, un feed (les
-  produits des quatre dernières recherches d'abord, puis tout le catalogue, une catégorie à tour de rôle), que chaque
-  mot, filtre ou tri adapte.
+  produits des quatre dernières recherches d'abord, puis ceux de vos rayons et de vos marques, un sur quatre pris
+  ailleurs, puis tout le catalogue, une catégorie à tour de rôle), que chaque mot, filtre ou tri adapte.
 - **Marque et catégorie** (fiche) : deux étiquettes sur le visuel, qui mènent à tous les produits de la marque ou de la
   catégorie, les remises d'abord, même sans remise aujourd'hui.
 - **Missions** : une envie et un prix maximum, pour un produit, ses comparables (même catégorie, mêmes fonctions, même
@@ -125,12 +154,14 @@ ouvert).
   par adresse et par heure, 20 par adresse IP, plafond quotidien global ; même réponse qu'un compte existe ou non ;
   seuls les hachages des jetons sont stockés.
 - **Favoris** : le prix du jour où le favori a été posé est gardé ; une baisse se voit dans Favoris et sur l'onglet.
-- **Clics sortants** : `out/<offer_id>?from=&m=` trace le clic (avec ou sans compte), sa source (`item`, ou d'où la
-  fiche a été ouverte : `alternative`, `similar`, `mission`, `mail`, `brand`, `category`, `search`, `feed`) et sa
-  mission, puis envoie vers l'offre par le lien affilié de l'enseigne, avec l'identifiant du clic ; jamais ailleurs que
-  vers une offre connue. Chaque fiche ouverte est comptée (`view`).
+- **Clics sortants** : `out/<offer_id>?from=&m=&v=` trace le clic (avec ou sans compte), sa source (`item`, ou d'où la
+  fiche a été ouverte : `top`, `foryou`, `home`, `room`, `alternative`, `similar`, `mission`, `mail`, `brand`,
+  `category`, `search`, `feed`, `saved`), sa mission et sa variante (personnalisé ou témoin), puis envoie vers l'offre
+  par le lien affilié de l'enseigne, avec l'identifiant du clic ; jamais ailleurs que vers une offre connue. Chaque
+  fiche ouverte est comptée (`view`), sans identifiant pour une personne sans compte.
 - **Mesures de conversion** (`python deals.py metrics`) : fiches vues, clics vers l'enseigne et taux de clic par écran
-  et par personne (avec mission, connectée sans mission, sans compte) ; part des clics partis chez un partenaire ; clics
+  et par personne (avec mission, connectée sans mission, sans compte) ; par variante et par écran (`by_variant` :
+  personnalisé `p` ou témoin `t`, ce que la personnalisation rapporte) ; part des clics partis chez un partenaire ; clics
   venus des missions. Les ventes et commissions viennent des rapports du réseau, rattachées par l'identifiant du clic.
 - **Missions vers l'achat** : une mission atteinte propose « Voir l'offre » en un geste ; dans l'e-mail, chaque produit
   mène en un clic à l'offre ou à sa fiche (source `mail`, mission connue).
@@ -150,11 +181,11 @@ remises, à la croisée d'un Pinterest (mosaïque de visuels, inspiration par pi
 avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des illustrations originales par catégorie
 (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
-immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Cinq onglets :
-Accueil (les top deals d'abord, puis pièces, marques en promo, sélection), Recherche (un champ, trois filtres dont
-Promo, un tri, un feed qui s'adapte), Missions, Profil (les favoris, les marques suivies) ; « Comment ça marche » au pied
-de chaque écran. Principe, écrans et mesures v41 à v53 :
-[`docs/UX.md`](docs/UX.md).
+immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Quatre onglets :
+Accueil (les top deals d'abord, l'encart facultatif « Qu'est-ce qui vous intéresse ? », « Pour vous », puis pièces,
+marques en promo, sélection), Recherche (un champ, trois filtres dont Promo, un tri, un feed qui s'adapte), Missions,
+Profil (les favoris, les marques suivies, vos rayons, ce que l'app a compris) ; « Comment ça marche » au pied de chaque
+écran. Principe, écrans et mesures v41 à v55 : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 
@@ -226,7 +257,12 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
   développement n'a pas accès au web ; tout est vérifié sur faux sites locaux, corpus publics et pages-pièges.
 - Pas de navigateur : un site dont les prix n'existent qu'après exécution du JavaScript reste illisible (Conforama).
 - Une baisse sans prix barré n'est pas montrée (choix produit et juridique, voir `docs/AUDIT.md`).
-- Les favoris choisis avant connexion ne sont pas repris (la connexion est demandée avant l'action) ; une mission, si.
+- Les favoris choisis avant connexion ne sont pas repris (la connexion est demandée avant l'action) ; une mission, si,
+  et les rayons choisis aussi.
+- Personnalisation : des règles simples sur les rayons et les marques, pas de « ceux qui ont aimé ceci » ni de budget
+  appris ; sans compte, les fiches ouvertes ne sont gardées d'une visite à l'autre que si la personne l'accepte (Profil),
+  et le témoin est tiré à chaque visite. Le gain mesuré par `bench.profiles` repose sur un modèle de clic : le vrai
+  gain se lit sur les témoins en production (`metrics`, `by_variant`).
 - Exploitation : l'agent prévient le responsable par le SMTP de la plateforme ; s'il tombe, seule une sonde extérieure
   sur `/api/r/health` le voit (à brancher, voir `docs/RUNBOOK.md#sonde`). L'agent conseille une règle de lecture quand
   une page change ; il ne l'écrit pas.

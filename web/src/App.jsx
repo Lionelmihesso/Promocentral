@@ -31,7 +31,7 @@
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
    la recherche dans tout le catalogue, la connexion au moment de l'action, contrastes et zones à toucher aux normes. */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Vignette, ratioOf } from "./art.jsx";
 
 /* ---------------------------------------------------------------- pictogrammes (dessins originaux, 24 × 24) */
@@ -88,6 +88,26 @@ const recents = {
   get() { try { const v = JSON.parse(localStorage.getItem(RECENT) || "[]"); return Array.isArray(v) ? v.filter(x => typeof x === "string").slice(0, RECENT_MAX) : []; } catch { return []; } },
   set(list) { try { localStorage.setItem(RECENT, JSON.stringify(list)); } catch { /* stockage indisponible */ } },
 };
+/* Vos goûts (deals/profile.py) : les rayons que vous choisissez et, pendant la visite, les fiches que vous ouvrez et les
+   offres que vous allez voir. Sans compte, ce navigateur les garde (les fiches ouvertes seulement si vous l'acceptez dans
+   Profil) et les envoie avec les lectures pour mettre vos deals en tête ; le serveur n'en garde rien. Avec un compte, ils
+   sont sur le compte. */
+const kept = (key, fallback) => ({
+  get() { try { const v = JSON.parse(localStorage.getItem(key) || "null"); return v ?? fallback; } catch { return fallback; } },
+  set(v) { try { if (v == null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(v)); } catch { /* stockage indisponible */ } },
+});
+const PICKS = kept("deals.picks", []), SEEN = kept("deals.seen", []), LEARN = kept("deals.learn", false), PICKER = kept("deals.picker", "on");
+const SEEN_MAX = 60, PICKS_MAX = 12;
+const cleanPicks = v => Array.isArray(v) ? [...new Set(v.filter(x => typeof x === "string" && /^[a-z_]{2,40}$/.test(x)))].slice(0, PICKS_MAX) : [];
+const cleanSeen = v => Array.isArray(v) ? v.filter(e => e && (e.k === "v" || e.k === "c") && Number.isInteger(e.id) && typeof e.t === "number").slice(-SEEN_MAX) : [];
+const seenParam = list => list.slice(-SEEN_MAX).reverse()
+  .map(e => `${e.k}${e.id}.${Math.min(365, Math.max(0, Math.floor((Date.now() / 1000 - e.t) / 86400)))}`).join(",");
+/* « Vos rayons : Canapés, Matelas » ou « D'après vos visites : Canapés » : ce que l'app a compris, dit en une ligne. */
+function tasteLine(t) {
+  const cats = t?.cats || [], chosen = cats.filter(c => c.chosen), list = chosen.length ? chosen : cats;
+  if (!list.length) return t?.brands?.length ? `Vos marques : ${t.brands.slice(0, 2).map(b => b.name).join(", ")}` : "";
+  return `${chosen.length ? "Vos rayons" : "D'après vos visites"} : ${list.slice(0, 2).map(c => c.label).join(", ")}${list.length > 2 ? "…" : ""}`;
+}
 // L'inspiration par pièce : des catégories regroupées comme on pense son intérieur.
 const ROOMS = [
   { key: "chambre", label: "Chambre", art: "lit", cats: ["lit", "matelas", "sommier", "armoire", "commode"] },
@@ -264,7 +284,6 @@ const CSS = `
 .d .me b{color:var(--ink)}
 .d .bchips{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px}
 .d .bchips button{border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14px;font-weight:800}
-.d .bchips button.on{background:var(--accent-soft);color:var(--accent)}
 .d .sheet-wrap{position:fixed;inset:0;background:rgba(18,19,21,.42);display:flex;align-items:flex-end;justify-content:center;z-index:10}
 .d .sheet{width:100%;max-width:520px;background:var(--paper);border-radius:26px 26px 0 0;padding:24px 20px 32px;max-height:86vh;overflow:auto}
 .d .sheet h2{margin:6px 0 0}
@@ -334,6 +353,26 @@ const CSS = `
 .d .flow{transition:opacity .18s}
 .d .flow.dim{opacity:.45}
 .d .ctag{display:flex;align-items:center;gap:8px;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14.5px;font-weight:700}
+.d .ctag.on{background:var(--ink);color:#fff}
+.d .taste{margin:22px 16px 0;background:var(--tint);border-radius:22px;padding:14px 16px 16px}
+.d .taste .th{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.d .taste h3{font-size:18px;font-weight:800;letter-spacing:-.02em;margin:0}
+.d .taste p{margin:2px 0 12px;color:var(--mid);font-size:14px;line-height:1.45}
+.d .taste .ctags.row{margin:0 -16px;padding:0 16px}
+.d .taste .ctag{background:var(--paper)}
+.d .taste .ctag.on{background:var(--ink);color:#fff}
+.d .taste .x{flex:0 0 auto;border:0;background:none;width:44px;height:44px;margin:-6px -12px -6px 0;display:grid;place-items:center;color:var(--mid)}
+.d .bchips button{display:inline-flex;align-items:center;gap:6px}
+.d .bchips button.on{background:var(--ink);color:#fff}
+.d .bchips button.soft{background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line)}
+.d .sw{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:20px 16px 0;padding:14px 16px;border-radius:18px;
+  background:var(--tint);min-height:44px;width:calc(100% - 32px);border:0;text-align:left;font-size:14.5px;font-weight:700;color:var(--ink)}
+.d .sw small{display:block;color:var(--mid);font-weight:600;font-size:13px;margin-top:3px;line-height:1.4}
+.d .sw .knob{flex:0 0 auto;width:48px;height:30px;border-radius:15px;background:var(--paper);box-shadow:inset 0 0 0 2px var(--mid);position:relative}
+.d .sw .knob:after{content:"";position:absolute;top:5px;left:5px;width:20px;height:20px;border-radius:50%;background:var(--mid);transition:left .2s}
+.d .sw[aria-checked=true] .knob{background:var(--ink);box-shadow:none}
+.d .sw[aria-checked=true] .knob:after{left:23px;background:#fff}
+@media (prefers-reduced-motion:reduce){.d .sw .knob:after{transition:none}}
 .d .brow{display:flex;align-items:center;gap:10px;width:calc(100% - 32px);margin:16px 16px 0;min-height:56px;border:0;border-radius:16px;background:var(--tint);padding:0 14px 0 16px;text-align:left}
 .d .brow small{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid)}
 .d .brow b{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1}
@@ -598,6 +637,14 @@ export default function App() {
   const [searching, setSearching] = useState(false);  // une réponse est attendue : les résultats montrés pâlissent
   const [feed, setFeed] = useState(null);          // Recherche : le feed d'avant toute saisie
   const [recent, setRecent] = useState(() => recents.get());
+  const [picks, setPicks] = useState(() => cleanPicks(PICKS.get()));      // vos rayons (sans compte : ce navigateur)
+  const [learnHere, setLearnHere] = useState(() => LEARN.get() === true); // sans compte : se souvenir des fiches ouvertes
+  const [seen, setSeen] = useState(() => LEARN.get() === true ? cleanSeen(SEEN.get()) : []);   // fiches ouvertes, offres vues
+  const [picker, setPicker] = useState(() => PICKER.get() !== "off");     // l'encart « Vos rayons » de l'accueil
+  const [pickedHere, setPickedHere] = useState(false);                    // des rayons choisis pendant cette visite
+  const [you, setYou] = useState(null);                                   // accueil : « pour vous »
+  const [taste, setTaste] = useState(null);                               // Profil : ce que l'app retient et a compris
+  const [guestVariant] = useState(() => Math.random() < 0.1 ? "t" : "p"); // sans compte : une visite sur dix est témoin
   const seq = useRef(0);                           // seule la réponse à la dernière saisie compte
   const [order, setOrder] = useState("pct");       // pages marque et catégorie : pct | asc | desc
   const [list, setList] = useState(null);          // pièce
@@ -614,7 +661,7 @@ export default function App() {
   const mfield = useRef(null);
   const mpriceNow = useRef("");
   mpriceNow.current = mprice;
-  const [session, setSession] = useState({ checked: false, email: null });
+  const [session, setSession] = useState({ checked: false, email: null, variant: "p" });
   const [saved, setSaved] = useState(new Set());
   const [followed, setFollowed] = useState(new Set());
   const [savedList, setSavedList] = useState(null);
@@ -629,8 +676,21 @@ export default function App() {
   const askLogin = (message, mission) => setLogin({ message, mission });
   const loadMissions = () => api("missions").then(setMissions).catch(() => {});
   const refreshSession = () => api("auth/me")
-    .then(d => setSession({ checked: true, email: d.email }))
-    .catch(() => setSession({ checked: true, email: null }));
+    .then(d => setSession({ checked: true, email: d.email, variant: d.variant || "p" }))
+    .catch(() => setSession({ checked: true, email: null, variant: "p" }));
+  const variant = session.email ? session.variant : guestVariant;        // p : vos goûts comptent ; t : témoin, sans
+  // Ce que les lectures emportent de vos goûts : vos recherches récentes ; sans compte, vos rayons et vos fiches ouvertes.
+  const tq = useMemo(() => {
+    const ps = new URLSearchParams();
+    if (recent.length) ps.set("recent", recent.join("|"));
+    if (!session.email) {
+      if (seen.length) ps.set("p", seenParam(seen));
+      if (picks.length) ps.set("i", picks.join(","));
+      if (variant === "t") ps.set("v", "t");
+    }
+    const q = ps.toString();
+    return q ? `?${q}` : "";
+  }, [recent, seen, picks, variant, session.email]);
 
   useEffect(() => {
     refreshSession();
@@ -665,8 +725,27 @@ export default function App() {
   }, [session.checked, session.email, version, tab]);
 
   useEffect(() => {                                                         // fiche ouverte, et d'où : le taux de clic
-    if (view?.kind === "item") api("view", { product_id: view.id, from: view.via || "item", m: view.mission }).catch(() => {});
+    if (view?.kind !== "item") return;
+    api("view", { product_id: view.id, from: view.via || "item", m: view.mission, v: variant }).catch(() => {});
+    if (!session.email) note("v", view.id);              // sans compte, la visite s'en souvient (un compte a ses fiches vues)
   }, [view]);
+
+  useEffect(() => {                                                         // connexion : vos rayons choisis avant passent sur le compte
+    if (!session.checked) return;
+    if (!session.email) { setPicks(cleanPicks(PICKS.get())); return; }
+    api("profile").then(async d => {
+      const local = cleanPicks(PICKS.get()), both = [...new Set([...d.picks, ...local])].slice(0, PICKS_MAX);
+      if (local.length && both.length > d.picks.length) await api("interests", { categories: both }).catch(() => {});
+      PICKS.set(null);
+      setPicks(local.length ? both : d.picks);
+      if (local.length) setVersion(v => v + 1);
+    }).catch(() => {});
+  }, [session.checked, session.email]);
+
+  useEffect(() => {                                                         // Profil : ce que l'app retient et a compris
+    if (tab !== "me" || view) return;
+    api(`profile${tq}`).then(setTaste).catch(() => {});
+  }, [tab, view, tq, session.email, version]);
 
   useEffect(() => {                                                         // le prix change : ce qui y répond déjà
     if (!draft) return;
@@ -681,13 +760,19 @@ export default function App() {
   useEffect(() => {
     api("categories?all=1").then(setAllCats).catch(() => setError("Impossible de charger les catégories."));
     api("brands?all=1").then(setAllBrands).catch(() => {});
-    api("today").then(d => { setAll(d); setError(null); }).catch(() => setError("Impossible de charger les remises."));
-    api("top").then(setTop).catch(() => {});
   }, [version]);
 
+  useEffect(() => {                                                         // accueil : top deals, pour vous, sélection — selon vos goûts
+    if (!session.checked) return;
+    api(`today${tq}`).then(d => { setAll(d); setError(null); }).catch(() => setError("Impossible de charger les remises."));
+    api(`top${tq}`).then(setTop).catch(() => {});
+    api(`foryou${tq}`).then(setYou).catch(() => {});
+  }, [version, tq, session.checked, session.email]);
+
   useEffect(() => {                                                         // le feed de la Recherche, prêt avant d'y aller
-    api(recent.length ? `search?recent=${encodeURIComponent(recent.join("|"))}` : "search").then(setFeed).catch(() => {});
-  }, [recent, version]);
+    if (!session.checked) return;
+    api(`search${tq}`).then(setFeed).catch(() => {});
+  }, [tq, version, session.checked, session.email]);
 
   useEffect(() => {                                                         // Recherche : une requête, des filtres, un tri
     const term = q.trim(), any = term || filters.category || filters.budget || filters.off;
@@ -743,8 +828,39 @@ export default function App() {
 
   const logout = async () => {
     await api("auth/logout", {}).catch(() => {});
-    setSession({ checked: true, email: null });
+    setSession({ checked: true, email: null, variant: "p" });
     flash("Vous êtes déconnecté");
+  };
+
+  // Vos goûts : une fiche ouverte, une offre vue (sans compte : la visite s'en souvient), vos rayons, ce qu'on retient.
+  const note = (k, id) => setSeen(list => {
+    const next = [...list.filter(e => !(e.k === k && e.id === id)), { k, id, t: Math.floor(Date.now() / 1000) }].slice(-SEEN_MAX);
+    if (LEARN.get() === true) SEEN.set(next);
+    return next;
+  });
+  const togglePick = async key => {
+    const next = picks.includes(key) ? picks.filter(k => k !== key) : [...picks, key].slice(0, PICKS_MAX);
+    const before = picks;
+    setPicks(next); setPickedHere(true);
+    if (session.email) {
+      try { await api("interests", { categories: next }); setVersion(v => v + 1); }
+      catch { setPicks(before); flash("Impossible d'enregistrer vos rayons"); return; }
+    } else PICKS.set(next);
+    if (!before.length && next.length) flash("C'est noté : vos rayons passent en tête");
+  };
+  const hidePicker = () => { setPicker(false); PICKER.set("off"); };
+  const setLearn = async on => {
+    if (!session.email) {
+      setLearnHere(on); LEARN.set(on ? true : null); SEEN.set(on ? seen : null);
+      flash(on ? "Ce navigateur se souviendra de ce que vous regardez" : "Ce navigateur ne retient plus ce que vous regardez");
+      return;
+    }
+    try { await api("profile", { learn: on }); setVersion(v => v + 1); } catch { flash("Impossible d'enregistrer ce choix"); }
+  };
+  const forgetTaste = async () => {
+    if (!session.email) { setSeen([]); SEEN.set(null); }
+    else { try { await api("profile/reset", {}); } catch { flash("Impossible pour le moment"); return; } }
+    setVersion(v => v + 1); flash("C'est oublié");
   };
 
   const share = async p => {
@@ -870,7 +986,7 @@ export default function App() {
           {!ok && now == null && <span>{m.product_id ? "Indisponible aujourd'hui" : "Rien de suivi pour l'instant"}</span>}</div>
       </div>
       <button className="ibtn" aria-label={`Arrêter la mission ${m.title}`} onClick={() => stopMission(m)}><Icon d={UI.x} size={18} /></button></div>
-      {ok && <a className="mbuy" href={`/api/r/out/${m.matches[0].offer_id}?from=mission&m=${m.id}`} target="_blank" rel="noopener"
+      {ok && <a className="mbuy" href={`/api/r/out/${m.matches[0].offer_id}?from=mission&m=${m.id}&v=${variant}`} target="_blank" rel="noopener"
         aria-label={`Voir l'offre : ${said(m.matches[0])}, chez ${m.matches[0].merchant}`}>
         <span>Voir l'offre · <b>{eur(m.matches[0].price)}</b> chez {m.matches[0].merchant}</span><Icon d={UI.ext} size={18} sw={2.2} /></a>}
       {ok && <div className="scroller">{m.matches.map(card("mission", m.id))}</div>}
@@ -889,11 +1005,16 @@ export default function App() {
   const sortBar = <div className="chips" role="group" aria-label="Trier">{[["pct", "Remises d'abord"], ["asc", "Prix croissant"], ["desc", "Prix décroissant"]].map(([k, l]) =>
     <button key={k} className={order === k ? "on" : ""} aria-pressed={order === k} onClick={() => setOrder(k)}>{l}</button>)}</div>;
   const ordered = items => order === "pct" ? items : [...items].sort((a, b) => order === "asc" ? a.price - b.price : b.price - a.price);
+  const liked = new Set((you?.taste?.cats || []).map(c => c.key));        // vos rayons : leurs pièces d'abord
   const rooms = ROOMS.map(r => {
     const here = categories.filter(c => r.cats.includes(c.key));
     return here.length ? { ...r, best: Math.max(...here.map(c => c.best)), sub: here.map(c => c.label).join(", "),
-      art: here.some(c => c.key === r.art) ? r.art : here[0].key } : null;
-  }).filter(Boolean);
+      art: here.some(c => c.key === r.art) ? r.art : here[0].key, mine: here.some(c => liked.has(c.key)) } : null;
+  }).filter(Boolean).sort((a, b) => b.mine - a.mine);
+  // Vos rayons à choisir : ceux qui ont des produits, les plus riches en remises d'abord.
+  const pickable = allCats.filter(c => c.products > 0).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "fr"));
+  const pickChips = cls => pickable.map(c => <button key={c.key} className={`${cls} ${picks.includes(c.key) ? "on" : ""}`}
+    aria-pressed={picks.includes(c.key)} onClick={() => togglePick(c.key)}>{picks.includes(c.key) && <Icon d={UI.check} size={15} sw={2.8} />}{c.label}</button>);
 
   let body;
   if (view?.kind === "about") {                    // référencement, classement, rémunération : ce que la loi demande de dire
@@ -910,10 +1031,15 @@ export default function App() {
       <h2>Dans quel ordre ?</h2>
       <ul>
         <li><b>Accueil, top deals</b> : les plus fortes remises réelles et les produits dont le prix est parmi les plus bas depuis
-          au moins deux mois (au moins 10 % sous leur prix habituel), à tour de rôle. <b>Notre sélection</b> : les autres remises,
-          les plus fortes d'abord. Une marque que vous suivez compte une fois et demie.</li>
+          au moins deux mois (au moins 10 % sous leur prix habituel), à tour de rôle. <b>Pour vous</b> : les remises et les prix
+          bas de vos rayons et de vos marques. <b>Notre sélection</b> : les autres remises, les plus fortes d'abord.</li>
+        <li><b>Vos goûts</b> : vos rayons (choisis, ou ceux des fiches que vous ouvrez), vos marques suivies, vos favoris et vos
+          missions font passer un deal devant, au plus une fois et demie : l'intérêt du deal reste premier, et un emplacement
+          sur quatre revient au meilleur deal du moment, quels que soient vos goûts. Une visite sur dix (un compte sur dix,
+          toujours le même) montre l'ordre sans vos goûts : c'est ainsi que nous mesurons ce qu'ils apportent.</li>
         <li><b>Recherche</b> : d'abord les produits que votre recherche nomme (catégorie, marque), puis les remises, puis le prix ; ou
-          le tri que vous choisissez. Avant toute recherche : vos recherches récentes, puis une catégorie à tour de rôle.</li>
+          le tri que vous choisissez. Avant toute recherche : vos recherches récentes, puis vos rayons, puis une catégorie à
+          tour de rôle.</li>
         <li><b>Marque, catégorie</b> : les remises d'abord, ou le tri que vous choisissez.</li>
         <li><b>Fiche</b> : l'offre la moins chère parmi nos partenaires.</li>
       </ul>
@@ -921,8 +1047,12 @@ export default function App() {
       <p>Quand vous achetez après avoir touché « Voir l'offre », l'enseigne nous verse une commission. Votre prix ne change pas,
         et le montant de la commission n'entre dans aucun classement.</p>
       <h2>Vos données</h2>
-      <p>Votre e-mail sert à vous connecter et à recevoir les alertes de vos missions. Vos recherches récentes restent dans votre
-        navigateur.</p>
+      <p>Votre e-mail sert à vous connecter et à recevoir les alertes de vos missions. Sans compte, vos recherches récentes et vos
+        rayons restent dans votre navigateur, qui les joint à chaque lecture pour ordonner ce qui vous est montré ; nos
+        serveurs n'en gardent rien. Les fiches que vous ouvrez ne servent que pendant votre visite, sauf si vous demandez à
+        être reconnu à votre retour (Profil). Avec un compte, vos rayons, favoris, marques et missions sont sur le
+        compte, ainsi que, sauf si vous le désactivez dans Profil, les fiches ouvertes et les clics. Profil montre ce que l'app
+        a compris, et « Oublier » l'efface.</p>
     </div>;
   } else if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
@@ -948,8 +1078,9 @@ export default function App() {
             {item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div>
           <PricePosition pos={item.position} price={item.price} />
           {when && <div className="when"><Icon d={UI.cal} size={20} />{when}</div>}
-          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}${view.mission ? `&m=${view.mission}` : ""}`}
-            target="_blank" rel="noopener">Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
+          {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}${view.mission ? `&m=${view.mission}` : ""}&v=${variant}`}
+            target="_blank" rel="noopener" onClick={() => { if (!session.email) note("c", item.id); }}>
+            Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
           {best && <p className="aff">Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous.{" "}
             <button className="lnk" onClick={openAbout}>Comment ça marche</button></p>}
           <button className={`alertbtn ${mine ? "on" : ""}`} onClick={() => setAlertOpen(true)}>
@@ -994,19 +1125,32 @@ export default function App() {
       <div className="pagehead"><div><h1>{view.room.label}</h1>
         <div className="sub">{list ? `${plural(list.total, "remise")} · ${view.room.sub}` : "…"}</div></div></div>
       <div style={{ height: 18 }} />
-      {list && grid(list.products)}
+      {list && grid(list.products, "room")}
       {list && list.total === 0 && <div className="empty">Aucune remise dans cette pièce aujourd'hui.</div>}
     </>;
   } else if (tab === "home") {                    // éditorial : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
     const items = all?.products || [];
     const tops = top?.products || [], inTop = new Set(tops.map(p => p.id));
-    const rest = items.filter(p => !inTop.has(p.id));              // notre sélection : sans répéter les top deals
+    const yours = (you?.products || []).filter(p => !inTop.has(p.id));   // pour vous : sans répéter les top deals
+    const shown = new Set([...inTop, ...yours.map(p => p.id)]);
+    const rest = items.filter(p => !shown.has(p.id));              // notre sélection : sans répéter ce qui est au-dessus
     body = <>
       <Ticker items={items} publishedAt={all?.published_at} />
       <div className="intro"><h1>De bonnes affaires, pour vos envies.</h1></div>
       {tops.length > 0 && <>
         <div className="sechead"><h2>Top deals</h2><span className="n">Remises et prix bas</span></div>
         <div className="scroller tops">{tops.map(card("top"))}</div>
+      </>}
+      {picker && pickable.length > 0 && (picks.length === 0 || pickedHere) && <section className="taste" aria-label="Vos rayons">
+        <div className="th"><h3>{picks.length ? "Vos rayons" : "Qu'est-ce qui vous intéresse ?"}</h3>
+          <button className="x" onClick={hidePicker} aria-label="Masquer"><Icon d={UI.x} size={18} sw={2.2} /></button></div>
+        <p>{picks.length ? `${plural(picks.length, "rayon")} : leurs deals passent en tête. Modifiable dans Profil.`
+          : "Touchez vos rayons : leurs deals passeront en tête. Facultatif."}</p>
+        <div className="ctags row">{pickChips("ctag")}</div>
+      </section>}
+      {yours.length > 0 && <>
+        <div className="sechead"><h2>Pour vous</h2><span className="n">{tasteLine(you?.taste)}</span></div>
+        <div className="scroller tops">{yours.map(card("foryou"))}</div>
       </>}
       {rooms.length > 0 && <>
         <div className="sechead"><h2>Inspirations du moment</h2></div>
@@ -1019,10 +1163,10 @@ export default function App() {
       </>}
       <div className="sechead"><h2>Notre sélection</h2></div>
       {all && items.length === 0 && <div className="empty">Aucune remise aujourd'hui.</div>}
-      {grid(rest.slice(0, cols * 2))}{/* le module mission, après deux rangées de remises */}
+      {grid(rest.slice(0, cols * 2), "home")}{/* le module mission, après deux rangées de remises */}
       {all && composer(true)}
       {rest.length > cols * 2 && <div style={{ height: 18 }} />}
-      {grid(rest.slice(cols * 2))}
+      {grid(rest.slice(cols * 2), "home")}
     </>;
   } else if (tab === "search") {                  // un champ, trois filtres, un tri, et un feed que chaque saisie adapte
     const term = q.trim(), t = norm(term);
@@ -1043,9 +1187,9 @@ export default function App() {
         filters.off, v => setFilters(f => ({ ...f, off: v }))],
       sort: ["Trier", SORTS, sortBy, setSortBy],
     };
-    const mine = feed?.recent?.length > 0;                // le feed suit vos dernières recherches
+    const mine = feed?.recent?.length > 0 || feed?.personal;   // le feed suit vos dernières recherches, vos goûts
     const feedHead = <div className="sechead"><h2>{mine ? "Pour vous" : "À découvrir"}</h2>
-      <span className="n">{mine ? "D'après vos recherches" : feed ? plural(feed.total, "produit") : ""}</span></div>;
+      <span className="n">{feed?.recent?.length > 0 ? "D'après vos recherches" : mine ? "D'après vos goûts" : feed ? plural(feed.total, "produit") : ""}</span></div>;
     body = <>
       <div className="pagehead"><h1>Recherche</h1></div>
       {searchBar}
@@ -1120,11 +1264,27 @@ export default function App() {
       {session.email && missions && mine.length === 0 && !draft && <p className="note" style={{ marginTop: 18 }}>Aucune mission en cours. Une phrase suffit : le produit, et votre prix.</p>}
       {session.checked && !session.email && !draft && <p className="note" style={{ marginTop: 18 }}>Essayez sans compte : on vous montre ce qui y répond déjà. Votre e-mail n'est demandé qu'au lancement.</p>}
     </div>;
-  } else {                                        // Profil : vos favoris d'abord, vos marques, la déconnexion
+  } else {                                        // Profil : vos favoris d'abord, vos marques, vos rayons, la déconnexion
+    const understood = [...(taste?.taste?.cats || []).filter(c => !c.chosen).map(c => ({ key: c.key, label: c.label, go: () => openCategory(c.key) })),
+      ...(taste?.taste?.brands || []).filter(b => !b.chosen).map(b => ({ key: b.name, label: b.name, go: () => openBrand(b.name) }))];
+    const learning = session.email ? taste?.learn !== false : learnHere;
+    const tastes = <>
+      <div className="sechead"><h2>Vos rayons</h2>{picks.length > 0 && <span className="n">{plural(picks.length, "choisi")}</span>}</div>
+      <p className="note" style={{ margin: "-4px 0 12px" }}>Leurs deals passent en tête de l'accueil et de la Recherche, sans écarter les meilleurs.</p>
+      <div className="bchips">{pickChips("")}</div>
+      {understood.length > 0 && <>
+        <div className="sechead"><h2>Ce que l'app a compris</h2><button className="forget" onClick={forgetTaste}>Oublier</button></div>
+        <div className="bchips">{understood.map(u => <button key={u.key} className="soft" onClick={u.go}>{u.label}</button>)}</div>
+      </>}
+      <button className="sw" role="switch" aria-checked={learning} onClick={() => setLearn(!learning)}>
+        <span>{session.email ? "Tenir compte des fiches que j'ouvre" : "Me reconnaître à mon retour"}
+          <small>{session.email ? "Vos fiches ouvertes et vos clics affinent vos deals." : "Ce navigateur garde les fiches que vous ouvrez pour vos prochaines visites ; le serveur n'en garde rien."}</small></span>
+        <span className="knob" aria-hidden="true" /></button>
+    </>;
     body = <>
       <div className="pagehead"><h1>Profil</h1></div>
       {!session.checked && <div className="empty">Chargement…</div>}
-      {session.checked && !session.email && loginCard("Vos favoris, vos marques et vos missions, partout.", "Connectez-vous à Deals")}
+      {session.checked && !session.email && <>{loginCard("Vos favoris, vos marques et vos missions, partout.", "Connectez-vous à Deals")}{tastes}</>}
       {session.email && <>
         <div className="me">Connecté avec <b>{session.email}</b></div>
         <div className="sechead"><h2>Mes favoris</h2>{drops > 0 && <span className="n drop">{plural(drops, "baisse")} de prix</span>}</div>
@@ -1133,6 +1293,7 @@ export default function App() {
         <div className="sechead"><h2>Marques suivies</h2></div>
         {followed.size === 0 && <div className="empty" style={{ paddingTop: 0 }}>Suivez une marque depuis sa page : ses remises passent en tête.</div>}
         {followed.size > 0 && <div className="bchips">{[...followed].map(b => <button key={b} onClick={() => openBrand(b)}>{b}</button>)}</div>}
+        {tastes}
         <button className="ghost" onClick={logout}>Se déconnecter</button>
       </>}
     </>;
@@ -1158,9 +1319,9 @@ export default function App() {
       onDone={() => {                                 // lien ouvert : connecté, et la mission qui l'attendait est lancée
         setLogin(null); setVersion(v => v + 1);
         api("auth/me").then(d => {
-          setSession({ checked: true, email: d.email });
+          setSession({ checked: true, email: d.email, variant: d.variant || "p" });
           if (login.mission) { setDraft(null); setMtext(""); setAlertOpen(false); flash("Mission lancée : on vous prévient"); }
-        }).catch(() => setSession({ checked: true, email: null }));
+        }).catch(() => setSession({ checked: true, email: null, variant: "p" }));
       }} />}
     <Toast text={toast} />
   </div></div>;

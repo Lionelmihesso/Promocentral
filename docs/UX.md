@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises, des missions (v53)
+# L'interface de DEALS — un flux vivant de remises, des missions, vos goûts (v55)
 
 ## Principe
 
@@ -28,6 +28,15 @@ marque tapée s'ouvre en raccourci au-dessus des résultats. Les **Missions** gu
 budget. Les pages d'une marque et d'une catégorie se trient (remises d'abord, prix croissant, décroissant). La fiche ne garde que ce qui sert la
 décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
 technique et les autres enseignes restent chez l'enseigne.
+
+**Vos goûts d'abord, sans rien bloquer (v55).** L'app apprend ce qui intéresse chacun, sans onboarding : sous les top
+deals, un encart facultatif (« Qu'est-ce qui vous intéresse ? », les rayons du catalogue, un geste chacun, « Masquer »
+le ferme pour de bon), et, en naviguant, les fiches ouvertes, les clics vers l'enseigne, les recherches, les favoris,
+les marques suivies, les missions. Ses deals passent alors devant (au plus × 1,5 : l'intérêt du deal prime, et une place
+sur quatre reste au meilleur deal du jour) ; « **Pour vous** », sous les top deals, montre les deals et les prix bas de
+ses rayons et dit pourquoi (« Vos rayons : Canapés, Matelas ») ; le feed de la Recherche les suit aussi. Le Profil dit
+ce que l'app a compris, permet de l'oublier et de décider de ce qu'elle retient (règles et vie privée :
+`docs/PERSONNALISATION.md`).
 
 **Le meilleur d'abord (v53).** L'accueil s'ouvre sur les **top deals** : les plus fortes remises réelles et les produits
 dont le prix est parmi les plus bas depuis au moins deux mois (au moins 10 % sous leur prix habituel, même sans
@@ -63,16 +72,16 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 
 | Écran | Contenu |
 |---|---|
-| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **top deals** (« Remises et prix bas » : jusqu'à dix cartes à faire défiler, la plus forte remise d'abord, puis un prix bas, et ainsi de suite), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque (les autres remises) ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) |
+| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **top deals** (« Remises et prix bas » : jusqu'à dix cartes à faire défiler, la plus forte remise d'abord, puis un prix bas, et ainsi de suite), l'encart facultatif **« Qu'est-ce qui vous intéresse ? »** (les rayons, un geste chacun, « Masquer » ; une fois des rayons choisis : « Vos rayons » et « Modifiable dans Profil »), **pour vous** (les deals et prix bas de vos rayons et de vos marques, sans répéter les top deals : « Vos rayons : Canapés, Matelas » ou « D'après vos visites : Canapés »), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories ; les pièces de vos rayons d'abord), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque (les autres remises) ; après deux rangées, le module **mission** (« Une envie précise ? », une phrase) |
 | Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative ; dans les top deals, « Au plus bas » ou « Parmi les plus bas », et « Prix bas » sur le visuel d'un produit sans remise |
 | Pièce | ses remises en mosaïque |
 | Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère, la seule montrée), et dessous « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » (connexion à ce moment-là, la mission attend le retour du lien) |
 | Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; « Mission » sur une catégorie (la phrase commence par son nom) |
 | Missions | « Nouvelle mission » : une phrase ; exemples à toucher ; ce qui est compris (« Aspirateur balai »), le prix maximum (proposé s'il manque), ce qui y répond déjà ou le plus proche (« Aujourd'hui dès 499 € : encore 199 € ») ; « Lancer la mission » (sans compte : « Ouvrez le lien reçu : votre mission démarre », sur ce téléphone ou un autre) ; **vos missions** : atteinte (**« Voir l'offre · 175 € chez … »** en un geste, puis les produits à votre prix) ou en veille (objectif, aujourd'hui, encore), arrêter ; une phrase non suivie est expliquée (« Les smartphones ne sont pas encore suivis ») |
-| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Promo** (en promo, −10 %, −20 %, −30 %, −40 %, −50 % et plus, prix parmi les plus bas ; chaque choix avec son nombre de produits, seuls ceux qui donnent quelque chose) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute saisie, « Essayez » et cinq exemples sur une ligne (ou « Vos recherches », les quatre dernières, et « Effacer »), puis le **feed** : « À découvrir · 59 produits » (une catégorie à tour de rôle) ou « Pour vous · D'après vos recherches » ; dès qu'on tape ou filtre, le feed devient les résultats : la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, plus forte promo), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque ; sans résultat : « Rien pour « xyzzy » », « Pas encore là ? Lancer une mission », et le feed ; l'onglet touché à nouveau remonte en haut |
+| Recherche | le champ (tout le catalogue suivi) ; **Catégorie**, **Budget** (moins de 200, 500, 1 000, 2 000 €), **Promo** (en promo, −10 %, −20 %, −30 %, −40 %, −50 % et plus, prix parmi les plus bas ; chaque choix avec son nombre de produits, seuls ceux qui donnent quelque chose) : des puces qui s'ouvrent en liste et montrent le choix fait, « Effacer » ; avant toute saisie, « Essayez » et cinq exemples sur une ligne (ou « Vos recherches », les quatre dernières, et « Effacer »), puis le **feed** : « À découvrir · 59 produits » (une catégorie à tour de rôle) ou « Pour vous · D'après vos recherches » (ou « D'après vos goûts » : vos rayons, vos fiches ouvertes, un produit sur quatre pris ailleurs) ; dès qu'on tape ou filtre, le feed devient les résultats : la marque tapée en raccourci (« Marque · Zephyr · 2 produits »), « 3 produits », le tri (pertinence, prix croissant, plus forte promo), « Pas au bon prix ? Lancer une mission » (« lave-linge sous 500 € »), la mosaïque ; sans résultat : « Rien pour « xyzzy » », « Pas encore là ? Lancer une mission », et le feed ; l'onglet touché à nouveau remonte en haut |
 | Comment ça marche | quelles offres (enseignes partenaires seulement, prix relus chaque nuit, remises réelles seulement), dans quel ordre (chaque écran), comment Deals est rémunéré (une commission, sans effet sur le prix ni sur le classement), vos données ; joignable depuis le pied de chaque écran et depuis l'offre |
-| Profil | connexion ; **mes favoris** en mosaïque (« 2 baisses de prix ») ; marques suivies ; déconnexion ; l'onglet compte les baisses de prix des favoris ; la cloche de l'en-tête compte les missions atteintes et y mène |
+| Profil | connexion ; **mes favoris** en mosaïque (« 2 baisses de prix ») ; marques suivies ; **vos rayons** (à toucher pour les choisir ou les retirer, même sans compte) ; **ce que l'app a compris** (rayons et marques vus, qui mènent à leur page) et « Oublier » ; un interrupteur : « Me reconnaître à mon retour » (sans compte, désactivé par défaut) ou « Tenir compte des fiches que j'ouvre » (compte) ; déconnexion ; l'onglet compte les baisses de prix des favoris ; la cloche de l'en-tête compte les missions atteintes et y mène |
 
 ## À décider : les photos des produits
 
@@ -372,3 +381,35 @@ premier (la plus forte remise en tête, au moins un prix bas sans remise, chaque
 doublon), la fiche ouverte depuis le top (source `top`) ; le filtre Promo (les choix et leurs nombres, prix bas, −20 % et
 plus) ; les favoris dans le Profil (source `saved`) ; et les étapes des versions précédentes. Planche :
 `docs/ux/13-v53.png`.
+
+## Mesures v54 → v55 : vos goûts d'abord, sans rien bloquer
+
+Mêmes produits, mêmes prix et mêmes remises (démo du 14 décembre), téléphone 390 × 844 ; v54 et v55 côte à côte.
+
+| | v54 | v55 |
+|---|---|---|
+| Écran bloquant à l'entrée | aucun | aucun |
+| Dire ce qui vous intéresse | impossible sans compte (suivre une marque demande la connexion) | **un geste, sans compte** : l'encart facultatif sous les top deals, ou le Profil |
+| L'ordre de l'accueil et du feed suit | la marque suivie (compte) ; le feed : les recherches récentes | **rayons choisis, fiches ouvertes, clics, recherches, favoris, marques, missions** |
+| Accueil, rang de la première carte de ses rayons (démo, rayons choisis) | 5,1 | **1,1** |
+| Top deals, clics attendus (démo, selon la situation) | 0,79 (0,88 avec un compte) | **1,00 à 1,10** |
+| Accueil, cartes de ses rayons (3 000 produits, selon la situation) | 19 à 22 % | **43 à 60 %** |
+| Une recherche précise (« canapés pas cher ») oriente le feed | non (18 % de ses rayons) | **oui (77 %)** |
+| Ce que l'app retient : visible, corrigible, oubliable | — | **Profil** : vos rayons, ce que l'app a compris, « Oublier », l'interrupteur |
+| Textes sous le contraste minimal · zones à toucher sous 44 px | 0 · 0 (36 écrans) | 0 · 0 (50 écrans) |
+
+Clics attendus : un modèle (attrait de la carte selon son rayon et sa remise, × biais de position), pas une mesure ; en
+production, une visite sur dix sans les goûts (témoin) dit le vrai gain (`metrics`, `by_variant`). La remise moyenne
+montrée sur l'accueil baisse à peine (29,6 % → 28,7 à 29,1 % sur 3 000 produits) : l'intérêt du deal reste premier. Sur
+la démo d'un jour ordinaire (13 remises), « Pour vous » est souvent vide : les deals des rayons choisis sont déjà dans
+les top deals, qui passent devant ; sur 3 000 produits, il montre 5 à 7 cartes, de 54 % (compte avec historique) à
+100 % (rayons choisis) dans les rayons de la personne. En chemin : 4 des 5 exemples de la Recherche (« aspirateur balai », « lave-linge 9 kg »…) ne comptaient pour
+aucun rayon, et « canapé d'angle » nommait la marque Dormea (« d ») ; une recherche nomme désormais le rayon le plus
+précis qu'elle contient.
+
+Parcours vérifié dans un vrai navigateur (Chromium), 64 étapes, deux passages : l'encart se propose sans bloquer, se
+ferme et ne revient pas ; les rayons choisis passent en tête sans écarter la plus forte remise, « Pour vous » ne montre
+qu'eux, le choix reste à la visite suivante et dans la Recherche (un produit sur quatre ailleurs) ; les fiches ouvertes
+orientent la visite sans rien garder par défaut ; le Profil dit ce qui est compris, l'oublie, et ne garde les fiches que
+sur demande ; fiches vues et liens vers l'enseigne portent la variante ; à la connexion, les rayons passent sur le
+compte ; un témoin voit l'ordre d'avant ; et les étapes des versions précédentes. Planche : `docs/ux/14-v55.png`.

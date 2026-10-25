@@ -6,15 +6,15 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 ```
                     NUIT (deals.py nightly → night.py, une fois par jour)                   JOUR (deals.py serve)
 
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v53)
+ sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v55)
                         politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
                         robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
                         blocages   (pur)       prix         remises,   (une seule
                                                (écrit)      moins cher transaction,             accounts, activity,
-                                                            comparable  garde)                  missions (connexion,
-                                                            (purs)        │                     favoris, marques,
-                                       agent : relance, mise de côté,     ▼                     clics, missions)
-                                       page témoin, quarantaine ─►  missions ─► e-mails
+                                                            comparable  garde)                  missions, profile
+                                                            (purs)        │                     (connexion, favoris,
+                                       agent : relance, mise de côté,     ▼                     marques, clics,
+                                       page témoin, quarantaine ─►  missions ─► e-mails         missions, goûts)
                                        (sources, quarantine)        prix atteints : un par personne
                                                 │
                        health : contrôles ─► agent : incidents, conseils, propositions ─► rapport, e-mail au responsable
@@ -31,7 +31,8 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
    (`alternatives`) sont des fonctions sans base ni réseau : même entrée, même sortie. On les vérifie sur des corpus et
    contre une vérité connue ou une grille indépendante, pas sur des scénarios montés.
 3. **Une seule écriture par sujet.** `market` est le seul module qui écrit produits, offres et prix ; `publish` le seul
-   qui écrit le catalogue ; `accounts`, `activity` et `missions` les seuls qui écrivent les données des personnes. Aucun module ne
+   qui écrit le catalogue ; `accounts`, `activity`, `missions` et `profile` les seuls qui écrivent les données des
+   personnes. Aucun module ne
    lit les tables d'un autre en dehors de ce qui est listé plus bas.
 4. **Concurrence sans verrou applicatif.** SQLite en mode WAL : les lectures ne bloquent jamais ; chaque fil a sa
    connexion ; chaque écriture est une transaction courte (une page relue, une action d'une personne, une
@@ -61,11 +62,12 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même usage, pas moins bien) et coûte au moins 10 % de moins | — | — |
 | `deals/affiliate.py` | **pur** : enseignes partenaires (fichier `DEALS_AFFILIATE`) et lien affilié d'un clic (gabarit du réseau avec `{url}` et `{subid}`, ou paramètres ajoutés à la fiche) | — | — |
 | `deals/publish.py` | calcule le catalogue du jour (meilleure offre, deal, depuis quand et jusqu'à quand, courbe de 90 jours, alternatives moins chères, similaires, verdict de prix de chaque produit) et l'écrit d'un bloc ; seules les offres des enseignes partenaires | store, judge, alternatives, extract, catalog (recherche) | catalog, catalog_offers, alternatives, similar, meta |
-| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, et son feed, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`), l'ordre du feed (`lead`, `breadth`), le prix bas (`cheap`) ; top deals de l'accueil ; libellés | store, extract (familles) | — |
+| `deals/catalog.py` | lectures de l'app (deals du jour, recherche dans tout le catalogue avec filtres et tri, et son feed, catégories et marques — toutes, ou celles qui ont des remises —, pages d'une marque et d'une catégorie avec tous leurs produits, fiche et ses alternatives, favoris) ; **pur** : où se situe le prix du jour sur les derniers mois (`position`), l'ordre du feed (`lead`, `breadth`), le prix bas (`cheap`) ; top deals de l'accueil, « pour vous » (`foryou`) et ce que l'app a compris (`taste`), dans l'ordre du profil de la lecture ; libellés | store, extract (familles), profile | — |
+| `deals/profile.py` | goûts d'une personne : rayons et marques pesés par ce qu'elle choisit et regarde (`build`), l'ordre qui en découle sans faire oublier l'intérêt du deal (`arrange`, `diversify`, `blend`, `mine`) et les témoins (`control`), **purs** ; le profil d'une lecture (compte : ses tables ; sans compte : ce que le navigateur envoie, rien n'est gardé) ; les gestes (rayons choisis, apprentissage, remise à zéro) | store, extract (familles), catalog (noms des rayons) | interests, prefs |
 | `deals/missions.py` | **pur** : une phrase → une mission (`interpret`), ce qui rend un produit comparable (`like`), un produit remplit-il une mission (`matches`) ; les missions d'une personne (lancer, une par cible, lister avec leur état, arrêter ; vérifier celle qui attend une connexion) ; la nuit, un e-mail par personne (`notify`), chaque produit à un clic de l'offre | store, catalog, extract, alternatives (classes énergie), accounts (envoi) | missions |
 | `deals/accounts.py` | connexion par lien magique (la mission lancée avant la connexion attend avec le lien), sessions, limites d'envoi, SMTP (liens de connexion, e-mails de missions) | store, config | users, login_links, sessions |
-| `deals/activity.py` | favoris, marques suivies, fiches vues, clics sortants par le lien affilié, mesures de conversion (taux de clic par écran et par personne, part partenaire, missions) | store, affiliate | saves, follows, views, clicks |
-| `deals/api.py` | contrat `/api/r/` (inchangé pour l'app, routes ajoutées) | catalog, accounts, activity, missions | — |
+| `deals/activity.py` | favoris, marques suivies, fiches vues, clics sortants par le lien affilié, mesures de conversion (taux de clic par écran, par personne, par variante — personnalisé ou témoin —, part partenaire, missions) | store, affiliate | saves, follows, views, clicks |
+| `deals/api.py` | contrat `/api/r/` (inchangé pour l'app, routes ajoutées) | catalog, accounts, activity, missions, profile | — |
 | `deals/web.py` | serveur HTTP : app statique, routes, cookie, taille des requêtes, en-têtes | api | — |
 | `deals/ops.py` | journal opérationnel : événements datés (UTC), gravité, composant, entité, corrélation de la nuit ; JSON sur la sortie d'erreur ; jamais d'adresse ni de secret (`scrub`) | store | events |
 | `deals/sources.py` | registre des sources (enseignes lues, partenaires ou non) et leur état : active, en difficulté (nuits ratées), mise de côté | store | sources |
@@ -79,7 +81,9 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 Lectures croisées autorisées, et seulement celles-ci : `publish` lit `products/offers/prices` (pour calculer) ;
 `collect` lit `catalog/saves/clicks` (pour ordonner la relecture de nuit : deal en cours, favori, clic récent) ;
 `activity` lit `offers` (pour rediriger un clic vers l'adresse connue) et `catalog` (prix au moment d'un favori) ;
-`catalog` lit `follows/saves` (pour personnaliser l'ordre, les signets et la baisse d'un favori) ; `missions` lit
+`catalog` lit `follows/saves` (pour personnaliser l'ordre, les signets et la baisse d'un favori) ; `profile` lit
+`catalog` (rayons et marques publiés : reconnaître une recherche, valider un rayon choisi), `products` (rayon et marque
+d'une fiche vue) et, pour un compte, `saves/follows/views/clicks/missions` (ses signaux) ; `missions` lit
 `catalog/catalog_offers` (produits publiés, disponibilité de la meilleure offre) et `users` (l'adresse où écrire, la
 nuit). Exploitation : `health` lit `runs`, `sources`, `quarantine`, `catalog`, `catalog_offers`, `offers`, `prices`
 et `clicks` (l'état de la nuit) ; `quarantine` lit `offers`, `prices` et `catalog` (prix habituel) ; `publish` et
@@ -105,10 +109,15 @@ alternatives (product_id, other_id, rank)       comparables, disponibles, au moi
 similar    (product_id, other_id, rank)         les autres comparables, au prix le plus proche (fiche, à défaut)
 users, login_links, sessions          (jetons stockés en SHA-256)
 follows (user_id, brand) · saves (user_id, product_id, price)
-clicks     (id, at, day, user_id, product_id, offer_id, merchant, source, partner, mission_id)
+interests  (user_id, category, created_at)    rayons choisis par un compte (l'ordre du choix)
+prefs      (user_id, learn, reset_at)         apprendre des fiches ouvertes et des clics (1 par défaut) ; ce qui
+                                              précède reset_at est oublié pour l'ordre (gardé pour les mesures)
+clicks     (id, at, day, user_id, product_id, offer_id, merchant, source, partner, mission_id, variant)
             id : l'identifiant transmis au réseau d'affiliation (sous-ID) ; partner : parti chez un partenaire ;
-            mission_id : la mission d'où vient le clic (carte de mission, e-mail)
-views      (at, day, user_id, product_id, source, mission_id)    fiches ouvertes : le taux de clic de chaque écran
+            mission_id : la mission d'où vient le clic (carte de mission, e-mail) ; variant : p (ordre personnalisé)
+            ou t (témoin)
+views      (at, day, user_id, product_id, source, mission_id, variant)    fiches ouvertes : le taux de clic de chaque
+            écran, par variante
 login_links.mission                    la mission lancée avant la connexion, lancée à l'ouverture du lien
 missions   (id, user_id, product_id, category, brand, want, max_price, label, created_at, notified)
             ce qui est guetté (un produit, ou catégorie, marque et souhaits : fonctions, tailles), le prix maximum ;
@@ -134,7 +143,8 @@ schéma = `SCHEMA_VERSION + 1` et une entrée dans `MIGRATIONS` (version 2 : dur
 version 3 : alternatives ; version 4 : description de la fiche ; version 5 : courbe de prix, heure de publication ;
 version 6 : missions ; version 7 : la description retirée, `ALTER TABLE … DROP COLUMN`, d'où SQLite 3.35 au moins,
 vérifié au démarrage ; version 8 : affiliation, fiches vues ; version 9 : verdict de prix publié ; version 10 :
-exploitation autonome — sources, journal, incidents, actions, quarantaine).
+exploitation autonome — sources, journal, incidents, actions, quarantaine ; version 11 : goûts — rayons choisis,
+apprentissage, variante des fiches vues et des clics).
 
 ## La nuit (`python deals.py nightly`, `deals/night.py`)
 
@@ -172,9 +182,10 @@ exploitation autonome — sources, journal, incidents, actions, quarantaine).
 | Lire un prix sans se tromper (prix membre, financement, produit voisin, page liste…) | `extract/offer.py` |
 | Catalogue : familles suivies, accessoires écartés, seuil de 100 € | `collect/retailers.py`, `extract/categories.py` |
 | Alternative : même catégorie ; même usage (taille de literie, largeur, places, forme : balai, traîneau, encastrable, d'angle, américain) ; au moins les mêmes fonctions (sans fil, laveur, convertible, induction, électrique) ; pas moins bien (énergie, capacité, couverts, foyers, volume, autonomie, bruit) ; moins chère = au moins 10 % de moins et disponible ; la plus forte économie d'abord, une marque par ligne | `alternatives.py` |
-| Recherche : tout le catalogue suivi ; filtres catégorie, budget, remise minimale (même sans mot) ; pertinence = la requête nomme la catégorie ou la marque, puis les remises, puis le prix ; ou prix croissant, ou remise ; sans mot ni filtre, le feed : les produits des 4 dernières recherches (gardées par le navigateur) d'abord, 6 au plus chacune, puis tout le catalogue, une catégorie à tour de rôle | `catalog.py` (`search`, `lead`, `breadth`) |
+| Recherche : tout le catalogue suivi ; filtres catégorie, budget, remise minimale (même sans mot) ; pertinence = la requête nomme la catégorie ou la marque, puis les remises, puis le prix ; ou prix croissant, ou remise ; sans mot ni filtre, le feed : les produits des 4 dernières recherches (gardées par le navigateur) d'abord, 6 au plus chacune, puis ceux de vos rayons et de vos marques (un sur quatre pris ailleurs), puis tout le catalogue, une catégorie à tour de rôle | `catalog.py` (`search`, `lead`, `breadth`), `profile.py` (`blend`) |
 | Marque, catégorie : tous leurs produits, les remises d'abord (depuis une fiche, jamais de cul-de-sac) | `catalog.py` |
-| Top deals (accueil, en premier) : les plus fortes remises réelles (marque suivie × 1,5) et les prix bas, à tour de rôle, dix au plus ; prix bas = au plus bas, ou moins cher que 2 jours sur 3, depuis au moins 60 jours relevés et au moins 10 % sous le prix habituel (médiane) ; notre sélection ne les répète pas | `catalog.py` (`top`, `cheap`), `web/src/App.jsx` |
+| Top deals (accueil, en premier) : les plus fortes remises réelles et les prix bas, à tour de rôle, dix au plus, dans l'ordre du profil (trois au plus d'un même rayon) ; prix bas = au plus bas, ou moins cher que 2 jours sur 3, depuis au moins 60 jours relevés et au moins 10 % sous le prix habituel (médiane) ; « pour vous » et notre sélection ne les répètent pas | `catalog.py` (`top`, `cheap`), `web/src/App.jsx` |
+| Goûts : choisi = affinité 1 (rayons choisis, marques suivies, rayon et marque d'une mission) ; vu = favori 2 points, clic 1,5, recherche qui nomme un rayon ou une marque 1, fiche ouverte 0,5, moitié moins tous les 30 jours, 90 jours au plus ; confiance pleine à 2 points ; rayon vu ≤ 0,8, marque vue ≤ 0,4 (à partir d'un point), famille 30 % ; « pour vous » = affinité directe ≥ 0,3 ; sans compte, rien n'est gardé par le serveur ; une personne sur dix est témoin | `profile.py` (`build`, `mine`, `control`, `Profiles`) ; `docs/PERSONNALISATION.md` |
 | Filtre Promo : en promo, −10 % à −50 % et plus, ou prix bas ; le nombre de produits de chaque choix, avant ce filtre | `catalog.py` (`search`) |
 | Mission : ce qui est dit est exigé (catégorie, marque, fonctions ; capacité, couverts, foyers, places, volume, autonomie au moins ; taille de literie exacte ; largeur à 6 % près ; bruit au plus ; classe énergie au moins), ce qui ne l'est pas ne l'est pas ; disponible et au prix voulu ; caractéristique inconnue du produit = pas de promesse ; comparable = même catégorie, mêmes fonctions, même taille ou capacité ; une mission par cible, 20 par personne | `missions.py` |
 | E-mail de mission : un par personne et par nuit, seulement le nouveau (jamais deux fois le même produit au même prix, rien de ce qui était visible au lancement), les cinq moins chers par mission, plafond par nuit (`DEALS_MISSION_MAILS`) | `missions.py` |
@@ -183,10 +194,10 @@ exploitation autonome — sources, journal, incidents, actions, quarantaine).
 | Prix sur 90 jours : meilleur prix disponible de chaque jour, toutes enseignes, calculé à la publication | `publish.py` (`chart`) |
 | Verdict de prix : au plus bas (aucun jour moins cher, plus cher un jour sur deux au moins), parmi les plus bas (moins cher que 2 jours sur 3), plus cher que d'habitude (plus cher que 2 jours sur 3), habituel sinon ; 14 jours relevés au moins ; le point de la jauge = rang du jour | `catalog.py` (`position`) |
 | Fiche : une seule enseigne, la moins chère disponible ; ni description technique ni autres enseignes | `publish.py` (meilleure offre), `web/src/App.jsx` |
-| Classement : remise, × 1,5 pour une marque suivie | `catalog.py` |
+| Classement : l'intérêt du deal × (1 + ½ affinité), au plus × 1,5 ; une place sur quatre au meilleur deal restant ; au plus deux d'un même rayon sur quatre de suite ; sans goûts connus ou pour un témoin : remise, × 1,5 pour une marque suivie (l'ordre d'avant) ; une recherche ou un filtre : sans les goûts | `profile.py` (`arrange`, `diversify`), `catalog.py` |
 | Clic sortant : seulement vers l'adresse d'une offre connue, tracé ; part par le lien affilié de l'enseigne avec l'identifiant du clic | `activity.py`, `affiliate.py` |
 | Affiliation : seules les offres des enseignes partenaires sont lues la nuit et publiées ; sans fichier de partenaires (développement), tout est publié et les liens partent tels quels | `affiliate.py`, `publish.py`, `cli.py` |
-| Mesure de conversion : fiches vues → clics vers l'enseigne (taux de clic), par écran (source) et par personne (avec mission, connectée sans mission, sans compte) ; part des clics partis chez un partenaire ; clics venus des missions (app, e-mail) | `activity.py` (`metrics`) |
+| Mesure de conversion : fiches vues → clics vers l'enseigne (taux de clic), par écran (source), par personne (avec mission, connectée sans mission, sans compte) et par variante (personnalisé ou témoin, par écran) ; part des clics partis chez un partenaire ; clics venus des missions (app, e-mail) | `activity.py` (`metrics`) |
 | Transparence : « enseigne partenaire » près de l'offre, page « Comment ça marche » (référencement, classement, rémunération) depuis chaque écran ; mention dans les e-mails | `web/src/App.jsx`, `missions.py` |
 | Connexion : lien à usage unique 15 min ; 5 liens par adresse et par heure, 20 par adresse IP, plafond quotidien global | `accounts.py` |
 | Exploitation : qui décide quoi (auto, alert, approval, recommend, forbidden) ; source mise de côté après 3 nuits ratées, page témoin tous les 3 jours ; quarantaine q1 ; garde de publication ; envoi massif ; e-mail au responsable seulement s'il y a lieu | `agent.py`, `sources.py`, `quarantine.py`, `publish.py`, `health.py` ; `docs/AUTONOMIE.md` |
@@ -196,13 +207,14 @@ exploitation autonome — sources, journal, incidents, actions, quarantaine).
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (107 tests, ~23 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
+| Contrats (133 tests, ~22 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 |
 | Pannes injectées (6 scénarios × 6 nuits) | `python -m bench.autonomy` | anti-robot : mis de côté nuit 3, jamais forcé · panne passagère relancée, 100 % relu · erreur de prix ni publiée ni envoyée · catalogue qui fond retenu 2 nuits · 8 e-mails au responsable en 36 nuits (voir `docs/AUTONOMIE.md`) |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
 | Alternatives, contre une grille indépendante | `python -m bench.alternatives` | 0 % de suggestions incompatibles · alternative moins chère montrée pour 95 % (démo) et 100 % (3 000 produits) des fiches qui en ont une |
 | Missions en une phrase | `python -m bench.missions` | 37/37 phrases comprises (dont 12 tournures du quotidien, voir `docs/UX.md`) |
-| Tenue en charge (3 000 produits) | `python -m bench.scale` | publication ~2,5 s par nuit (courbes de 90 jours comprises) · missions de la nuit : 10 000 en ~5,2 s · lectures de l'app ~2 ms (recherche ~9 ms, feed de la Recherche ~10 ms, ~17 ms orienté par quatre recherches récentes ; missions d'une personne ~10 ms) |
+| Tenue en charge (3 000 produits) | `python -m bench.scale` | publication ~2,4 s par nuit (courbes de 90 jours comprises) · missions de la nuit : 10 000 en ~5,1 s · lectures de l'app ~2 ms (recherche ~9 ms, feed de la Recherche ~12 ms, ~21 à 26 ms orienté par des fiches ouvertes ou quatre recherches récentes ; top deals et « pour vous » 9 à 11 ms ; missions d'une personne ~10 ms) |
+| Personnalisation, sur des personnes simulées | `python -m bench.profiles [--scale]` | nouvelle visite : l'ordre d'avant · accueil, cartes des rayons de la personne : 19 à 22 % → 43 à 60 % (3 000 produits) ; clics attendus × 1,5 à × 2,1 ; remise moyenne montrée 29,6 % → 28,7 à 29,1 % (voir `docs/PERSONNALISATION.md`) |
 
 ## Ce qui a été retiré, et pourquoi
 

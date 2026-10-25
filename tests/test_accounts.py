@@ -100,8 +100,8 @@ class Accounts(unittest.TestCase):
 
     def test_accounts_are_isolated(self):
         sessions = []
-        for email in ("zoe@test.local", "max@test.local"):
-            self.api.accounts.request_link(email)
+        for addr in ("zoe@test.local", "max@test.local"):
+            self.api.accounts.request_link(addr)
             sessions.append(self.api.accounts.verify(self.link().split("token=")[1])[1].split(";")[0].split("=", 1)[1])
         self.assertEqual(self.raw("POST", "/api/r/brand/follow", {"brand": "Bosch"}, cookie=sessions[0])[0], 200)
         self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=sessions[1])[2])["brands"], [])

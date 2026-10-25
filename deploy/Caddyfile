@@ -1,4 +1,6 @@
 # HTTPS automatique (Let's Encrypt) devant l'app. Seules / et /api/r/ existent en mode public.
+# Pas de journal d'accès (aucune directive log) : les goûts qu'envoie l'app sans compte (p, i, recent, dans l'adresse)
+# ne sont gardés nulle part. Pour en ajouter un, ne pas y écrire la chaîne de requête des adresses.
 deals.example.fr {
 	encode gzip
 	reverse_proxy 127.0.0.1:8000

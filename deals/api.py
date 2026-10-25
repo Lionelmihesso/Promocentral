@@ -18,6 +18,12 @@ Session requise (sinon 401) : save, saves, brand/follow, follows, missions (GET 
 missions/delete {id}.
 Connexion : auth/request {email, mission?} (la mission attend le lien, sur le serveur), auth/verify?token= (pose le cookie,
 lance la mission qui attendait et renvoie vers /?mission=<id> ; ou vers /?auth=expired), auth/me, auth/logout.
+Goûts (profile.py) : today, top, search (le feed) et foryou (« pour vous » : deals et prix bas de vos rayons) suivent le
+profil ; sans compte, le navigateur envoie p (fiches vues v<id>.<âge en jours>, clics c…, favoris s…, au plus 60), i (rayons
+choisis, séparés par des virgules) et v=t (témoin : sans personnalisation) ; rien n'en est gardé. profile : ce que l'app
+retient et a compris ; avec un compte : interests {categories} (rayons choisis), profile {learn} (apprendre des fiches et
+des clics, ou non), profile/reset (oublier ce qui a été déduit). auth/me dit aussi variant (p : personnalisé, t : témoin) ;
+view {v} et out ?v= le rapportent dans les mesures.
 Surveillance : health (pour une sonde extérieure : status ok | degraded | critical, heure de la dernière nuit, taille du
 catalogue ; 503 si aucune nuit depuis 36 h, si la dernière a eu une étape en erreur ou si un incident critique est
 ouvert ; aucun détail de plus).
@@ -36,6 +42,7 @@ from .catalog import SORTS, Catalog
 from .errors import BadRequest, NotFound
 from .missions import Missions
 from .ops import utc
+from .profile import Profiles, control
 
 STALE_S = 36 * 3600            # plus de 36 h sans nuit terminée : la plateforme ne se met plus à jour
 
@@ -65,23 +72,30 @@ class Api:
         self.accounts = Accounts(store, settings, outbox, clock)
         self.activity = Activity(store, clock, rules if rules is not None else affiliate.load(settings.affiliate))
         self.missions = Missions(store, self.catalog, clock)
+        self.profiles = Profiles(store, clock)
         self.store, self.clock = store, clock
-        C, A, T, M = self.catalog, self.accounts, self.activity, self.missions
+        C, A, T, M, P = self.catalog, self.accounts, self.activity, self.missions, self.profiles
         uid = lambda r: A.user(r.session)
         need = lambda r: A.require(r.session)
+        prof = lambda r: P.of(uid(r), r.query, self._recent(r.query))
         self.routes = [(m, re.compile(p), f) for m, p, f in [
-            ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None)),
+            ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None, prof(r))),
             ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None, r.query.get("category") or None,
                                                          *self._filters(r.query), recent=self._recent(r.query),
-                                                         low=r.query.get("low") == "1")),
-            ("GET", r"/api/r/top", lambda r: C.top(uid(r))),
+                                                         low=r.query.get("low") == "1", prof=prof(r))),
+            ("GET", r"/api/r/top", lambda r: C.top(uid(r), prof(r))),
+            ("GET", r"/api/r/foryou", lambda r: C.foryou(uid(r), prof(r))),
+            ("GET", r"/api/r/profile", self._profile),
+            ("POST", r"/api/r/interests", lambda r: P.choose(need(r), (r.body or {}).get("categories"))),
+            ("POST", r"/api/r/profile", lambda r: P.learn(need(r), (r.body or {}).get("learn"))),
+            ("POST", r"/api/r/profile/reset", lambda r: P.reset(need(r))),
             ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
             ("GET", r"/api/r/category/([a-z_]+)", lambda r, key: C.category(uid(r), key)),
             ("GET", r"/api/r/item/(\d+)", lambda r, pid: C.item(uid(r), int(pid))),
             ("GET", r"/api/r/out/(\d+)", lambda r, oid: Response(302, location=T.click(uid(r), int(oid), r.query.get("from"),
-                                                                                         r.query.get("m")))),
+                                                                                         r.query.get("m"), r.query.get("v")))),
             ("POST", r"/api/r/view", lambda r: T.view(uid(r), r.body)),
             ("POST", r"/api/r/save", lambda r: T.save(need(r), r.body)),
             ("GET", r"/api/r/saves", lambda r: C.saves(need(r))),
@@ -94,7 +108,7 @@ class Api:
             ("POST", r"/api/r/missions/delete", lambda r: M.remove(need(r), (r.body or {}).get("id"))),
             ("POST", r"/api/r/auth/request", lambda r: A.request_link(r.body.get("email"), r.ip, *M.pending(r.body.get("mission")))),
             ("GET", r"/api/r/auth/verify", self._verify),
-            ("GET", r"/api/r/auth/me", lambda r: A.me(r.session)),
+            ("GET", r"/api/r/auth/me", lambda r: {**A.me(r.session), "variant": "t" if control(uid(r)) else "p"}),   # 401 sans session
             ("POST", r"/api/r/auth/logout", lambda r: Response(200, {"ok": True}, cookie=A.logout(r.session))),
             ("GET", r"/api/r/health", lambda r: self._health()),
         ]]
@@ -131,6 +145,17 @@ class Api:
         body = {"status": state, "last_night": utc(last["ended"]) if last else None,
                 "catalog": self.store.q("SELECT COUNT(*) n FROM catalog", one=True)["n"]}
         return Response(503 if state == "critical" else 200, body)
+
+    def _profile(self, r):
+        """Ce que l'app retient et a compris des goûts : rayons choisis (du compte ; sans compte, ceux que le navigateur
+        envoie), rayons et marques compris (taste), apprentissage par les fiches et les clics (compte), témoin ou non."""
+        who = self.accounts.user(r.session)
+        prof = self.profiles.of(who, r.query, self._recent(r.query))
+        return {"picks": list(prof.picks) if who is None else [x["category"] for x in self.store.q(
+                    "SELECT category FROM interests WHERE user_id=? ORDER BY created_at", (who,))],
+                "taste": self.catalog.taste(prof), "learn": bool(self.profiles.prefs(who)["learn"]) if who else None,
+                "variant": ("t" if control(who) else "p") if who else ("t" if r.query.get("v") == "t" else "p"),
+                "signed_in": who is not None}
 
     def _verify(self, r):
         """Le lien ouvert connecte la personne ; la mission qui attendait ce lien est lancée, et l'app l'ouvre."""

@@ -1,7 +1,9 @@
 """Lectures de l'app — sur le catalogue publié, sans aucun calcul de marché.
 
-Chaque lecture = une ou deux requêtes indexées ; seuls l'ordre (marque suivie × 1,5) et les signets dépendent de la
-personne connectée. La recherche est insensible aux accents, à la casse et aux tirets ; chaque mot cherché doit
+Chaque lecture = une ou deux requêtes indexées ; l'ordre (le profil de goûts, profile.py : au plus × 1,5) et les signets
+dépendent de la personne. L'accueil sans filtre, les top deals, « pour vous » et le feed de la Recherche suivent ses goûts ;
+une recherche, un filtre, une pièce, une marque ou une catégorie répondent à ce qui est demandé (seule la marque suivie y
+compte, comme avant). La recherche est insensible aux accents, à la casse et aux tirets ; chaque mot cherché doit
 commencer un mot du produit (titre, marque, enseigne, catégorie) ; quelques synonymes du langage courant.
 
 Une carte porte la marque et la catégorie au singulier (`kind`). La fiche dit où se situe le prix du jour sur les trois
@@ -18,14 +20,15 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from itertools import zip_longest
 
+from . import profile as P
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
 
-FOLLOW_BOOST = 1.5
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
 SORTS = ("relevance", "price", "discount")                 # Recherche : pertinence, prix croissant, remise
-TOP_LIMIT = 10                                             # accueil : top deals
+TOP_LIMIT = 10                                             # accueil : top deals (et « pour vous »)
+TOP_SAME = 3                                               # top deals suivant les goûts : au plus trois places par rayon
 LOW_DAYS = 60                                              # « depuis longtemps » : au moins 2 mois de prix relevés
 LOW_DROP = 0.10                                            # et au moins 10 % sous le prix habituel
 PROMO_STEPS = (1, 10, 20, 30, 40, 50)                      # filtre Promo : en promo, puis −10 % et plus, −20 %…
@@ -183,32 +186,45 @@ class Catalog:
                 "pct": r["pct"], "merchant": r["merchant"], "offer_id": r["offer_id"], "since": r["since"], "ends": r["ends"], "published_on": r["published_on"],
                 "followed": r["brand"] in followed, "saved": r["product_id"] in saved}
 
-    def today(self, uid=None, category=None, q=None):
-        """Remises du jour ; category : une catégorie ou plusieurs, séparées par des virgules (univers, pièce)."""
+    def _profile(self, prof, followed):
+        """Le profil de la lecture ; sans profil (appel interne), l'ordre d'avant : la marque suivie compte 1,5 fois."""
+        return prof if prof is not None else P.Profile(follows=frozenset(followed))
+
+    def today(self, uid=None, category=None, q=None, prof=None):
+        """Remises du jour ; category : une catégorie ou plusieurs, séparées par des virgules (univers, pièce). Sans filtre,
+        l'ordre suit les goûts (profile.arrange) ; avec, il répond à ce qui est demandé."""
         followed, saved = self._personal(uid)
         cats = [c for c in (category or "").split(",") if c]
         where, args = (f" AND category IN ({','.join('?' * len(cats))})", tuple(cats)) if cats else ("", ())
         toks = tokens(q) if q else []
+        prof = self._profile(None if cats or toks else prof, followed)
         # colonnes légères pour filtrer et classer, lignes complètes pour le seul haut de liste montré
-        rows = self.s.q("SELECT product_id, pct, brand" + (", search" if toks else "") + " FROM catalog WHERE pct > 0" + where, args)
-        hits = [r for r in rows if not toks or matches(r["search"], toks)]
-        score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
-        hits.sort(key=lambda r: (-score(r), r["product_id"]))
-        return {**self._page(hits, score, uid, followed, saved), "published_at": self.published_at()}
+        rows = self.s.q("SELECT product_id, pct, brand, category" + (", search" if toks else "") + " FROM catalog WHERE pct > 0" + where, args)
+        hits = P.arrange([r for r in rows if not toks or matches(r["search"], toks)], lambda r: r["pct"], prof)
+        score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
+        return {**self._page(hits, score, uid, followed, saved), "published_at": self.published_at(), "personal": prof.personal}
 
-    def top(self, uid=None):
-        """Top deals, en tête de l'accueil : les plus fortes remises réelles (une marque suivie compte 1,5 fois) et les prix
-        parmi les plus bas depuis longtemps (`cheap`, ce qu'ils font économiser sur le prix habituel d'abord), à tour de
-        rôle, sans doublon. why : pourquoi chacun est là (la remise ; le prix bas, son verdict et depuis combien de jours)."""
+    def top(self, uid=None, prof=None):
+        """Top deals, en tête de l'accueil : les plus fortes remises réelles et les prix parmi les plus bas depuis longtemps
+        (`cheap`, ce qu'ils font économiser sur le prix habituel d'abord), à tour de rôle, sans doublon ; les goûts de la
+        personne pèsent au plus × 1,5 (une marque suivie aussi) et un même rayon n'y prend pas plus de trois places.
+        why : pourquoi chacun est là (la remise ; le prix bas, son verdict et depuis combien de jours)."""
         followed, saved = self._personal(uid)
-        rows = self.s.q("SELECT product_id, pct, brand, price, level, span, usual FROM catalog")
-        score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
-        deals = sorted((r for r in rows if r["pct"] > 0), key=lambda r: (-score(r), r["price"], r["product_id"]))
-        low = sorted((r for r in rows if cheap(r)), key=lambda r: ((r["price"] - r["usual"]) / r["usual"], r["product_id"]))
-        picked, seen = [], set()
+        prof = self._profile(prof, followed)
+        rows = self.s.q("SELECT product_id, pct, brand, category, price, level, span, usual FROM catalog")
+        drop = lambda r: (r["usual"] - r["price"]) / r["usual"]
+        if prof.personal:
+            deals = P.arrange([r for r in rows if r["pct"] > 0], lambda r: r["pct"], prof)
+            low = P.arrange([r for r in rows if cheap(r)], drop, prof)
+        else:                                              # l'ordre d'avant, à l'identique
+            score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
+            deals = sorted((r for r in rows if r["pct"] > 0), key=lambda r: (-score(r), r["price"], r["product_id"]))
+            low = sorted((r for r in rows if cheap(r)), key=lambda r: (-drop(r), r["product_id"]))
+        picked, seen, per = [], set(), Counter()
         for r in (r for turn in zip_longest(deals, low) for r in turn if r):
-            if r["product_id"] not in seen and len(picked) < TOP_LIMIT:
+            if r["product_id"] not in seen and len(picked) < TOP_LIMIT and (not prof.personal or per[r["category"]] < TOP_SAME):
                 seen.add(r["product_id"])
+                per[r["category"]] += 1
                 picked.append(r)
         full = {r["product_id"]: r for r in self.s.q(f"SELECT * FROM catalog WHERE product_id IN ({','.join('?' * len(picked))})",
                                                      [r["product_id"] for r in picked])} if picked else {}
@@ -221,7 +237,7 @@ class Catalog:
         r = self.s.q("SELECT value FROM meta WHERE key='published_at'", one=True)
         return float(r["value"]) if r else None
 
-    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance", recent=(), low=False):
+    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance", recent=(), low=False, prof=None):
         """La Recherche répond à une intention précise, dans tout le catalogue suivi (pas seulement les remises).
 
         Filtres : catégorie, budget (lo ≤ prix ≤ hi), promo : remise minimale (off, en %) ou prix parmi les plus bas
@@ -229,12 +245,14 @@ class Catalog:
         de promo et pour « prix bas », avant le filtre de promo (le filtre dit ce que chaque choix donnera).
         Tri : pertinence (`relevance`), prix croissant, ou remise. Sans mot ni filtre, la pertinence donne le feed : les
         produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis tout
-        le catalogue, une catégorie à tour de rôle (`breadth`) ; recent dans la réponse : les recherches qui ont orienté
-        le feed. categories : combien de produits trouvés par catégorie, avant le filtre de catégorie (le filtre propose
-        ce qui existe)."""
+        le catalogue, une catégorie à tour de rôle (`breadth`) ; avec des goûts connus (prof), après les recherches
+        récentes, les produits de vos rayons et de vos marques, un sur quatre pris ailleurs (`profile.blend`) ; recent dans
+        la réponse : les recherches qui ont orienté le feed. categories : combien de produits trouvés par catégorie, avant
+        le filtre de catégorie (le filtre propose ce qui existe)."""
         toks = tokens(q) if q else []
         feed = not toks and not (category or lo is not None or hi is not None or off or low)
         followed, saved = self._personal(uid)
+        prof = self._profile(prof if feed else None, followed)
         base = [r for r in self.s.q("SELECT product_id, pct, brand, price, category, search, level, span, usual FROM catalog")
                 if (not toks or matches(r["search"], toks)) and (lo is None or r["price"] >= lo) and (hi is None or r["price"] <= hi)]
         promo = lambda r: (not off or r["pct"] >= off) and (not low or cheap(r))
@@ -242,7 +260,7 @@ class Catalog:
         facet = Counter(r["category"] for r in base if promo(r))
         offs = {**{str(k): sum(r["pct"] >= k for r in here) for k in PROMO_STEPS}, "low": sum(cheap(r) for r in here)}
         hits = [r for r in here if promo(r)]
-        score = lambda r: r["pct"] * (FOLLOW_BOOST if r["brand"] in followed else 1)
+        score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
         used = []
         if sort == "price":
             hits.sort(key=lambda r: (r["price"], r["product_id"]))
@@ -251,14 +269,45 @@ class Catalog:
         elif feed:
             head, used = lead(hits, recent, score)
             seen = {r["product_id"] for r in head}
-            hits = head + breadth([r for r in hits if r["product_id"] not in seen], relevance(toks, score))
+            rest = [r for r in hits if r["product_id"] not in seen]
+            yours = P.diversify(sorted(P.mine(rest, prof), key=lambda r: (r["pct"] <= 0, -score(r), -prof.direct(r["category"], r["brand"]),
+                                                                          r["price"], r["product_id"])))
+            taken = {r["product_id"] for r in yours}
+            hits = head + P.blend(yours, breadth([r for r in rest if r["product_id"] not in taken], relevance(toks, score)))
         else:
             hits.sort(key=relevance(toks, score))
         out = self._page(hits, score, uid, followed, saved)
         out["categories"] = sorted(({"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in facet.items()),
                                    key=lambda c: (-c["count"], c["label"]))
-        out["recent"], out["offs"] = used, offs
+        out["recent"], out["offs"], out["personal"] = used, offs, prof.personal      # hors du feed : jamais personnel
         return out
+
+    def foryou(self, uid=None, prof=None):
+        """« Pour vous », sur l'accueil : les deals et les prix bas de vos rayons et de vos marques (affinité directe d'au
+        moins 0,3), les meilleurs d'abord selon l'intérêt du deal × vos goûts, deux au plus d'un même rayon sur quatre,
+        TOP_LIMIT au plus ; rien sans goûts connus. taste : ce que l'app a compris, pour le dire."""
+        followed, saved = self._personal(uid)
+        prof = self._profile(prof, followed)
+        rows = self.s.q("SELECT product_id, pct, brand, category, price, level, span, usual FROM catalog")
+        value = lambda r: r["pct"] if r["pct"] > 0 else round(100 * (r["usual"] - r["price"]) / r["usual"])
+        good = [r for r in P.mine(rows, prof) if r["pct"] > 0 or cheap(r)]
+        picked = P.diversify(sorted(good, key=lambda r: (-value(r) * prof.boost(r["category"], r["brand"]), r["price"],
+                                                         r["product_id"])))[:TOP_LIMIT]
+        full = {r["product_id"]: r for r in self.s.q(f"SELECT * FROM catalog WHERE product_id IN ({','.join('?' * len(picked))})",
+                                                     [r["product_id"] for r in picked])} if picked else {}
+        return {"products": [{**self._card(full[r["product_id"]], followed, saved),
+                              "why": {"pct": r["pct"], "low": r["level"] if cheap(r) else None, "days": r["span"] if cheap(r) else None}}
+                             for r in picked], "taste": self.taste(prof)}
+
+    def taste(self, prof):
+        """Ce que l'app a compris des goûts, pour le dire et le corriger : rayons (choisis ou vus) et marques (suivies ou
+        vues) d'affinité directe d'au moins 0,3, les plus forts d'abord (quatre rayons, trois marques au plus)."""
+        if not prof.personal:
+            return {"cats": [], "brands": [], "personal": False}
+        cats = sorted(((a, c) for c, a in prof.cats.items() if a >= P.MINE), key=lambda x: (-x[0], x[1]))[:4]
+        brands = sorted(((a, b) for b, a in prof.brands.items() if a >= P.MINE), key=lambda x: (-x[0], x[1]))[:3]
+        return {"cats": [{"key": c, "label": CATEGORY_LABEL.get(c, c), "chosen": a >= 1} for a, c in cats],   # choisi : 1 ; vu : 0,8 au plus
+                "brands": [{"name": b, "chosen": a >= 1} for a, b in brands], "personal": True}
 
     def _page(self, hits, score, uid, followed, saved):
         """Lignes complètes et cartes pour le seul haut de liste montré."""

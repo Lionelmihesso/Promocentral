@@ -14,7 +14,7 @@ import random
 import statistics
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from deals import config
@@ -149,7 +149,12 @@ def main(argv=None):
               ("category/<clé>", f"/api/r/category/{cat}", {}, ""),
               ("item/<id>", f"/api/r/item/{pid}", {}, ""), ("today (connecté)", "/api/r/today", {}, session),
               ("saves (connecté)", "/api/r/saves", {}, session), ("missions (connecté)", "/api/r/missions", {}, session),
-              ("missions/parse", "/api/r/missions/parse", {"text": "lave-linge 9 kg sous 500 €"}, "")]
+              ("missions/parse", "/api/r/missions/parse", {"text": "lave-linge 9 kg sous 500 €"}, ""),
+              ("top", "/api/r/top", {}, ""),
+              ("top (2 rayons choisis)", "/api/r/top", {"i": "lave_linge,matelas"}, ""),
+              ("foryou (2 rayons choisis)", "/api/r/foryou", {"i": "lave_linge,matelas"}, ""),
+              ("search (feed, 20 fiches vues)", "/api/r/search", {"p": ",".join(f"v{d['id']}.{k}" for k, d in enumerate(deals[:20]))}, ""),
+              ("top (connecté, goûts)", "/api/r/top", {}, session), ("foryou (connecté)", "/api/r/foryou", {}, session)]
     for i, (c, want) in enumerate([("lave_linge", {"capacity_kg": 9}), ("lit", {"bed_size": "160x200"}), ("canape", {"seats": 3}),
                                    ("matelas", {}), ("four", {})]):
         api.handle(Request("POST", "/api/r/missions", session=session, body={"category": c, "attrs": want, "max_price": 400 + 100 * i}))

@@ -15,9 +15,11 @@ from .market import utc_day
 # (saved), « Moins cher, comparable » (alternative), les produits
 # similaires (similar), une mission dans l'app (mission) ou son e-mail (mail), la page d'une marque (brand) ou d'une
 # catégorie (category), les résultats d'une recherche (search) ou le feed de la Recherche avant toute recherche (feed) :
-# la part de « search » dit si l'on cherche vraiment ; les autres valeurs viennent des versions précédentes de l'app
+# la part de « search » dit si l'on cherche vraiment ; « home » : notre sélection sur l'accueil, « foryou » : « pour vous »,
+# « room » : une pièce ; les autres valeurs viennent des versions précédentes de l'app
 CLICK_SOURCES = {"item", "top", "alternative", "similar", "mission", "mail", "brand", "category", "search", "feed", "saved",
-                 "hero", "today", "explore"}
+                 "home", "foryou", "room", "hero", "today", "explore"}
+VARIANTS = {"p", "t"}                     # p : ordre personnalisé ; t : témoin, sans personnalisation (profile.py)
 SEGMENT = ("CASE WHEN user_id IS NULL THEN 'sans compte' WHEN user_id IN (SELECT user_id FROM missions) THEN 'avec mission' "
            "ELSE 'connecté, sans mission' END")
 
@@ -64,16 +66,18 @@ class Activity:
     def follows(self, uid):
         return {"brands": [r["brand"] for r in self.s.q("SELECT brand FROM follows WHERE user_id=? ORDER BY brand", (uid,))]}
 
-    def click(self, uid, offer_id, source, mission=None):
-        """Trace le clic → l'adresse où envoyer la personne : le lien affilié de l'enseigne, avec l'identifiant du clic."""
+    def click(self, uid, offer_id, source, mission=None, variant=None):
+        """Trace le clic → l'adresse où envoyer la personne : le lien affilié de l'enseigne, avec l'identifiant du clic ;
+        variant : personnalisé (p) ou témoin (t), pour mesurer ce que la personnalisation rapporte."""
         o = self.s.q("SELECT id, product_id, retailer, merchant, url FROM offers WHERE id=?", (offer_id,), one=True)
         if not o or not o["product_id"] or not (o["url"] or "").startswith(("http://", "https://")):
             raise NotFound("offre inconnue")
         now, rule = self.clock(), (self.rules or {}).get(o["retailer"])
-        cid = self.s.x("INSERT INTO clicks(at, day, user_id, product_id, offer_id, merchant, source, partner, mission_id) "
-                       "VALUES (?,?,?,?,?,?,?,?,?)", (now, utc_day(now).isoformat(), uid, o["product_id"], o["id"], o["merchant"],
-                                                     source if source in CLICK_SOURCES else None,
-                                                     None if self.rules is None else int(rule is not None), self._mission(mission)))
+        cid = self.s.x("INSERT INTO clicks(at, day, user_id, product_id, offer_id, merchant, source, partner, mission_id, variant) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?)", (now, utc_day(now).isoformat(), uid, o["product_id"], o["id"], o["merchant"],
+                                                       source if source in CLICK_SOURCES else None,
+                                                       None if self.rules is None else int(rule is not None), self._mission(mission),
+                                                       variant if variant in VARIANTS else None))
         return affiliate.link(o["url"], rule, cid) or o["url"]
 
     def view(self, uid, body):
@@ -84,9 +88,10 @@ class Activity:
             raise BadRequest("produit invalide")
         if not self.s.q("SELECT 1 FROM catalog WHERE product_id=?", (pid,), one=True):
             raise NotFound("produit inconnu")
-        now, source = self.clock(), body.get("from")
-        self.s.x("INSERT INTO views(at, day, user_id, product_id, source, mission_id) VALUES (?,?,?,?,?,?)",
-                 (now, utc_day(now).isoformat(), uid, pid, source if source in CLICK_SOURCES else None, self._mission(body.get("m"))))
+        now, source, variant = self.clock(), body.get("from"), body.get("v")
+        self.s.x("INSERT INTO views(at, day, user_id, product_id, source, mission_id, variant) VALUES (?,?,?,?,?,?,?)",
+                 (now, utc_day(now).isoformat(), uid, pid, source if source in CLICK_SOURCES else None, self._mission(body.get("m")),
+                  variant if variant in VARIANTS else None))
         return {"ok": True}
 
     def funnel(self, group):
@@ -100,14 +105,16 @@ class Activity:
     def metrics(self, days=14):
         """La conversion vue d'ici : par écran (source) et selon la personne (avec mission, connectée sans mission, sans
         compte), les fiches vues, les clics vers l'enseigne et le taux de clic ; la part des clics partis chez un partenaire
-        (rémunérables) ; les clics venus des missions, dans l'app ou par e-mail. Les ventes viennent des rapports du
-        réseau, rattachées par l'identifiant du clic."""
+        (rémunérables) ; les clics venus des missions, dans l'app ou par e-mail ; personnalisé ou témoin (by_variant : ce
+        que la personnalisation rapporte, par écran). Les ventes viennent des rapports du réseau, rattachées par
+        l'identifiant du clic."""
         paid = self.s.q("SELECT SUM(partner = 1) p, COUNT(partner) n FROM clicks", one=True)
         missions = self.s.q("SELECT COUNT(*) n, COUNT(DISTINCT mission_id) m FROM clicks WHERE mission_id IS NOT NULL", one=True)
         return {"total_clicks": self.s.q("SELECT COUNT(*) n FROM clicks", one=True)["n"],
                 "by_day": self.s.q("SELECT day, COUNT(*) n, COUNT(DISTINCT product_id) products, SUM(user_id IS NOT NULL) signed "
                                    "FROM clicks GROUP BY day ORDER BY day DESC LIMIT ?", (days,)),
                 "by_source": self.funnel("source"), "by_person": self.funnel(SEGMENT),
+                "by_variant": self.funnel("variant || ' · ' || COALESCE(source, '?')"),
                 "partner_share": round(paid["p"] / paid["n"], 3) if paid["n"] else None,
                 "from_missions": {"clicks": missions["n"], "missions": missions["m"]},
                 "accounts": self.s.q("SELECT COUNT(*) n FROM users", one=True)["n"]}
