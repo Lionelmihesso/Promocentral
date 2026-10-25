@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -144,6 +144,23 @@ MIGRATIONS = {
         "ALTER TABLE views ADD COLUMN variant TEXT",
         "ALTER TABLE clicks ADD COLUMN variant TEXT",
     ],
+    12: [  # comptes sans e-mail (invités : favoris, marques, missions sans connexion ; l'adresse s'ajoute ensuite) ; missions =
+           # recherches sauvegardées : prix facultatif, alerte par e-mail réglable, nouveautés depuis le dernier regard.
+           # SQLite ne retire pas un NOT NULL : les deux tables sont recopiées (clés étrangères suspendues, store.Store)
+        "CREATE TABLE users_v12 (id INTEGER PRIMARY KEY, email TEXT UNIQUE, created_at REAL NOT NULL)",
+        "INSERT INTO users_v12(id, email, created_at) SELECT id, email, created_at FROM users",
+        "DROP TABLE users",
+        "ALTER TABLE users_v12 RENAME TO users",
+        "CREATE TABLE missions_v12 (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+        "product_id INTEGER, category TEXT, brand TEXT, want TEXT NOT NULL DEFAULT '{}', max_price REAL, label TEXT NOT NULL, "
+        "created_at REAL NOT NULL, notified TEXT NOT NULL DEFAULT '{}', alert INTEGER NOT NULL DEFAULT 1, seen TEXT, opened_at REAL)",
+        "INSERT INTO missions_v12(id, user_id, product_id, category, brand, want, max_price, label, created_at, notified) "
+        "SELECT id, user_id, product_id, category, brand, want, max_price, label, created_at, notified FROM missions",
+        "DROP TABLE missions",
+        "ALTER TABLE missions_v12 RENAME TO missions",
+        "CREATE INDEX missions_user ON missions(user_id)",
+        "ALTER TABLE login_links ADD COLUMN guest_id INTEGER",
+    ],
 }
 
 
@@ -166,6 +183,7 @@ class Store:
         self._local = threading.local()
         c = self.conn()
         c.execute("PRAGMA journal_mode=WAL")
+        c.execute("PRAGMA foreign_keys=OFF")              # une migration peut recopier une table (12) : rien ne cascade
         c.execute("BEGIN IMMEDIATE")
         try:
             version = c.execute("PRAGMA user_version").fetchone()[0]
@@ -182,11 +200,16 @@ class Store:
                 version += 1
                 for st in MIGRATIONS[version]:
                     c.execute(st)
+            broken = c.execute("PRAGMA foreign_key_check").fetchall()
+            if broken:
+                raise RuntimeError(f"{self.path} : références cassées après migration ({len(broken)})")
             c.execute(f"PRAGMA user_version={version}")
             c.execute("COMMIT")
         except BaseException:
             c.execute("ROLLBACK")
             raise
+        finally:
+            c.execute("PRAGMA foreign_keys=ON")
 
     def conn(self):
         """Connexion du fil courant (créée à la demande)."""

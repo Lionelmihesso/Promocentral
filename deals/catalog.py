@@ -21,8 +21,10 @@ from functools import lru_cache
 from itertools import zip_longest
 
 from . import profile as P
+from . import query
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
+from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS  # noqa: F401  (relus par missions, profile)
 
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
@@ -32,30 +34,11 @@ TOP_SAME = 3                                               # top deals suivant l
 LOW_DAYS = 60                                              # « depuis longtemps » : au moins 2 mois de prix relevés
 LOW_DROP = 0.10                                            # et au moins 10 % sous le prix habituel
 PROMO_STEPS = (1, 10, 20, 30, 40, 50)                      # filtre Promo : en promo, puis −10 % et plus, −20 %…
+OPTION_ATTRS = {"capacity_kg": "Capacité", "place_settings": "Couverts", "zones": "Foyers", "seats": "Places", "bed_size": "Taille",
+                "width_cm": "Largeur", "volume_l": "Volume", "autonomy_min": "Autonomie", "energy_class": "Classe énergie"}   # Affiner
 RECENT_SEARCHES = 4                                        # feed : les dernières recherches gardées par le navigateur
 RECENT_EACH = 6                                            # feed : produits au plus par recherche récente, en tête
 FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
-CATEGORY_LABEL = {
-    "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchants", "seche_linge": "Sèche-linge",
-    "lave_vaisselle": "Lave-vaisselle", "refrigerateur": "Réfrigérateurs", "congelateur": "Congélateurs", "four": "Fours",
-    "plaque_cuisson": "Plaques de cuisson", "hotte": "Hottes", "cuisiniere": "Cuisinières", "micro_ondes": "Micro-ondes",
-    "machine_cafe": "Machines à café", "canape": "Canapés", "fauteuil": "Fauteuils", "lit": "Lits", "armoire": "Armoires",
-    "table": "Tables", "buffet": "Buffets", "meuble_tv": "Meubles TV", "commode": "Commodes", "luminaire": "Luminaires",
-    "matelas": "Matelas", "sommier": "Sommiers", "televiseur": "Téléviseurs", "smartphone": "Smartphones",
-    "ordinateur_portable": "Ordinateurs portables", "casque_audio": "Casques", "enceinte": "Enceintes", "tablette": "Tablettes",
-    "robot_aspirateur": "Robots aspirateurs", "aspirateur": "Aspirateurs", "montre_connectee": "Montres connectées"}
-CATEGORY_ONE = {
-    "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchant", "seche_linge": "Sèche-linge",
-    "lave_vaisselle": "Lave-vaisselle", "refrigerateur": "Réfrigérateur", "congelateur": "Congélateur", "four": "Four",
-    "plaque_cuisson": "Plaque de cuisson", "hotte": "Hotte", "cuisiniere": "Cuisinière", "micro_ondes": "Micro-ondes",
-    "machine_cafe": "Machine à café", "canape": "Canapé", "fauteuil": "Fauteuil", "lit": "Lit", "armoire": "Armoire",
-    "table": "Table", "buffet": "Buffet", "meuble_tv": "Meuble TV", "commode": "Commode", "luminaire": "Luminaire",
-    "matelas": "Matelas", "sommier": "Sommier", "televiseur": "Téléviseur", "smartphone": "Smartphone",
-    "ordinateur_portable": "Ordinateur portable", "casque_audio": "Casque", "enceinte": "Enceinte", "tablette": "Tablette",
-    "robot_aspirateur": "Robot aspirateur", "aspirateur": "Aspirateur", "montre_connectee": "Montre connectée"}
-FEATURE_LABEL = {"sans_fil": "Sans fil", "balai": "Balai", "traineau": "Traîneau", "laveur": "Laveur", "convertible": "Convertible",
-                 "angle": "D'angle", "induction": "Induction", "encastrable": "Encastrable", "americain": "Américain",
-                 "electrique": "Électrique"}
 SYNONYMS = {
     "frigo": "refrigerateur", "refrigerateurs": "refrigerateur", "congelo": "congelateur", "congel": "congelateur",
     "lavevaisselle": "lave vaisselle", "lavelinge": "lave linge", "laver": "lave linge", "induction": "plaque", "plaques": "plaque",
@@ -170,6 +153,8 @@ def matches(search, toks):
 class Catalog:
     def __init__(self, store):
         self.s = store
+        self._brands = ("?", [])                           # marques du catalogue, le temps d'une publication (« ? » : pas encore lues)
+        self._attrs = ("?", {})                            # caractéristiques lues des produits publiés, le temps d'une publication
 
     def _personal(self, uid):
         if uid is None:
@@ -237,34 +222,93 @@ class Catalog:
         r = self.s.q("SELECT value FROM meta WHERE key='published_at'", one=True)
         return float(r["value"]) if r else None
 
-    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort="relevance", recent=(), low=False, prof=None):
+    def brand_names(self):
+        """Les marques du catalogue publié (pour comprendre une phrase), relues à chaque publication."""
+        at = self.published_at()
+        if self._brands[0] != at:
+            self._brands = (at, [r["brand"] for r in self.s.q("SELECT DISTINCT brand FROM catalog WHERE brand IS NOT NULL")])
+        return self._brands[1]
+
+    def attrs_of(self, rows):
+        """Les caractéristiques (JSON de catalog.attrs) des lignes données, lues une fois par publication."""
+        at = self.published_at()
+        if self._attrs[0] != at:
+            self._attrs = (at, {})
+        memo = self._attrs[1]
+        return [memo.get(r["product_id"]) or memo.setdefault(r["product_id"], json.loads(r["attrs"] or "{}")) for r in rows]
+
+    def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort=None, recent=(), low=False, prof=None,
+               brand=None, features=(), attrs=None, room=None):
         """La Recherche répond à une intention précise, dans tout le catalogue suivi (pas seulement les remises).
 
-        Filtres : catégorie, budget (lo ≤ prix ≤ hi), promo : remise minimale (off, en %) ou prix parmi les plus bas
-        depuis longtemps (low, `cheap`) ; sans mot, les filtres suffisent. offs : combien de produits pour chaque palier
-        de promo et pour « prix bas », avant le filtre de promo (le filtre dit ce que chaque choix donnera).
-        Tri : pertinence (`relevance`), prix croissant, ou remise. Sans mot ni filtre, la pertinence donne le feed : les
-        produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis tout
-        le catalogue, une catégorie à tour de rôle (`breadth`) ; avec des goûts connus (prof), après les recherches
-        récentes, les produits de vos rayons et de vos marques, un sur quatre pris ailleurs (`profile.blend`) ; recent dans
-        la réponse : les recherches qui ont orienté le feed. categories : combien de produits trouvés par catégorie, avant
-        le filtre de catégorie (le filtre propose ce qui existe)."""
-        toks = tokens(q) if q else []
-        feed = not toks and not (category or lo is not None or hi is not None or off or low)
+        q est une phrase comprise (query.read) : « aspirateur balai sans fil sous 300 € » donne un rayon, des fonctions, un
+        budget ; les critères choisis dans l'app (category, brand, features, attrs, lo ≤ prix ≤ hi, off : remise minimale,
+        low : prix parmi les plus bas depuis longtemps, `cheap`) l'emportent sur ce que dit la phrase. Les mots qui restent
+        (« velours ») filtrent s'ils trouvent quelque chose, sinon ils sont signalés (ignored) et la réponse garde le reste ;
+        une phrase dont rien n'est compris est cherchée mot à mot (chaque mot doit commencer un mot du produit). Rien sous
+        le budget : les plus proches au-dessus, du moins cher au plus cher (relaxed). offs : combien de produits pour chaque
+        palier de promo et pour « prix bas », avant le filtre de promo ; categories : combien par catégorie, avant le
+        filtre de catégorie (les filtres disent ce que chaque choix donnera).
+        Tri : pertinence (`relevance`), prix croissant (« pas cher »), ou remise. Sans mot ni filtre, le feed : les
+        produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis, avec
+        des goûts connus (prof), ceux de ses rayons et de ses marques, un sur quatre pris ailleurs (`profile.blend`), puis
+        tout le catalogue, une catégorie à tour de rôle (`breadth`) ; recent dans la réponse : les recherches qui ont
+        orienté le feed. said : ce que la phrase seule demande (l'app en fait des critères à elle quand on touche une puce)."""
+        said = query.read(q, self.brand_names()) if q else query.read("")
+        crit = {"category": category or said["category"], "room": None if category else room or said["room"], "brand": brand or said["brand"],
+                "features": sorted(set(features) | set(said["features"])), "attrs": {**said["attrs"], **(attrs or {})},
+                "min_price": lo if lo is not None else said["min_price"], "max_price": hi if hi is not None else said["max_price"],
+                "off": off or said["off"], "low": bool(low or said["low"]), "sort": sort or said["sort"] or "relevance"}
+        understood = any(crit[k] for k in ("category", "room", "brand", "features", "attrs", "off", "low")) or \
+            crit["min_price"] is not None or crit["max_price"] is not None
+        words = said["rest"]
+        feed = not q and not understood
         followed, saved = self._personal(uid)
         prof = self._profile(prof if feed else None, followed)
-        base = [r for r in self.s.q("SELECT product_id, pct, brand, price, category, search, level, span, usual FROM catalog")
-                if (not toks or matches(r["search"], toks)) and (lo is None or r["price"] >= lo) and (hi is None or r["price"] <= hi)]
-        promo = lambda r: (not off or r["pct"] >= off) and (not low or cheap(r))
-        here = [r for r in base if not category or r["category"] == category]
+        spec = {"brand": crit["brand"], "features": crit["features"], "attrs": crit["attrs"]}
+        detailed = bool(crit["features"] or crit["attrs"])
+        rows = self.s.q("SELECT product_id, pct, brand, price, category, search, level, span, usual" + (", attrs" if detailed else "")
+                        + " FROM catalog")
+        if detailed:                                       # fonctions et tailles : lues pour les seuls produits du rayon
+            rows = [r for r in rows if not crit["category"] or r["category"] == crit["category"]]
+            rows = [{**r, "attrs": a} for r, a in zip(rows, self.attrs_of(rows))]
+        toks = tokens(" ".join(words))
+        promo = lambda r: (not crit["off"] or r["pct"] >= crit["off"]) and (not crit["low"] or cheap(r))
+
+        rayons = {crit["category"]} if crit["category"] else set(ROOMS[crit["room"]][1]) if crit["room"] in ROOMS else None
+        within = lambda rs: [r for r in rs if rayons is None or r["category"] in rayons]
+
+        fit = query.fitter(spec)
+
+        def select(top):
+            base = [r for r in rows if (crit["min_price"] is None or r["price"] >= crit["min_price"]) and (top is None or r["price"] <= top)
+                    and (not crit["brand"] or (r["brand"] or "").lower() == crit["brand"].lower()) and (not detailed or fit(r))]
+            return base, within(base)
+
+        base, here = select(crit["max_price"])
+        ignored = []
+        if toks:
+            hit = [r for r in base if matches(r["search"], toks)]
+            if within(hit) or not understood:               # rien n'est compris : la phrase est cherchée mot à mot
+                base, here = hit, within(hit)
+            else:
+                ignored, words, toks = words, [], []       # « dyson » : rien de tel ; le reste de la demande tient
+        hits = [r for r in here if promo(r)] if not said["unsupported"] else []
+        relaxed = None
+        if not hits and crit["max_price"] is not None and not said["unsupported"]:
+            _, over = select(None)                         # rien sous le budget : les plus proches au-dessus
+            over = sorted((r for r in over if promo(r) and (not toks or matches(r["search"], toks))), key=lambda r: (r["price"], r["product_id"]))
+            if over:
+                hits, relaxed = over, {"max_price": crit["max_price"], "from": over[0]["price"]}
         facet = Counter(r["category"] for r in base if promo(r))
         offs = {**{str(k): sum(r["pct"] >= k for r in here) for k in PROMO_STEPS}, "low": sum(cheap(r) for r in here)}
-        hits = [r for r in here if promo(r)]
         score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
         used = []
-        if sort == "price":
+        if relaxed:
+            pass                                           # déjà du moins cher au plus cher
+        elif crit["sort"] == "price":
             hits.sort(key=lambda r: (r["price"], r["product_id"]))
-        elif sort == "discount":
+        elif crit["sort"] == "discount":
             hits.sort(key=lambda r: (-r["pct"], r["price"], r["product_id"]))
         elif feed:
             head, used = lead(hits, recent, score)
@@ -279,8 +323,56 @@ class Catalog:
         out = self._page(hits, score, uid, followed, saved)
         out["categories"] = sorted(({"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in facet.items()),
                                    key=lambda c: (-c["count"], c["label"]))
+        crit["words"] = words
         out["recent"], out["offs"], out["personal"] = used, offs, prof.personal      # hors du feed : jamais personnel
+        out["criteria"], out["chips"], out["words"], out["ignored"] = crit, query.chips(crit), words, ignored
+        out["unsupported"] = CATEGORY_LABEL.get(said["unsupported"]) if said["unsupported"] else None
+        out["relaxed"] = relaxed
+        out["options"] = self._options(crit, toks, promo, relaxed, rayons) if rayons else None
+        out["said"] = {k: said[k] for k in ("category", "room", "brand", "features", "attrs", "min_price", "max_price", "off", "low", "sort")}
         return out
+
+    def _options(self, crit, toks, promo, relaxed, rayons):
+        """Affiner une recherche dans un rayon : les fonctions, les tailles ou capacités et les marques qui y existent (dans
+        une pièce : les marques). Chaque choix dit combien de produits la recherche donnerait avec lui, ses autres critères
+        gardés (budget, promo, mots, fonctions, tailles, marque) : un choix qui ne donne rien, ou qui ne change rien, n'est
+        pas proposé, sauf s'il est déjà pris (pour pouvoir le retirer)."""
+        category, chosen, feats, brand = crit["category"], crit["attrs"], set(crit["features"]), crit["brand"]
+        top = None if relaxed else crit["max_price"]          # rien sous le budget : les plus proches, au-dessus, sont montrés
+        cats = sorted(rayons)
+        found = [r for r in self.s.q(f"SELECT product_id, brand, price, pct, level, span, usual, search, attrs FROM catalog WHERE category "
+                                     f"IN ({','.join('?' * len(cats))})", cats)
+                 if (crit["min_price"] is None or r["price"] >= crit["min_price"]) and (top is None or r["price"] <= top) and promo(r)
+                 and (not toks or matches(r["search"], toks))]
+        rows = []
+        for r, a in zip(found, self.attrs_of(found)):
+            ok = {k: query.satisfies(k, a.get(k), v) for k, v in chosen.items()}       # chaque taille demandée, une fois
+            rows.append({"brand": r["brand"], "attrs": a, "ok": ok, "a": all(ok.values()),
+                         "b": not brand or (r["brand"] or "").lower() == brand.lower(), "f": feats <= set(a.get("features", ()))})
+        now = sum(p["b"] and p["f"] and p["a"] for p in rows)
+        fcount = Counter(f for p in rows if p["b"] and p["f"] and p["a"] for f in p["attrs"].get("features", ()) if f in FEATURE_LABEL)
+        features = [{"key": f, "label": FEATURE_LABEL[f], "count": fcount[f]}
+                    for f in sorted(set(fcount) | (feats & set(FEATURE_LABEL)), key=lambda f: (-fcount[f], f))
+                    if f in feats or 0 < fcount[f] < now] if category else []
+        attrs = {}
+        for k in OPTION_ATTRS if category else ():
+            if category not in query.ONLY.get(k, {category}):
+                continue
+            pool = [p for p in rows if p["b"] and p["f"] and all(ok for x, ok in p["ok"].items() if x != k)]   # la recherche sans cette taille
+            have = Counter(p["attrs"][k] for p in pool if p["attrs"].get(k) is not None)                      # quelques valeurs distinctes
+            count = {v: sum(n for a, n in have.items() if query.satisfies(k, a, v)) for v in have}
+            keep = [v for v, n in count.items() if 0 < n < len(pool) or chosen.get(k) == v]
+            if chosen.get(k) is not None and chosen[k] not in keep:
+                keep.append(chosen[k]); count[chosen[k]] = 0
+            order = sorted(keep, key=lambda v: (query.energy_rank(v) or 0) if k == "energy_class" else
+                           [int(x) for x in re.findall(r"\d+", v)] if k == "bed_size" else v)
+            if order:
+                attrs[k] = {"title": OPTION_ATTRS[k], "values": [{"value": v, "label": query.ATTR_CHIP[k](v), "count": count[v]} for v in order][:8]}
+        bcount = Counter(p["brand"] for p in rows if p["f"] and p["a"] and p["brand"])
+        if brand and not any(b.lower() == brand.lower() for b in bcount):
+            bcount[brand] = 0
+        brands = [{"name": b, "count": n} for b, n in sorted(bcount.items(), key=lambda x: (-x[1], x[0]))]
+        return {"features": features, "attrs": attrs, "brands": brands}
 
     def foryou(self, uid=None, prof=None):
         """« Pour vous », sur l'accueil : les deals et les prix bas de vos rayons et de vos marques (affinité directe d'au

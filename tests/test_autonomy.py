@@ -135,6 +135,20 @@ class Scenario(unittest.TestCase):
                  (uid, product_id, max_price, "Ce produit"))
 
 
+class Guests(Scenario):
+    def test_a_guest_nobody_can_open_any_more_is_erased_at_night(self):
+        self.w.clock.set(D)
+        at = self.w.clock()                                                       # l'heure de la nuit qui vient
+        for token, expires in (("old", at - 1), ("live", at + 30 * 86400)):        # un an sans geste qui garde · un invité actif
+            uid = self.s.x("INSERT INTO users(email, created_at) VALUES (NULL, 0)")
+            self.s.x("INSERT INTO sessions(token_hash, user_id, created_at, expires_at) VALUES (?,?,0,?)", (token, uid, expires))
+        out = self.nights(1)[0]
+        run = self.s.q("SELECT stats FROM runs WHERE cid=? AND status!='retry'", (out["cid"],), one=True)
+        self.assertEqual(json.loads(run["stats"])["guests_expired"], 1)
+        self.assertEqual([r["token_hash"] for r in self.s.q("SELECT token_hash FROM sessions s JOIN users u ON u.id=s.user_id "
+                                                            "WHERE u.email IS NULL ORDER BY token_hash")], ["live"])
+
+
 class Sources(Scenario):
     def test_an_anti_robot_is_never_forced_the_source_is_set_aside_and_probed(self):
         self.faults.add("blocked", self.day(0), self.day(9), host="rapido.sim")

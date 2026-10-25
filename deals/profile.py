@@ -14,10 +14,11 @@ au plus × 1,5, comme une marque suivie avant : l'intérêt du deal prime (une r
 une remise de 26 % dans vos rayons). Un emplacement sur quatre reste au meilleur deal, quels que soient les goûts
 (découverte) ; jamais plus de deux produits du même rayon sur quatre de suite.
 
-Sans compte : le navigateur garde les rayons choisis et, pendant la visite, les fiches ouvertes et les clics ; il les
-envoie avec les lectures (paramètres p, i, recent) ; le serveur n'en garde rien. Avec un compte : rayons choisis
-(interests), favoris, marques, missions et, sauf refus (prefs.learn), fiches ouvertes et clics depuis la dernière remise à
-zéro. Témoins : une personne sur dix voit l'ordre sans personnalisation (seule la marque suivie compte), pour mesurer ce
+Sans compte : pendant la visite, le navigateur garde les fiches ouvertes et les clics et les envoie avec les lectures
+(paramètres p, i, recent) ; le serveur n'en garde rien. Avec un compte (invité, sans e-mail, dès qu'on garde quelque
+chose ; ou avec une adresse) : rayons choisis (interests), favoris, marques, missions (recherches sauvegardées) et, si la
+personne le veut (prefs.learn : oui par défaut avec une adresse, non pour un invité), fiches ouvertes et clics depuis la
+dernière remise à zéro ; sinon, ceux de la visite, envoyés par le navigateur. Témoins : une personne sur dix voit l'ordre sans personnalisation (seule la marque suivie compte), pour mesurer ce
 que la personnalisation rapporte (activity.metrics, by_variant).
 """
 import hashlib
@@ -215,7 +216,8 @@ class Profiles:
 
     def of(self, uid, query=None, recent=()):
         """Le profil pour une lecture. Sans compte : p (signaux), i (rayons choisis), v=t (témoin), venus du navigateur ;
-        avec un compte : ses tables (le navigateur ne compte pas en double) ; recent : ses recherches récentes."""
+        avec un compte : ses tables, et, s'il n'apprend pas des fiches ouvertes (prefs.learn), p pour cette visite
+        seulement ; recent : ses recherches récentes."""
         query, now = query or {}, self.clock()
         searched = [("search", c, b, 0) for c, b in self._searched(recent)]
         if uid is None:
@@ -232,6 +234,8 @@ class Profiles:
             for kind, table in (("view", "views"), ("click", "clicks")):
                 rows += [(kind, r["product_id"], r["at"]) for r in self.s.q(
                     f"SELECT product_id, at FROM {table} WHERE user_id=? AND at>? ORDER BY at DESC LIMIT 300", (uid, since))]
+        else:                                                  # n'apprend pas : seulement cette visite, envoyée par le navigateur
+            rows += [(k, i, now - age * 86400) for k, i, age in parse_events(query.get("p"))]
         missions = self.s.q("SELECT product_id, category, brand FROM missions WHERE user_id=?", (uid,))
         things = self._things([i for _, i, _ in rows] + [m["product_id"] for m in missions if m["product_id"]])
         seen = [(k, things[i]["category"], things[i]["brand"], (now - at) / 86400) for k, i, at in rows if i in things]

@@ -1,18 +1,21 @@
-"""Connexion et surface publique, par HTTP : lien magique à usage unique, session par cookie seulement, limites d'envoi
-(adresse, IP, plafond quotidien), isolement des comptes, rien d'autre d'exposé que l'app et /api/r/."""
+"""Comptes et surface publique, par HTTP : sans e-mail, le premier geste qui garde quelque chose crée un compte invité
+(cookie) ; l'adresse, facultative, s'y rattache par un lien magique à usage unique, ou y verse l'invité si le compte
+existe ; « effacer mes données » ; session par cookie seulement, limites d'envoi (adresse, IP, plafond quotidien) et de
+création d'invités, isolement des comptes, rien d'autre d'exposé que l'app et /api/r/."""
 import email
 import email.policy
 import json
 import socket
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 from deals import config
-from deals.accounts import SmtpOutbox
+from deals.accounts import GUESTS_PER_IP_HOUR, SmtpOutbox, expire_guests
 from deals.api import Api
 from deals.errors import Unavailable
 from deals.store import Store
@@ -82,13 +85,15 @@ class Accounts(unittest.TestCase):
         st, h2, _ = self.raw("GET", f"/api/r/auth/verify?token={token}")       # usage unique
         self.assertEqual((st, h2["Location"], h2.get("Set-Cookie")), (302, "/?auth=expired", None))
         self.assertEqual(json.loads(self.raw("GET", "/api/r/auth/me", cookie=cookie)[2])["email"], "inconnu@test.local")
-        self.assertEqual(self.raw("GET", f"/api/r/saves?_session={cookie}")[0], 401)   # la session vient du cookie, pas de l'adresse
+        st, _, body = self.raw("GET", f"/api/r/saves?_session={cookie}")             # la session vient du cookie, pas de l'adresse
+        self.assertEqual((st, json.loads(body)["products"]), (200, []))
         self.assertEqual(self.raw("POST", "/api/r/auth/logout", {}, cookie=cookie)[0], 200)
         self.assertEqual(self.raw("GET", "/api/r/auth/me", cookie=cookie)[0], 401)
         self.assertEqual(self.raw("GET", "/api/r/auth/verify?token=nimporte")[1]["Location"], "/?auth=expired")
         self.assertEqual(self.raw("POST", "/api/r/auth/request", {"email": "pas-un-mail"})[0], 400)
 
     def test_send_limits(self):
+        self.store.x("DELETE FROM login_links")                               # les liens des autres tests ne comptent pas ici
         codes = [self.raw("POST", "/api/r/auth/request", {"email": "spam@test.local"})[0] for _ in range(6)]
         self.assertEqual(codes, [200] * 5 + [429])                             # 5 par adresse et par heure
         ip = {"X-Forwarded-For": "203.0.113.7"}                                # derrière Caddy : l'IP du client
@@ -105,7 +110,120 @@ class Accounts(unittest.TestCase):
             sessions.append(self.api.accounts.verify(self.link().split("token=")[1])[1].split(";")[0].split("=", 1)[1])
         self.assertEqual(self.raw("POST", "/api/r/brand/follow", {"brand": "Bosch"}, cookie=sessions[0])[0], 200)
         self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=sessions[1])[2])["brands"], [])
-        self.assertEqual(self.raw("POST", "/api/r/brand/follow", {"brand": "Bosch"})[0], 401)
+        st, h, _ = self.raw("POST", "/api/r/brand/follow", {"brand": "Bosch"})       # sans compte : un compte invité, à part
+        guest = h["Set-Cookie"].split(";")[0].split("=", 1)[1]
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=guest)[2])["brands"], ["Bosch"])
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=sessions[1])[2])["brands"], [])
+
+    def guest(self, path="/api/r/brand/follow", body=None, headers=None):
+        st, h, _ = self.raw("POST", path, body or {"brand": "Ostra"}, headers=headers)
+        return st, (h.get("Set-Cookie") or "").split(";")[0].split("=", 1)[-1], h.get("Set-Cookie") or ""
+
+    def test_keeping_things_needs_no_email(self):
+        self.assertEqual(self.raw("GET", "/api/r/auth/me")[0], 401)                    # simple visite : aucun compte
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/missions")[2]), {"missions": [], "reached": 0, "fresh": 0})
+        st, cookie, raw = self.guest("/api/r/brand/follow", {"brand": "Nordvik"})
+        self.assertEqual(st, 200)
+        self.assertIn("HttpOnly", raw)
+        self.assertIn(f"Max-Age={365 * 24 * 3600}", raw)                               # la seule clé d'un invité : un an
+        me = json.loads(self.raw("GET", "/api/r/auth/me", cookie=cookie)[2])
+        self.assertEqual((me["email"], me["guest"], me["variant"] in ("p", "t")), (None, True, True))
+        before = self.store.q("SELECT expires_at FROM sessions WHERE user_id=?", (self.api.accounts.user(cookie),), one=True)["expires_at"]
+        again = self.raw("POST", "/api/r/brand/follow", {"brand": "Aurel"}, cookie=cookie)[1]["Set-Cookie"]
+        self.assertEqual(again.split(";")[0].split("=", 1)[1], cookie)                  # le même compte, sa clé repart pour un an
+        self.assertIn(f"Max-Age={365 * 24 * 3600}", again)
+        self.assertGreater(self.store.q("SELECT expires_at FROM sessions WHERE user_id=?", (self.api.accounts.user(cookie),),
+                                        one=True)["expires_at"], before)
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=cookie)[2])["brands"], ["Aurel", "Nordvik"])
+        made = json.loads(self.raw("POST", "/api/r/missions", {"category": "lave_linge", "max_price": 900}, cookie=cookie)[2])
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/missions", cookie=cookie)[2])["missions"][0]["id"], made["id"])
+        prof = json.loads(self.raw("GET", "/api/r/profile", cookie=cookie)[2])
+        self.assertEqual((prof["guest"], prof["email"], prof["learn"]), (True, None, False))   # n'apprend des fiches que sur demande
+
+    def test_guest_creation_is_limited_per_address(self):
+        ip = {"X-Forwarded-For": "192.0.2.44"}
+        codes = [self.guest(headers=ip)[0] for _ in range(GUESTS_PER_IP_HOUR + 1)]
+        self.assertEqual((GUESTS_PER_IP_HOUR, codes[-2:]), (100, [200, 429]))          # 100 comptes invités par IP et par heure
+        before = self.store.q("SELECT COUNT(*) n FROM users", one=True)["n"]
+        st, cookie, _ = self.guest("/api/r/save", {"product_id": 999999})            # le geste échoue : aucun compte ne reste
+        self.assertEqual((st, cookie, self.store.q("SELECT COUNT(*) n FROM users", one=True)["n"]), (404, "", before))
+
+    def test_an_email_attaches_to_the_guest_or_receives_it(self):
+        _, cookie, _ = self.guest("/api/r/brand/follow", {"brand": "Lumen"})
+        uid = self.api.accounts.user(cookie)
+        self.raw("POST", "/api/r/auth/request", {"email": "ines@test.local"}, cookie=cookie)
+        st, h, _ = self.raw("GET", f"/api/r/auth/verify?token={self.link().split('token=')[1]}")
+        fresh = h["Set-Cookie"].split(";")[0].split("=", 1)[1]
+        self.assertEqual((self.api.accounts.user(fresh), self.api.accounts.user(cookie)), (uid, uid))   # le même compte, partout
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/auth/me", cookie=cookie)[2])["email"], "ines@test.local")
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=fresh)[2])["brands"], ["Lumen"])
+        self.raw("POST", "/api/r/missions", {"category": "matelas"}, cookie=cookie)
+        _, other, _ = self.guest("/api/r/brand/follow", {"brand": "Varenne"})          # un autre invité, même adresse : il s'y verse
+        self.raw("POST", "/api/r/missions", {"category": "matelas"}, cookie=other)      # la même recherche des deux côtés : une seule
+        self.raw("POST", "/api/r/brand/follow", {"brand": "Lumen"}, cookie=other)       # déjà suivie par le compte : sans doublon
+        self.store.x("INSERT INTO views(at, day, user_id, product_id, source) VALUES (0, '2026-01-01', ?, 1, 'item')",
+                     (self.api.accounts.user(other),))
+        self.raw("POST", "/api/r/auth/request", {"email": "ines@test.local"}, cookie=other)
+        self.raw("GET", f"/api/r/auth/verify?token={self.link().split('token=')[1]}")
+        self.assertEqual(self.api.accounts.user(other), uid)                          # l'appareil de l'invité reste connecté
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=cookie)[2])["brands"], ["Lumen", "Varenne"])
+        self.assertEqual([m["label"] for m in json.loads(self.raw("GET", "/api/r/missions", cookie=cookie)[2])["missions"]], ["Matelas"])
+        self.assertEqual(self.store.q("SELECT COUNT(*) n FROM users WHERE email IS NULL AND id NOT IN (SELECT user_id FROM sessions)",
+                                      one=True)["n"], 0)                              # l'invité versé n'existe plus
+        self.assertEqual(self.store.q("SELECT user_id FROM views ORDER BY id DESC LIMIT 1", one=True)["user_id"], uid)   # ses fiches vues aussi
+
+    def test_an_address_is_given_once(self):
+        """Un invité qui demande deux liens, pour deux adresses : le premier ouvert lui donne la sienne ; le second ne la
+        change pas et ne verse pas ce compte ailleurs (c'est un compte, plus un invité)."""
+        _, cookie, _ = self.guest("/api/r/brand/follow", {"brand": "Brava"})
+        uid = self.api.accounts.user(cookie)
+        links = []
+        for addr in ("lea@test.local", "lea.pro@test.local"):
+            self.raw("POST", "/api/r/auth/request", {"email": addr}, cookie=cookie)
+            links.append(self.link().split("token=")[1])
+        for token in links:
+            self.raw("GET", f"/api/r/auth/verify?token={token}")
+        self.assertEqual(self.store.q("SELECT email FROM users WHERE id=?", (uid,), one=True)["email"], "lea@test.local")
+        pro = self.store.q("SELECT id FROM users WHERE email='lea.pro@test.local'", one=True)["id"]
+        self.assertNotEqual(pro, uid)
+        self.assertEqual(json.loads(self.raw("GET", "/api/r/follows", cookie=cookie)[2])["brands"], ["Brava"])
+
+    def test_only_a_guest_key_is_renewed(self):
+        self.api.accounts.request_link("vera@test.local")
+        cookie = self.api.accounts.verify(self.link().split("token=")[1])[1].split(";")[0].split("=", 1)[1]
+        uid = self.api.accounts.user(cookie)
+        before = self.store.q("SELECT expires_at FROM sessions WHERE user_id=?", (uid,), one=True)["expires_at"]
+        st, h, _ = self.raw("POST", "/api/r/brand/follow", {"brand": "Lumen"}, cookie=cookie)
+        self.assertEqual((st, h.get("Set-Cookie")), (200, None))                      # un compte avec adresse garde sa session
+        self.assertEqual(self.store.q("SELECT expires_at FROM sessions WHERE user_id=?", (uid,), one=True)["expires_at"], before)
+
+    def test_a_guest_nobody_can_open_is_erased_at_night(self):
+        _, cookie, _ = self.guest("/api/r/brand/follow", {"brand": "Aurel"})
+        uid = self.api.accounts.user(cookie)
+        self.store.x("INSERT INTO views(at, day, user_id, product_id, source) VALUES (0, '2026-01-01', ?, 1, 'item')", (uid,))
+        self.api.accounts.request_link("ugo@test.local")
+        self.api.accounts.verify(self.link().split("token=")[1])
+        ugo = self.store.q("SELECT id FROM users WHERE email='ugo@test.local'", one=True)["id"]
+        self.store.x("DELETE FROM sessions WHERE user_id=?", (ugo,))                    # un compte avec adresse, sans session : il reste
+        now = time.time()
+        self.assertEqual(expire_guests(self.store, now), 0)
+        self.store.x("UPDATE sessions SET expires_at=? WHERE user_id=?", (now - 1, uid))  # un an sans geste qui garde
+        self.assertEqual(expire_guests(self.store, now), 1)
+        self.assertIsNone(self.store.q("SELECT id FROM users WHERE id=?", (uid,), one=True))
+        self.assertIsNotNone(self.store.q("SELECT id FROM users WHERE id=?", (ugo,), one=True))
+        self.assertEqual(self.store.q("SELECT COUNT(*) n FROM views WHERE user_id=?", (uid,), one=True)["n"], 0)   # mesure anonyme
+        self.assertEqual(self.store.q("SELECT COUNT(*) n FROM follows WHERE user_id=?", (uid,), one=True)["n"], 0)
+
+    def test_forgetting_erases_the_account(self):
+        _, cookie, _ = self.guest("/api/r/brand/follow", {"brand": "Helio"})
+        uid = self.api.accounts.user(cookie)
+        self.store.x("INSERT INTO views(at, day, user_id, product_id, source) VALUES (0, '2026-01-01', ?, 1, 'item')", (uid,))
+        st, h, body = self.raw("POST", "/api/r/account/delete", {}, cookie=cookie)
+        self.assertEqual((st, json.loads(body), "Max-Age=0" in h["Set-Cookie"]), (200, {"ok": True}, True))
+        self.assertEqual(self.raw("GET", "/api/r/auth/me", cookie=cookie)[0], 401)
+        self.assertEqual(self.store.q("SELECT COUNT(*) n FROM follows WHERE user_id=?", (uid,), one=True)["n"], 0)
+        self.assertEqual(self.store.q("SELECT user_id FROM views ORDER BY id DESC LIMIT 1", one=True)["user_id"], None)   # mesure anonyme
+        self.assertEqual(self.raw("POST", "/api/r/account/delete", {})[0], 401)
 
     def test_public_surface(self):
         self.assertIn(b"/api/r/", self.raw("GET", "/")[2])                    # l'app

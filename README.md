@@ -3,9 +3,10 @@
 On ouvre l'app pour savoir quelles bonnes affaires existent aujourd'hui, et, pour le produit qu'on regarde (en remise ou
 non), ce qui le remplace pour moins cher. Un deal est un deal : le même pour tout le monde, sans onboarding ; seul l'ordre
 s'adapte à vos goûts. L'entrée est le produit ; la marque et la catégorie sont des entrées secondaires ; l'enseigne n'est
-qu'un attribut de l'offre. Quand ce n'est pas encore le bon prix, on dit ce qu'on veut et son prix (« aspirateur balai sous
-300 € ») : une **mission**, et un e-mail la nuit où c'est le cas. On lit sans compte ; un e-mail suffit pour garder des
-favoris, suivre des marques et lancer des missions.
+qu'un attribut de l'offre. On cherche comme on parle (« aspirateur balai sans fil sous 300 € ») : la phrase devient des
+critères qu'on modifie d'un geste, et une recherche se **sauvegarde** — DEALS la surveille et dit ce qui est nouveau
+(une **mission**, avec un e-mail la nuit si on le souhaite). Tout se garde **sans e-mail** (favoris, marques, rayons,
+recherches, alertes de prix) ; l'e-mail, facultatif, sert aux alertes et à retrouver ses choix sur un autre appareil.
 
 Trois familles chères, où une remise compte : **électroménager (aspirateurs compris), ameublement, literie**. Une collecte par nuit,
 aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
@@ -20,8 +21,16 @@ classées et rémunérées.
 personne d'après ce qu'elle choisit (ses rayons, d'un geste et sans bloquer l'entrée ; ses marques suivies ; ses
 missions) et ce qu'elle regarde (favoris, clics vers l'enseigne, recherches, fiches ouvertes). Ses deals passent devant,
 au plus × 1,5 : une forte remise ailleurs reste devant ; une place sur quatre va au meilleur deal, quels que soient les
-goûts. Sans compte, rien n'est gardé par le serveur ; une visite sur dix est témoin, pour mesurer ce que ça rapporte.
+goûts. Tant qu'on ne garde rien, le serveur ne retient rien de la visite ; ce qu'on garde l'est par un compte invité,
+sans e-mail ; une visite sur dix est témoin, pour mesurer ce que ça rapporte.
 Modèle, vie privée et mesures : [`docs/PERSONNALISATION.md`](docs/PERSONNALISATION.md).
+
+**Trouver vite, sans bazar de bons plans** : on vient chercher quelque chose, on doit le trouver vite. La Recherche
+comprend une phrase (rayon, pièce, marque, fonctions, taille ou capacité, budget de… à…, promo, prix bas, et les mots
+qui restent), la montre en puces modifiables, affine d'un geste (chaque choix dit ce qu'il donnerait), et ne mène jamais
+dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 41 phrases tapées comme on parle, plus aucune
+impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). Règles et mesures :
+[`docs/RECHERCHE.md`](docs/RECHERCHE.md).
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
@@ -52,9 +61,9 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (133, ~22 s)
+python -m unittest discover -s tests -t .    tests (160, ~30 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale | bench.autonomy
-          | bench.profiles [--scale]           mesures
+          | bench.profiles [--scale] | bench.search [--scale]           mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
 `--db` (avant la commande) choisit la base ; réglages par variables `DEALS_*` (`deals/config.py`,
@@ -62,10 +71,16 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 
 ## API `/api/r/` (contrat de l'app)
 Lecture ouverte : `today?category=&q=` (remises du jour), `top` (top deals de l'accueil ; `why` : la remise, le prix
-bas et depuis quand), `search?q=&category=&min=&max=&off=&low=&sort=&recent=` (tout le catalogue suivi ; filtres :
-catégorie, budget, promo : remise minimale en % ou `low=1`, prix parmi les plus bas ; tri : `relevance`, `price`,
-`discount` ; `categories` : les catégories trouvées et leur nombre ; `offs` : les produits de chaque palier de promo ; sans mot ni filtre, le feed, orienté par `recent` : les
-dernières recherches gardées par le navigateur, séparées par `|`),
+bas et depuis quand), `search?q=&category=&room=&brand=&feat=&attr=&min=&max=&off=&low=&sort=&recent=` (tout le
+catalogue suivi ; `q` est une phrase comprise, les autres paramètres sont les critères choisis dans l'app et l'emportent
+sur elle : `feat` des fonctions séparées par des virgules, `attr` des `clé:valeur` (`capacity_kg:9`, `bed_size:160x200`,
+`energy_class:C`) ; promo : remise minimale en % ou `low=1` ; tri : `relevance`, `price`, `discount` ; la réponse dit
+`criteria` (ce qui est appliqué), `said` (ce que la phrase seule demande), `chips` (les critères en mots, un par puce,
+avec ce qu'on retire en la fermant), `words` (les mots qui filtrent), `ignored` (ceux qui ne trouvaient rien),
+`unsupported` (un rayon pas encore suivi), `relaxed` (rien sous le budget : les plus proches au-dessus, dès quel prix),
+`options` (Affiner : fonctions, tailles et marques du rayon ou de la pièce, avec ce que chacune donnerait), `categories`
+(les catégories trouvées et leur nombre), `offs` (les produits de chaque palier de promo) ; sans mot ni filtre, le feed,
+orienté par `recent` : les dernières recherches gardées par le navigateur, séparées par `|`),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
 leurs produits, remises d'abord), `item/<id>`,
 `out/<offer_id>?from=`, `missions/parse` {text} et `missions/preview` {mission} (ce qui est compris, ce qui y répond
@@ -77,16 +92,23 @@ jours, voir plus bas), `published_at` (today : heure de la dernière publication
 `best` et `products` (catégories), `best`, `products`, `top` et `categories` (marques), `attrs` (fiche : caractéristiques
 lues, pour les missions) ; retiré en v49 : `specs` (la description n'est plus montrée) ;
 `today?category=` accepte plusieurs catégories séparées par des virgules (univers, pièce).
-Session requise (sinon 401) : `save`, `saves`, `brand/follow`, `follows`, `missions` (GET : les miennes et leur état ;
-POST : lancer, ou changer le prix d'une même cible), `missions/delete` {id}.
-Comptes : `auth/request` {email}, `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`
-(et `variant` : `p` personnalisé, `t` témoin), `auth/logout`.
+Garder (v56 : sans e-mail ; sans session, le premier geste crée un compte invité et pose son cookie, un an, renouvelé à
+chaque geste qui garde) : `save`, `brand/follow`, `interests`, `profile` {learn}, `missions` (POST : sauvegarder une
+recherche ou poser une alerte — `category`, `room`, `brand`, `features`, `attrs`, `words`, `min_price`, `max_price`
+facultatif, `off`, `low`, ou `product_id`, ou `like` ; la même cible change seulement de prix). Lire ce qu'on garde
+(vide sans compte) : `saves`, `follows`, `missions` (les miennes, ce qui y répond, `fresh` : ce qui est nouveau depuis
+qu'on l'a ouverte, `reached`, `alert`). `missions/seen` {id} (ouverte : plus nouveau), `missions/alert` {id, on} (l'e-mail
+de la nuit ; il faut une adresse), `missions/delete` {id}, `account/delete` (effacer le compte et ce qu'il gardait).
+Comptes : `auth/request` {email} (depuis un compte invité : l'adresse lui sera rattachée, ou ce qu'il garde versé dans
+le compte qui a déjà cette adresse), `auth/verify?token=` (pose le cookie, ou renvoie vers `/?auth=expired`), `auth/me`
+(`email`, `guest`, et `variant` : `p` personnalisé, `t` témoin), `auth/logout`.
 Goûts (v55) : `today`, `top`, le feed de `search` et `foryou` (« pour vous » : les deals et prix bas de vos rayons et de
-vos marques, dix au plus ; `taste` : ce que l'app a compris) suivent le profil. Sans compte, l'app envoie `p` (fiches
-ouvertes `v<id>.<âge en jours>`, clics `c…`, au plus 60), `i` (rayons choisis, séparés par des virgules) et `v=t`
-(témoin) ; le serveur n'en garde rien. `profile` : rayons choisis, ce qui est compris, apprentissage, variante ; avec un
-compte : `interests` {categories} (rayons choisis, douze au plus, la liste remplace la précédente), `profile` {learn}
-(tenir compte des fiches ouvertes et des clics, ou non), `profile/reset` (oublier ce qui a été déduit). `view` {v} et
+vos marques, dix au plus ; `taste` : ce que l'app a compris) suivent le profil. Sans compte (ou un compte qui n'apprend
+pas des fiches), l'app envoie `p` (fiches ouvertes `v<id>.<âge en jours>`, clics `c…`, au plus 60) et, sans compte,
+`v=t` (témoin) ; le serveur n'en garde rien (`i`, les rayons choisis dans le navigateur, reste lu pour les navigateurs
+d'avant la v56). `profile` : rayons choisis, ce qui est compris, apprentissage, variante, `guest`, `email` ;
+`interests` {categories} (rayons choisis, douze au plus, la liste remplace la précédente), `profile` {learn} (tenir
+compte des fiches ouvertes et des clics, ou non), `profile/reset` (oublier ce qui a été déduit). `view` {v} et
 `out?v=` rapportent la variante dans les mesures.
 Surveillance : `health` (pour une sonde extérieure : `status` ok, degraded ou critical, heure de la dernière nuit, taille
 du catalogue ; 503 si aucune nuit depuis 36 h, si la dernière a eu une étape en erreur ou si un incident critique est
@@ -129,30 +151,42 @@ ouvert).
   en dessous ; capacité, couverts, foyers au plus un de moins ; volume au plus 15 % de moins ; autonomie au moins les
   deux tiers ; bruit au plus 3 dB de plus). Sans alternative moins chère : les autres comparables, au prix le plus
   proche (« Produits similaires ») ; sans comparable : rien (`deals/alternatives.py`).
-- **Recherche** : tout le catalogue suivi, pas seulement les remises, pour une intention précise ; filtres catégorie,
-  budget et remise minimale, même sans mot ; tri par pertinence (d'abord les produits dont la requête nomme la
-  catégorie ou la marque, puis les remises, puis le prix), par prix croissant ou par remise ; insensible aux accents, à
-  la casse et aux tirets, synonymes courants (frigo, sofa, congélo…). Jamais vide : sans mot ni filtre, un feed (les
-  produits des quatre dernières recherches d'abord, puis ceux de vos rayons et de vos marques, un sur quatre pris
-  ailleurs, puis tout le catalogue, une catégorie à tour de rôle), que chaque mot, filtre ou tri adapte.
+- **Recherche** : tout le catalogue suivi, pas seulement les remises, pour une intention précise. Une phrase est
+  comprise en critères (`deals/query.py`) : rayon (ou pièce), marque, fonctions, taille ou capacité, budget (maximum,
+  de… à…, minimum), remise minimale, prix bas, tri par prix (« pas cher ») ; ce qui est dit est exigé (mêmes règles que
+  les missions), ce qui ne l'est pas ne l'est pas ; les mots qui restent filtrent s'ils trouvent, sinon ils sont dits
+  et le reste répond ; une phrase dont rien n'est compris est cherchée mot à mot ; un rayon non suivi est dit. Chaque
+  critère est une puce (la retirer élargit aussitôt) ; Affiner change le rayon, les fonctions, les tailles, la marque,
+  le budget, la promo, le tri, chaque choix avec ce qu'il donnerait, ses autres critères gardés (un choix qui ne donne
+  rien ou ne change rien n'est pas proposé). Rien sous le budget : les plus proches au-dessus, du moins cher au plus
+  cher. Tri par pertinence (d'abord les produits que les mots nomment, puis les remises, puis le prix), par prix
+  croissant ou par remise ; insensible aux accents, à la casse et aux tirets, synonymes courants (frigo, sofa, aspi…).
+  Jamais vide : sans mot ni filtre, un feed (les produits des quatre dernières recherches d'abord, puis ceux de vos
+  rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue, une catégorie à tour de rôle).
 - **Marque et catégorie** (fiche) : deux étiquettes sur le visuel, qui mènent à tous les produits de la marque ou de la
   catégorie, les remises d'abord, même sans remise aujourd'hui.
-- **Missions** : une envie et un prix maximum, pour un produit, ses comparables (même catégorie, mêmes fonctions, même
-  taille ou capacité) ou ce que dit une phrase. Ce qui est dit est exigé, ce qui ne l'est pas ne l'est pas : catégorie,
+- **Recherches sauvegardées et alertes de prix (missions)** : une recherche sauvegardée (prix maximum facultatif), ou
+  une alerte sur un produit ou ses comparables (même catégorie, mêmes fonctions, même taille ou capacité). Chacune dit ce
+  qui y répond et ce qui est nouveau depuis qu'on l'a ouverte (un produit arrivé, ou moins cher d'au moins 0,50 €) ; la
+  rouvrir l'oublie. Ce qui est dit est exigé, ce qui ne l'est pas ne l'est pas : catégorie,
   marque, fonctions (balai, sans fil…), capacité, couverts, foyers, places, volume, autonomie au moins ; taille de
   literie exacte ; largeur à 6 % près ; bruit au plus ; classe énergie au moins. Un produit remplit une mission s'il est
   disponible, au prix voulu et conforme (une caractéristique demandée mais inconnue du produit : pas de promesse). Une
   phrase sur une catégorie non suivie est refusée en le disant ; un prix impossible n'est pas retenu, il est demandé.
   Une mission par cible (relancer change le prix), 20 par personne. La nuit, après la publication : un e-mail au plus
-  par personne, avec les produits arrivés à son prix ou descendus plus bas qu'au dernier e-mail (les cinq moins chers
-  par mission, les autres dans l'app) ; jamais deux fois le même produit au même prix ; rien pour ce qu'elle voyait déjà
-  en lançant la mission ; au-delà du plafond de la nuit (`DEALS_MISSION_MAILS`), la suite part la nuit suivante
+  par personne qui a donné son adresse, pour les missions dont la cloche est allumée, avec les produits arrivés à son
+  prix ou descendus plus bas qu'au dernier e-mail (les cinq moins chers par mission, les autres dans l'app) ; jamais
+  deux fois le même produit au même prix ; rien pour ce qu'elle voyait déjà en sauvegardant ou dans l'app avant de
+  donner son adresse ; au-delà du plafond de la nuit (`DEALS_MISSION_MAILS`), la suite part la nuit suivante
   (`deals/missions.py`).
-- **Connexion au moment de l'action** (favori, suivre, lancer une mission), jamais à l'entrée ; une mission lancée
-  avant la connexion attend avec le lien, sur le serveur, et démarre quand il est ouvert, sur n'importe quel appareil
-  (l'e-mail la nomme : « Confirmez votre mission : … »). Lien à usage unique valable 15 min ; 5 liens
-  par adresse et par heure, 20 par adresse IP, plafond quotidien global ; même réponse qu'un compte existe ou non ;
-  seuls les hachages des jetons sont stockés.
+- **Sans e-mail** : favori, marque suivie, rayon, recherche sauvegardée, alerte de prix se gardent d'un geste ; le
+  premier crée un compte invité pour l'appareil (cookie HttpOnly, un an, renouvelé à chaque geste qui garde ; 100
+  créations au plus par adresse IP et par heure ; un geste qui échoue ne laisse aucun compte ; chercher ou regarder
+  n'en crée pas ; la nuit, un compte invité que plus personne ne peut ouvrir est effacé). L'e-mail est facultatif
+  (« Ajouter mon e-mail », « J'ai déjà un compte ») : le lien rattache l'adresse au compte invité, ou verse ce qu'il
+  garde dans le compte qui a déjà cette adresse (sans doublon). Lien à usage unique valable 15 min ; 5 liens par
+  adresse et par heure, 20 par adresse IP, plafond quotidien global ; même réponse qu'un compte existe ou non ; seuls
+  les hachages des jetons sont stockés. « Effacer mes données » efface le compte et ce qu'il gardait.
 - **Favoris** : le prix du jour où le favori a été posé est gardé ; une baisse se voit dans Favoris et sur l'onglet.
 - **Clics sortants** : `out/<offer_id>?from=&m=&v=` trace le clic (avec ou sans compte), sa source (`item`, ou d'où la
   fiche a été ouverte : `top`, `foryou`, `home`, `room`, `alternative`, `similar`, `mission`, `mail`, `brand`,
@@ -181,11 +215,12 @@ remises, à la croisée d'un Pinterest (mosaïque de visuels, inspiration par pi
 avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des illustrations originales par catégorie
 (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
-immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Quatre onglets :
-Accueil (les top deals d'abord, l'encart facultatif « Qu'est-ce qui vous intéresse ? », « Pour vous », puis pièces,
-marques en promo, sélection), Recherche (un champ, trois filtres dont Promo, un tri, un feed qui s'adapte), Missions,
-Profil (les favoris, les marques suivies, vos rayons, ce que l'app a compris) ; « Comment ça marche » au pied de chaque
-écran. Principe, écrans et mesures v41 à v55 : [`docs/UX.md`](docs/UX.md).
+immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Trois onglets :
+Accueil (les top deals d'abord, « Pour vous », puis pièces, marques en promo, sélection ; « Une envie précise ? » ouvre
+la Recherche), Recherche (une phrase comprise en puces, Affiner, Sauvegarder ; vos recherches sauvegardées et récentes ;
+un feed qui s'adapte), Profil, le centre de commande (vos recherches et alertes, favoris, marques, rayons, ce que l'app a
+compris, l'e-mail facultatif, effacer) ; « Comment ça marche » au pied de chaque écran ; espaces insécables du français
+dans les textes. Principe, écrans et mesures v41 à v56 : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 
@@ -246,7 +281,7 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
 - ~4 600 fiches (40 par catégorie et par enseigne) ; le site le plus chargé (~840 fiches × 5 s) fixe la passe : ~70 min
   par nuit. Publication, alternatives et courbes de 90 jours comprises : ~2,5 s pour 3 000 produits.
 - Base : quelques dizaines de Mo par an (seuls les changements sont écrits).
-- Missions de la nuit : ~5,5 s pour 10 000 missions sur 3 000 produits (~2 s une nuit sans changement).
+- Missions de la nuit : ~5,9 s pour 10 000 missions sur 3 000 produits (~1,5 s une nuit sans changement).
 - Serveur : Hetzner CX23, 5,49 € HT + 0,50 € d'IPv4 = **5,99 € HT par mois** (tarifs d'août 2026).
 - E-mails (connexion, et missions : au plus un par personne et par nuit) : Brevo gratuit jusqu'à 300 par jour, partagés
   par les deux plafonds (`DEALS_MAILS_PER_DAY` 250, `DEALS_MISSION_MAILS` 50) ; au-delà, une offre payante. Nom de
@@ -257,8 +292,9 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
   développement n'a pas accès au web ; tout est vérifié sur faux sites locaux, corpus publics et pages-pièges.
 - Pas de navigateur : un site dont les prix n'existent qu'après exécution du JavaScript reste illisible (Conforama).
 - Une baisse sans prix barré n'est pas montrée (choix produit et juridique, voir `docs/AUDIT.md`).
-- Les favoris choisis avant connexion ne sont pas repris (la connexion est demandée avant l'action) ; une mission, si,
-  et les rayons choisis aussi.
+- Sans e-mail, ce qu'on garde tient à l'appareil et à son cookie : effacer les données du navigateur le perd ; un
+  compte invité ne se retrouve pas sur un autre appareil. 100 comptes invités au plus par adresse IP et par heure : un
+  très grand réseau derrière une seule adresse (opérateur mobile) pourrait l'atteindre aux heures de pointe.
 - Personnalisation : des règles simples sur les rayons et les marques, pas de « ceux qui ont aimé ceci » ni de budget
   appris ; sans compte, les fiches ouvertes ne sont gardées d'une visite à l'autre que si la personne l'accepte (Profil),
   et le témoin est tiré à chaque visite. Le gain mesuré par `bench.profiles` repose sur un modèle de clic : le vrai
@@ -266,10 +302,13 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
 - Exploitation : l'agent prévient le responsable par le SMTP de la plateforme ; s'il tombe, seule une sonde extérieure
   sur `/api/r/health` le voit (à brancher, voir `docs/RUNBOOK.md#sonde`). L'agent conseille une règle de lecture quand
   une page change ; il ne l'écrit pas.
-- Missions : prévenues par e-mail, la nuit, et dans l'app (onglet, cloche) ; pas de notification sur le téléphone (l'app
-  est une page web, pas une app installée). Une phrase n'est comprise que dans ce que l'extraction sait lire (catégories
-  suivies, marques présentes au catalogue, fonctions et tailles connues) : « une marque inconnue » ou « un joli
-  canapé » n'ajoutent rien à la mission, et l'aperçu montre exactement ce qui a été compris.
+- Recherches sauvegardées : ce qui est nouveau se voit dans l'app (cloche, Profil) et par e-mail la nuit, pour qui a
+  donné son adresse ; pas de notification sur le téléphone (l'app est une page web, pas une app installée). Une phrase
+  n'est comprise que dans ce que l'extraction sait lire (catégories suivies, marques présentes au catalogue, fonctions
+  et tailles connues) : « une marque inconnue » reste un mot cherché, « un joli canapé » un canapé ; les puces montrent
+  exactement ce qui a été compris. Pas de correction des fautes de frappe (« aspirateru ») ni de synonymes appris : une
+  liste écrite (`SLANG`, `deals/query.py`). Un produit dont le titre ne dit pas une fonction (« balai ») n'y répond pas :
+  pas de promesse sur ce qui n'est pas lu.
 - Alternatives : jugées sur ce que disent le titre et les caractéristiques déclarées par l'enseigne ; un critère absent
   des deux (puissance d'aspiration, matériaux, finition) n'est pas comparé. Un produit sans comparable dans le
   catalogue n'a pas de section (sur la démo de 59 produits, 27 fiches ; sur 3 000 produits, aucune).

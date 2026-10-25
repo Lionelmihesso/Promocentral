@@ -1,4 +1,4 @@
-# Personnalisation — vos deals d'abord, l'intérêt du deal toujours
+# Personnalisation — vos deals d'abord, l'intérêt du deal toujours (v56)
 
 Un deal reste le même pour tout le monde : même produit, même prix, même remise. Ce qui change d'une personne à l'autre,
 c'est l'ordre. L'app pèse ses rayons et ses marques d'après ce qu'elle choisit et ce qu'elle regarde, et fait passer ses
@@ -6,20 +6,22 @@ deals devant, sans jamais faire oublier l'intérêt du deal. Pas de modèle appr
 versionnées et testées (`deals/profile.py`, `tests/test_profile.py`), mesurées sur des personnes simulées
 (`python -m bench.profiles`) et, en production, sur des témoins.
 
-Rien ne bloque l'entrée : on lit sans compte et sans rien dire de soi. Choisir ses rayons est facultatif, d'un geste, au
-fil de la visite ; le reste s'apprend en naviguant.
+Rien ne bloque l'entrée : on lit sans compte et sans rien dire de soi. Choisir ses rayons est facultatif, d'un geste
+(Profil, ou « Mes rayons » sur la page d'une catégorie) ; le reste s'apprend en naviguant. Depuis la v56, tout ce qu'on
+garde (rayons, favoris, marques, recherches sauvegardées) se garde sans e-mail : un compte invité, créé au premier geste
+qui garde quelque chose, le tient pour cet appareil (`docs/RECHERCHE.md`).
 
 ## Ce qui compte
 
-| Signal | Comment il compte | Sans compte | Avec un compte |
+| Signal | Comment il compte | Visite sans compte | Compte (invité ou avec e-mail) |
 |---|---|---|---|
-| Rayon choisi (encart de l'accueil, Profil) | choisi : affinité 1 | ce navigateur (`deals.picks`) | `interests` |
-| Marque suivie | choisi : affinité 1 | — (connexion demandée) | `follows` |
-| Mission en cours : son rayon, sa marque, ou ceux de son produit | choisi : affinité 1 | — (connexion au lancement) | `missions` |
-| Favori | vu : 2 points | — (connexion demandée) | `saves` |
-| Clic vers l'enseigne | vu : 1,5 point | la visite, en mémoire (gardé comme les fiches ouvertes, sur accord) | `clicks` |
-| Recherche qui nomme un rayon ou une marque (« lave-linge 9 kg », « matelas dormea ») | vu : 1 point | ce navigateur (`deals.recent`, comme avant) | idem |
-| Fiche ouverte | vu : 0,5 point | la visite, en mémoire ; d'une visite à l'autre seulement si la personne l'accepte | `views` |
+| Rayon choisi (Profil, page d'une catégorie) | choisi : affinité 1 | — (le geste crée le compte invité) | `interests` |
+| Marque suivie | choisi : affinité 1 | — (idem) | `follows` |
+| Recherche sauvegardée ou alerte de prix : son rayon, sa marque, ou ceux de son produit | choisi : affinité 1 | — (idem) | `missions` |
+| Favori | vu : 2 points | — (idem) | `saves` |
+| Clic vers l'enseigne | vu : 1,5 point | la visite, en mémoire | `clicks` si le compte apprend, sinon la visite |
+| Recherche qui nomme un rayon ou une marque (« lave-linge 9 kg », « matelas dormea ») | vu : 1 point | ce navigateur (`deals.recent`) | idem |
+| Fiche ouverte | vu : 0,5 point | la visite, en mémoire | `views` si le compte apprend, sinon la visite |
 
 - Un signal vu compte **moitié moins tous les 30 jours** (un compte : 90 jours au plus, depuis la dernière remise à zéro).
 - **La confiance monte avec les points** : pleine à 2 points (un favori, deux clics, quatre fiches). L'affinité d'un rayon
@@ -46,7 +48,7 @@ plus dans les top deals).
 | Écran | Avec des goûts connus |
 |---|---|
 | Top deals (accueil, en premier) | dans l'ordre du profil ; la plus forte remise du jour y reste |
-| « Pour vous » (accueil, sous les top deals) | les deals et les prix bas de vos rayons et de vos marques (affinité directe ≥ 0,3, pas la seule famille), dix au plus, sans répéter les top deals ; « Vos rayons : Canapés, Matelas » ou « D'après vos visites : Canapés » dit pourquoi |
+| « Pour vous » (accueil, sous les top deals) | les deals et les prix bas de vos rayons et de vos marques (affinité directe ≥ 0,3, pas la seule famille), dix au plus, sans répéter les top deals ; « Vos rayons : Canapés, Matelas » (ceux que vous avez choisis), « D'après vos recherches : Aspirateurs » (vos recherches sauvegardées, vos alertes) ou « D'après vos visites : Canapés » dit pourquoi ; « Modifier » mène au Profil |
 | Inspirations du moment | les pièces de vos rayons d'abord |
 | Notre sélection | le reste des remises, dans l'ordre du profil |
 | Recherche, avant toute saisie | « Pour vous » (« D'après vos recherches », ou « D'après vos goûts ») : les produits de vos dernières recherches, puis ceux de vos rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue |
@@ -56,34 +58,39 @@ Sans goûts connus, ou pour un témoin, l'ordre est exactement celui d'avant (la
 
 ## Sans bloquer l'entrée
 
-- **L'encart « Qu'est-ce qui vous intéresse ? »**, sous les top deals : les rayons du catalogue, un geste chacun,
-  facultatif, « Masquer » le ferme pour de bon. Choisir confirme (« C'est noté : vos rayons passent en tête ») et l'ordre
-  change aussitôt ; l'encart ne revient pas aux visites suivantes.
-- **Le Profil** (sans compte aussi) : « Vos rayons » (modifiables), « Ce que l'app a compris » (rayons et marques vus,
-  qui mènent à leur page) et « Oublier », et un interrupteur : sans compte, « Me reconnaître à mon retour » (ce
-  navigateur garde les fiches ouvertes ; désactivé par défaut) ; avec un compte, « Tenir compte des fiches que j'ouvre »
-  (activé par défaut).
-- **À la connexion**, les rayons choisis sans compte passent sur le compte.
+- **Le Profil, centre de commande** (v56) : vos recherches sauvegardées, vos alertes de prix, vos favoris, vos marques
+  (« Ajouter » : toutes celles du catalogue, à suivre d'un geste), vos rayons (un geste chacun : « C'est noté : vos rayons
+  passent en tête »), « Ce que l'app a compris » (rayons et marques vus, qui mènent à leur page) et « Oublier », et un
+  interrupteur : sans e-mail, « Me reconnaître à mon retour » (désactivé par défaut) ; avec un e-mail, « Tenir compte des
+  fiches que j'ouvre ». L'encart de l'accueil de la v55 (« Qu'est-ce qui vous intéresse ? ») a rejoint le Profil :
+  l'accueil reste aux deals. Les rayons choisis dans le navigateur en v55 passent sur le compte invité à la visite
+  suivante.
+- **L'e-mail, quand on veut** : rattaché au compte invité, il garde tout (rien n'est perdu) ; s'il a déjà un compte, ce
+  que l'invité gardait y est versé.
 
 ## Vie privée : ce qui est gardé, et où
 
-- **Sans compte**, le serveur ne garde rien des goûts : l'app envoie avec chaque lecture les rayons choisis (`i`), les
-  fiches ouvertes et les clics de la visite (`p`, au plus 60, avec leur âge en jours) et les recherches récentes
-  (`recent`) ; ni table ni journal d'accès ne les retient (`deploy/Caddyfile`). Les fiches vues restent comptées pour la
-  mesure de conversion, sans identifiant, comme avant. Ce navigateur garde les rayons choisis ; les fiches ouvertes,
-  seulement si la personne active « Me reconnaître à mon retour ».
-- **Avec un compte** : les rayons choisis (`interests`), le choix d'apprendre ou non et la date de la dernière remise à
-  zéro (`prefs`), en plus de ce que le compte avait déjà (favoris, marques, missions, fiches vues, clics). « Oublier »
-  efface l'effet des fiches et des clics passés sur l'ordre ; ils restent dans les mesures de conversion.
-- Je ne suis pas juriste : garder dans le navigateur ce que la personne a choisi elle-même (ses rayons, ses recherches)
-  relève du service qu'elle demande ; garder ce qu'elle a regardé pour la reconnaître plus tard est de la
+- **Une visite sans compte** : le serveur ne garde rien des goûts ; l'app envoie avec chaque lecture les fiches ouvertes
+  et les clics de la visite (`p`, au plus 60, avec leur âge en jours) et les recherches récentes (`recent`) ; ni table
+  ni journal d'accès ne les retient (`deploy/Caddyfile`). Les fiches vues restent comptées pour la mesure de conversion,
+  sans identifiant.
+- **Un compte invité** (sans e-mail, créé au premier geste qui garde quelque chose) : ce que la personne a choisi de
+  garder (rayons, favoris, marques, recherches sauvegardées et alertes), sous un identifiant sans rien d'elle, que seul
+  le cookie de cet appareil désigne. Il n'apprend pas des fiches ouvertes ni des clics (`prefs.learn` à 0) tant que la
+  personne n'active pas « Me reconnaître à mon retour » : la visite les envoie (`p`), comme sans compte.
+- **Avec un e-mail** : la même chose, plus l'adresse. « Oublier » efface l'effet des fiches et des clics passés sur
+  l'ordre ; ils restent dans les mesures de conversion. « Effacer mes données » efface le compte et tout ce qu'il
+  gardait (fiches vues et clics restent dans les mesures, sans lien avec personne).
+- Je ne suis pas juriste : garder ce que la personne a choisi elle-même (ses rayons, ses favoris, ses recherches, par
+  le cookie du compte invité ou dans le navigateur) relève du service qu'elle demande ; garder ce qu'elle a regardé pour la reconnaître plus tard est de la
   personnalisation, d'où l'accord demandé (interrupteur désactivé par défaut), dans l'esprit des recommandations de la
   CNIL sur les traceurs. Pour les comptes, l'apprentissage par les fiches et les clics se refuse d'un geste et doit
   figurer dans la politique de confidentialité, avec sa base légale. À faire valider avant la mise en ligne.
 
 ## Mesurer
 
-**Sur des personnes simulées** (`python -m bench.profiles`, `--scale` pour 3 000 produits) : chaque personne a un ou deux
+**Sur des personnes simulées** (`python -m bench.profiles`, `--scale` pour 3 000 produits ; v56 : mêmes chiffres qu'en v55, à
+un millième près) : chaque personne a un ou deux
 rayons ; on mesure ce que montrent l'accueil (top deals, « pour vous », sélection) et le feed de la Recherche, selon ce
 qu'elle a fait avant, sur le code d'avant (v54) et sur celui-ci. Clics attendus : un modèle simple (attrait de la carte
 × biais de position) ; l'attrait d'une carte dépend de son rayon (1 pour ceux de la personne, 0,3 pour leur famille, 0,1
@@ -117,7 +124,8 @@ témoin (soit ~35 000 au total) : quelques semaines selon le trafic.
 
 - Des règles sur les rayons et les marques : pas de « ceux qui ont aimé ceci ont aussi aimé », pas de budget appris
   (le prix maximum d'une mission, les prix des fiches ouvertes le diraient), pas de saisonnalité.
-- Sans compte, un favori demande la connexion ; un « j'aime » gardé par le navigateur serait un signal de plus.
+- Un compte invité tient à un appareil et à son cookie : effacer les données du navigateur le perd, sauf si un e-mail
+  y a été ajouté.
 - La rétention passe par le retour : « nouveau dans vos rayons depuis votre dernière visite » sur l'accueil, et, avec
   accord, un e-mail des meilleurs deals de vos rayons, seraient les étapes suivantes.
 - Le témoin d'une personne sans compte est tiré à chaque visite : le mesurer par visite est juste, par personne non.

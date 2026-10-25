@@ -13,6 +13,7 @@ import time
 
 from . import agent as A
 from . import health, sources
+from .accounts import expire_guests
 from .catalog import Catalog
 from .collect import report
 from .missions import Missions
@@ -56,6 +57,7 @@ def run(store, settings, crawler, outbox, retailers, rules=None, clock=time.time
     published = step("publication", pub)
     step("garde", lambda: agent.after_publish(published))
     missions = step("missions", lambda: notify(health.mass_threshold(store)))
+    guests = step("invités", lambda: expire_guests(store, clock()), 0)          # clés expirées : plus personne ne peut les ouvrir
     found = step("contrôles", lambda: health.findings(health.snapshot(store, clock(), crawl, published, missions, errors)))
     if found is None:                                        # même sans contrôles, une étape cassée reste un incident
         found = [health.finding("night_error", name, "critical", error=e) for name, e in errors]
@@ -70,7 +72,7 @@ def run(store, settings, crawler, outbox, retailers, rules=None, clock=time.time
     status = "failed" if errors else "partial_success" if bad else "succeeded"
     if crawl.get("run"):
         store.x("UPDATE runs SET stats=?, status=? WHERE id=?",
-                (json.dumps({**crawl, "publish": published, "missions": missions, "catalog": catalog,
+                (json.dumps({**crawl, "publish": published, "missions": missions, "catalog": catalog, "guests_expired": guests,
                              "catalog_sources": by_source, "errors": errors},
                             ensure_ascii=False, default=str), status, crawl["run"]))
     store.x("UPDATE runs SET status='failed', ended=COALESCE(ended, ?) WHERE cid=? AND status='running'", (clock(), cid))

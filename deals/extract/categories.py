@@ -81,7 +81,7 @@ ATTR_PATTERNS = {
 # par un aspirateur à fil, ni une plaque à induction par une plaque gaz).
 FEATURES = {
     "sans_fil": re.compile(r"\bsans fil\b"), "balai": re.compile(r"\bbalai\b"), "traineau": re.compile(r"\btraineau\b"),
-    "laveur": re.compile(r"\blaveur\b"), "convertible": re.compile(r"\bconvertible\b"), "angle": re.compile(r"\bd'?angle\b"),
+    "laveur": re.compile(r"\blaveur\b"), "convertible": re.compile(r"\bconvertible\b"), "angle": re.compile(r"\bd['\s]?angle\b"),
     "induction": re.compile(r"\binduction\b"), "encastrable": re.compile(r"\bencastrable\b"),
     "americain": re.compile(r"\bamericain\b"), "electrique": re.compile(r"\belectrique\b"),
 }
@@ -92,8 +92,11 @@ PROP_ALIASES = {
 }
 
 
+APOSTROPHES = str.maketrans({"\u2019": "'", "\u2018": "'", "\u02bc": "'", "\u00b4": "'"})
+
+
 def plain(s):
-    s = unicodedata.normalize("NFD", (s or "").lower())
+    s = unicodedata.normalize("NFD", (s or "").lower()).translate(APOSTROPHES)      # « d’angle » (clavier de téléphone) = « d'angle »
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 

@@ -154,10 +154,19 @@ def main(argv=None):
               ("top (2 rayons choisis)", "/api/r/top", {"i": "lave_linge,matelas"}, ""),
               ("foryou (2 rayons choisis)", "/api/r/foryou", {"i": "lave_linge,matelas"}, ""),
               ("search (feed, 20 fiches vues)", "/api/r/search", {"p": ",".join(f"v{d['id']}.{k}" for k, d in enumerate(deals[:20]))}, ""),
-              ("top (connecté, goûts)", "/api/r/top", {}, session), ("foryou (connecté)", "/api/r/foryou", {}, session)]
+              ("top (connecté, goûts)", "/api/r/top", {}, session), ("foryou (connecté)", "/api/r/foryou", {}, session),
+              ("search (phrase comprise)", "/api/r/search", {"q": "aspirateur balai sans fil sous 300 €"}, ""),
+              ("search (Affiner : rayon, taille, prix)", "/api/r/search", {"category": "lave_linge", "attr": "capacity_kg:9", "max": "600",
+                                                                          "sort": "price"}, ""),
+              ("search (pièce)", "/api/r/search", {"q": "pour le salon"}, ""),
+              ("missions (invité, 3 recherches)", "/api/r/missions", {}, "GUEST")]
     for i, (c, want) in enumerate([("lave_linge", {"capacity_kg": 9}), ("lit", {"bed_size": "160x200"}), ("canape", {"seats": 3}),
                                    ("matelas", {}), ("four", {})]):
         api.handle(Request("POST", "/api/r/missions", session=session, body={"category": c, "attrs": want, "max_price": 400 + 100 * i}))
+    guest = api.handle(Request("POST", "/api/r/save", body={"product_id": pid})).cookie.split(";")[0].split("=", 1)[1]   # sans e-mail
+    for body in ({"category": "aspirateur", "features": ["balai", "sans_fil"]}, {"room": "salon", "max_price": 900}, {"words": ["velours"]}):
+        api.handle(Request("POST", "/api/r/missions", session=guest, body=body))
+    routes = [(n, r, q, guest if s == "GUEST" else s) for n, r, q, s in routes]
     print(f"lectures de l'app ({a.n} par route, réponse JSON comprise) :")
     for name, route, query, sess in routes:
         def call():
@@ -166,7 +175,7 @@ def main(argv=None):
             assert r.status == 200, (route, r.status)
             json.dumps(r.body, ensure_ascii=False)
         xs = sorted(timed(call, a.n))
-        print(f"  {name:25} médiane {statistics.median(xs) * 1000:6.2f} ms · 95e centile {xs[int(len(xs) * 0.95) - 1] * 1000:6.2f} ms")
+        print(f"  {name:38} médiane {statistics.median(xs) * 1000:6.2f} ms · 95e centile {xs[int(len(xs) * 0.95) - 1] * 1000:6.2f} ms")
     store.close()
     print(f"base : {path.stat().st_size / 1e6:.1f} Mo")
 

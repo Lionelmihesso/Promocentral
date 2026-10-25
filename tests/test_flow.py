@@ -11,6 +11,7 @@ import tempfile
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from urllib.parse import quote
 from datetime import timedelta
@@ -194,13 +195,12 @@ class Flow(unittest.TestCase):
         saves = self.get("saves", mia)[1]["products"]
         self.assertEqual([(p["id"], p["saved_price"]) for p in saves], [(last["id"], last["price"])])   # prix suivi depuis le favori
         self.assertEqual(self.get("saves", lea)[1]["products"], [])
-        self.assertEqual(self.get("saves")[0], 401)
+        self.assertEqual(self.get("saves")[:2], (200, {"products": []}))                          # sans compte : rien de gardé
         seen = self.post("missions/parse", {"text": "lave-linge 9 kg sous 700 €"}, None)           # sans compte : l'aperçu
         self.assertEqual((seen["label"], seen["total"]), ("Lave-linge 9 kg · 700 € max", 1))
-        with self.assertRaises(urllib.error.HTTPError) as refused:                                  # lancer : connecté
-            self.post("missions", {"category": "lave_linge", "max_price": 700}, None)
-        self.assertEqual(refused.exception.code, 401)
-        refused.exception.close()
+        found = self.get("search?q=" + urllib.parse.quote("lave-linge 9 kg sous 700 €"))[1]        # la Recherche comprend la phrase
+        self.assertEqual(([p["brand"] for p in found["products"]], [c["label"] for c in found["chips"]]),
+                         (["Bosch"], ["Lave-linge", "9 kg et plus", "Moins de 700 €"]))
         made = self.post("missions", {"category": "lave_linge", "attrs": {"capacity_kg": 9}, "max_price": 700}, mia)
         self.assertEqual((made["total"], self.get("missions", mia)[1]["reached"]), (1, 1))
         self.assertEqual(self.get("missions", lea)[1]["missions"], [])                             # chacun ses missions

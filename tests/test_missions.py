@@ -1,9 +1,12 @@
-"""Missions (missions.py) : « je veux un aspirateur balai sous 300 €, préviens-moi ».
+"""Missions (missions.py) : vos recherches sauvegardées, que Deals surveille ; « je veux un aspirateur balai sous 300 €,
+préviens-moi ».
 
 Ce que le produit promet : une phrase suffit ; rien n'est deviné (ce qui n'est pas dit n'est pas exigé, ce qui est dit
-l'est) ; un produit ne remplit une mission que s'il est disponible, au prix voulu et conforme ; la nuit, un e-mail par
-personne, jamais deux fois le même produit au même prix, rien pour ce qu'elle voyait déjà en lançant la mission.
-Depuis une fiche, « tout produit comparable » garde la catégorie, les fonctions et la taille ; une cible, une mission.
+l'est) ; un produit ne remplit une mission que s'il est disponible, au prix voulu et conforme ; le prix est facultatif
+(sans lui, la mission suit les nouveautés) ; l'app dit ce qui est nouveau depuis le dernier regard ; la nuit, un e-mail par
+personne qui a donné son adresse et laissé l'alerte, jamais deux fois le même produit au même prix, rien pour ce qu'elle
+voyait déjà. Depuis une fiche, « tout produit comparable » garde la catégorie, les fonctions et la taille ; une cible,
+une mission.
 """
 import json
 import tempfile
@@ -11,7 +14,7 @@ import unittest
 from pathlib import Path
 
 from deals.catalog import Catalog
-from deals.errors import BadRequest
+from deals.errors import BadRequest, NotFound
 from deals.extract import attributes, categorize
 from deals.missions import Missions, interpret, label, like, matches
 from deals.accounts import Outbox
@@ -78,6 +81,8 @@ class Matches(unittest.TestCase):
         self.assertFalse(matches(m, product("Aspirateur balai sans fil V8 40 min", 399, brand="Kessler")))   # une autre marque
         self.assertTrue(matches({"product_id": 7, "max_price": 600}, product("Lave-linge 8 kg", 599, pid=7)))
         self.assertFalse(matches({"product_id": 7, "max_price": 600}, product("Lave-linge 8 kg", 599, pid=8)))
+        flex = {**product("Aspirateur balai sans fil Flex 45 min", 242), "search": " aspirateur balai sans fil flex kessler "}
+        self.assertEqual([matches({"category": "aspirateur", "words": w}, flex) for w in (["flex"], ["fle"], ["v8"])], [True, True, False])
 
     def test_comparable_keeps_kind_functions_and_size(self):
         self.assertEqual(like(product("Aspirateur balai sans fil Flex 45 min", 279)),
@@ -158,17 +163,92 @@ class Night(unittest.TestCase):
         self.assertIn("et 3 autres à votre prix", body)
 
     def test_a_person_manages_her_missions(self):
-        self.assertEqual(self.m.list(self.uid), {"missions": [], "reached": 0})
+        self.assertEqual(self.m.list(self.uid), {"missions": [], "reached": 0, "fresh": 0})
+        self.assertEqual(self.m.list(None), {"missions": [], "reached": 0, "fresh": 0})              # sans compte : rien
         a = self.m.create(self.uid, {"product_id": 2, "max_price": 350})                              # ce produit, sous 350 €
         self.assertEqual((a["label"], a["total"], a["nearest"]["price"]), ("Zephyr Aspirateur balai sans fil V8 40 min · 350 € max", 0, 399))
-        with self.assertRaises(BadRequest):
-            self.m.create(self.uid, {"category": "aspirateur"})                                       # sans prix
-        with self.assertRaises(BadRequest):
-            self.m.create(self.uid, {"category": "smartphone", "max_price": 300})
+        b = self.m.create(self.uid, {"category": "aspirateur"})                                       # sans prix : une recherche gardée
+        self.assertEqual((b["label"], b["total"], b["reached"], b["fresh"], b["nearest"]), ("Aspirateur", 3, False, 0, None))
+        for bad in ({}, {"category": "smartphone", "max_price": 300}, {"category": "aspirateur", "off": 95}, {"words": "x"}):
+            with self.assertRaises(BadRequest):
+                self.m.create(self.uid, bad)
         listed = self.m.list(self.uid)
-        self.assertEqual(([v["id"] for v in listed["missions"]], listed["reached"]), ([a["id"]], 0))
+        self.assertEqual(([v["id"] for v in listed["missions"]], listed["reached"]), ([b["id"], a["id"]], 0))
         self.m.remove(self.uid, a["id"])
-        self.assertEqual(self.m.list(self.uid)["missions"], [])
+        self.assertEqual([v["id"] for v in self.m.list(self.uid)["missions"]], [b["id"]])
+        bob = self.s.x("INSERT INTO users(email, created_at) VALUES ('bob@test.local', 0)")
+        for act in (lambda: self.m.remove(bob, b["id"]), lambda: self.m.seen(bob, b["id"]), lambda: self.m.alert(None, b["id"], False)):
+            with self.assertRaises(NotFound):                                                         # chacun les siennes
+                act()
+
+    def test_a_saved_search_says_what_is_new_since_the_last_look(self):
+        s = self.m.create(self.uid, {"category": "aspirateur", "features": ["balai"]})
+        self.assertEqual((s["total"], s["fresh"]), (2, 0))                                            # ce qu'elle voyait déjà
+        self.put(4, "Aspirateur balai sans fil Agile 30 min", "Helio", 179)                          # un nouveau balai
+        self.put(1, "Aspirateur balai sans fil Flex 45 min", "Kessler", 259)                          # et une baisse
+        self.put(3, "Aspirateur traîneau sans sac 750 W", "Ostra", 149)                               # pas un balai : rien
+        mine = self.m.list(self.uid)
+        self.assertEqual((mine["missions"][0]["fresh"], mine["fresh"]), (2, 1))
+        self.m.seen(self.uid, s["id"])                                                                # ouverte : plus nouveau
+        self.assertEqual(self.m.list(self.uid)["missions"][0]["fresh"], 0)
+
+    def test_words_promo_low_price_and_floor(self):
+        with self.s.tx() as c:
+            c.execute("UPDATE catalog SET search=' aspirateur balai sans fil flex kessler ', pct=20 WHERE product_id=1")
+            c.execute("UPDATE catalog SET search=' aspirateur balai sans fil v8 zephyr ', level='lowest', span=90, usual=480 WHERE product_id=2")
+        flex = self.m.create(self.uid, {"category": "aspirateur", "words": ["Flex"]})
+        self.assertEqual(([c["id"] for c in flex["matches"]], flex["label"]), ([1], "Aspirateur « flex »"))
+        promo = self.m.create(self.uid, {"category": "aspirateur", "off": 10})
+        self.assertEqual(([c["id"] for c in promo["matches"]], promo["label"]), ([1], "Aspirateur · −10 % et plus"))
+        low = self.m.create(self.uid, {"category": "aspirateur", "low": True, "min_price": 250})
+        self.assertEqual(([c["id"] for c in low["matches"]], low["label"]), ([2], "Aspirateur · prix bas · dès 250 €"))
+        self.assertEqual(self.m.create(self.uid, {"category": "aspirateur", "words": ["flex"]})["id"], flex["id"])   # la même recherche
+
+    def test_what_is_asked_is_kept(self):
+        with self.s.tx() as c:
+            c.execute("UPDATE catalog SET search=' aspirateur balai sans fil flex kessler ' WHERE product_id=1")
+        floor = self.m.create(self.uid, {"category": "aspirateur", "min_price": 250})                # dès 250 € : pas le traîneau à 199 €
+        self.assertEqual(sorted(c["id"] for c in floor["matches"]), [1, 2])
+        upside = self.m.create(self.uid, {"category": "aspirateur", "min_price": 500, "max_price": 300})   # à l'envers : le plancher tombe
+        self.assertEqual((upside["label"], upside["total"]), ("Aspirateur · 300 € max", 2))
+        both = self.m.create(self.uid, {"category": "aspirateur", "room": "salon"})                 # le rayon nommé l'emporte sur la pièce
+        self.assertEqual((both["room"], both["total"]), (None, 3))
+        self.assertEqual(self.m.create(self.uid, {"words": ["flex"]})["total"], 1)                     # des mots seulement
+        self.assertEqual(self.m.create(self.uid, {"words": ["fle"]})["total"], 1)                      # le début d'un mot suffit
+        salon, care = self.m.create(self.uid, {"room": "salon"}), self.m.create(self.uid, {"room": "entretien"})
+        kept = {v["id"]: (v["room"], v["total"]) for v in self.m.list(self.uid)["missions"]}
+        self.assertEqual((kept[salon["id"]], kept[care["id"]]), (("salon", 0), ("entretien", 3)))     # la pièce reste la pièce
+        self.assertEqual(self.m.preview(self.uid, {"category": "aspirateur"})["fresh"], 0)             # un aperçu n'a rien de nouveau
+
+    def test_saving_again_resets_what_is_new(self):
+        s = self.m.create(self.uid, {"category": "aspirateur", "max_price": 300})
+        again = self.m.create(self.uid, {"category": "aspirateur", "max_price": 450})                 # même recherche, autre prix
+        self.assertEqual((again["id"], again["total"], again["fresh"]), (s["id"], 3, 0))               # ce qu'on voit en sauvegardant
+        self.assertEqual(self.m.list(self.uid)["missions"][0]["fresh"], 0)
+        self.assertEqual(self.m.notify(Outbox(), "https://deals.test")["emails"], 0)                   # ni par e-mail
+        self.m.seen(self.uid, s["id"])
+        self.put(2, "Aspirateur balai sans fil V8 40 min", "Zephyr", 397)                             # 2 € de moins : c'est nouveau
+        self.assertEqual(self.m.list(self.uid)["missions"][0]["fresh"], 1)
+
+    def test_an_address_given_later_does_not_mail_what_was_seen(self):
+        guest = self.s.x("INSERT INTO users(email, created_at) VALUES (NULL, 0)")
+        self.m.create(guest, {"category": "aspirateur", "max_price": 300})
+        self.s.x("UPDATE missions SET notified='{}' WHERE user_id=?", (guest,))                      # vu dans l'app, jamais envoyé
+        self.s.x("UPDATE users SET email='noe@test.local' WHERE id=?", (guest,))                     # l'adresse arrive (accounts.verify)
+        self.m.caught_up(guest)
+        self.assertEqual(self.m.notify(Outbox(), "https://deals.test")["emails"], 0)
+
+    def test_the_night_mail_needs_an_address_and_the_alert(self):
+        guest = self.s.x("INSERT INTO users(email, created_at) VALUES (NULL, 0)")                     # compte invité : l'app seulement
+        bob = self.s.x("INSERT INTO users(email, created_at) VALUES ('bob@test.local', 0)")
+        for who in (self.uid, guest, bob):
+            self.m.create(who, {"category": "aspirateur", "max_price": 300})
+        off = self.m.list(bob)["missions"][0]
+        self.assertEqual(self.m.alert(bob, off["id"], False), {"alert": False})
+        self.put(3, "Aspirateur traîneau sans sac 750 W", "Ostra", 189)
+        box = Outbox()
+        self.assertEqual((self.m.notify(box, "https://deals.test")["emails"], [to for to, _ in box.mails]), (1, ["mia@test.local"]))
+        self.assertEqual(self.m.list(guest)["missions"][0]["fresh"], 1)                               # l'invité le voit dans l'app
 
     def test_one_mission_per_target(self):
         a = self.m.create(self.uid, {"like": 1, "max_price": 300})                                    # comparable au Flex

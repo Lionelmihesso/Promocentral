@@ -171,6 +171,12 @@ class Reads(unittest.TestCase):
         return self.s.q("SELECT category FROM catalog WHERE pct > 0 AND category != ? GROUP BY category HAVING COUNT(*) >= 2 "
                         "ORDER BY COUNT(*) DESC, category LIMIT 1", (best,), one=True)["category"]
 
+    def test_forgetting_without_an_account_keeps_nothing(self):
+        before = self.s.q("SELECT COUNT(*) n FROM prefs", one=True)["n"]
+        r = self.post("/api/r/profile/reset", {})                                 # sans compte : le navigateur oublie seul
+        self.assertEqual((r.status, r.body, r.cookie), (200, {"reset_at": None}, None))
+        self.assertEqual(self.s.q("SELECT COUNT(*) n FROM prefs", one=True)["n"], before)
+
     def test_a_new_visitor_sees_the_order_of_before(self):
         today = self.get("/api/r/today")
         self.assertFalse(today["personal"])
@@ -273,7 +279,8 @@ class Reads(unittest.TestCase):
         uid, token = self.account()
         self.assertEqual(self.post("/api/r/interests", {"categories": ["inconnu"]}, token).status, 400)
         self.assertEqual(self.post("/api/r/interests", {"categories": ["canape"] * 13}, token).status, 400)
-        self.assertEqual(self.post("/api/r/interests", {"categories": ["canape"]}, "").status, 401)
+        visitor = self.post("/api/r/interests", {"categories": ["canape"]}, "")         # sans compte : un compte invité
+        self.assertEqual((visitor.status, visitor.body, "deals_session=" in visitor.cookie), (200, {"categories": ["canape"]}, True))
         cat = self.deal_category()
         self.assertEqual(self.post("/api/r/interests", {"categories": [cat]}, token).body, {"categories": [cat]})
         prof = self.get("/api/r/profile", token)
@@ -321,6 +328,22 @@ class Reads(unittest.TestCase):
         self.post("/api/r/profile", {"learn": False}, token)
         self.post("/api/r/save", {"product_id": fav["product_id"], "on": True}, token)
         self.assertEqual(seen(), [fav["category"]])                               # un favori compte toujours
+
+    def test_a_guest_learns_only_this_visit_unless_asked(self):
+        while True:                                                               # un geste : un compte invité (pas témoin, ici)
+            token = self.post("/api/r/brand/follow", {"brand": "Nordvik", "on": True}, "").cookie.split(";")[0].split("=", 1)[1]
+            if not P.control(self.api.accounts.user(token)):
+                break
+        cat = self.deal_category()
+        ids = [x["product_id"] for x in self.s.q("SELECT product_id FROM catalog WHERE category=? LIMIT 3", (cat,))]
+        for i in ids:
+            self.post("/api/r/view", {"product_id": i, "from": "item"}, token)
+        cats = lambda **q: [c["key"] for c in self.get("/api/r/profile", token, **q)["taste"]["cats"]]
+        self.assertEqual(self.get("/api/r/profile", token)["learn"], False)
+        self.assertNotIn(cat, cats())                                             # ses fiches gardées ne comptent pas…
+        self.assertIn(cat, cats(p=",".join(f"v{i}.0" for i in ids)))              # …celles de la visite, oui
+        self.post("/api/r/profile", {"learn": True}, token)
+        self.assertIn(cat, cats())                                                # sur demande : son historique
 
     def test_a_mission_counts_as_a_chosen_rayon(self):
         uid, token = self.account()

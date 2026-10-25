@@ -1,29 +1,29 @@
-"""Contrat de l'app : /api/r/ (inchangé pour l'interface v41).
+"""Contrat de l'app : /api/r/.
 
-Lecture ouverte (sans compte) : today?category=&q= (remises du jour), top (top deals de l'accueil : remises et prix bas,
-why dit pourquoi), search?q=&category=&min=&max=&off=&low=&sort=&recent= (tout le catalogue suivi ; filtres : catégorie,
-budget, promo : remise minimale ou low=1, prix parmi les plus bas depuis longtemps ; tri : relevance, price, discount ;
-categories : la facette des catégories trouvées ; offs : les produits de chaque palier de promo ; sans mot ni filtre, le feed, orienté par recent : les dernières recherches gardées
-par le navigateur, séparées par « | »), categories et brands (celles qui ont des remises ; ?all=1 : toutes), brand/<nom> et category/<clé> (tous les
-produits, remises d'abord), item/<id>, view {product_id, from, m} (fiche vue : le taux de clic),
-out/<offer_id>?from=&m= (clic tracé → lien affilié de l'enseigne partenaire, avec l'identifiant du clic ; m : la mission
-d'où il part), missions/parse {text} et missions/preview {mission} (ce qui est compris, ce qui y répond déjà).
-Champs ajoutés depuis la v41 : since et ends (fiche), alternatives avec saving (fiche : comparables moins chers), kind
-(cartes : catégorie au singulier ; specs, les caractéristiques, retiré en v49 : plus montré), history (fiche : prix des 90
-derniers jours), position (fiche : le prix du jour sur ces 90 jours), published_at (today : heure de la dernière
-publication), saved_price (favoris), family, best et products (catégories), best, products, top et categories (marques),
-offer_id (cartes : l'offre la moins chère, pour un « Voir l'offre » direct).
-today?category= accepte plusieurs catégories séparées par des virgules.
-Session requise (sinon 401) : save, saves, brand/follow, follows, missions (GET : les miennes ; POST : lancer),
-missions/delete {id}.
-Connexion : auth/request {email, mission?} (la mission attend le lien, sur le serveur), auth/verify?token= (pose le cookie,
-lance la mission qui attendait et renvoie vers /?mission=<id> ; ou vers /?auth=expired), auth/me, auth/logout.
-Goûts (profile.py) : today, top, search (le feed) et foryou (« pour vous » : deals et prix bas de vos rayons) suivent le
-profil ; sans compte, le navigateur envoie p (fiches vues v<id>.<âge en jours>, clics c…, favoris s…, au plus 60), i (rayons
-choisis, séparés par des virgules) et v=t (témoin : sans personnalisation) ; rien n'en est gardé. profile : ce que l'app
-retient et a compris ; avec un compte : interests {categories} (rayons choisis), profile {learn} (apprendre des fiches et
-des clics, ou non), profile/reset (oublier ce qui a été déduit). auth/me dit aussi variant (p : personnalisé, t : témoin) ;
-view {v} et out ?v= le rapportent dans les mesures.
+Lecture ouverte : today?category=&q= (remises du jour), top (top deals de l'accueil : remises et prix bas, why dit
+pourquoi), search (tout le catalogue suivi ; voir plus bas), categories et brands (celles qui ont des remises ; ?all=1 :
+toutes), brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id>, view {product_id, from, m, v}
+(fiche vue : le taux de clic), out/<offer_id>?from=&m=&v= (clic tracé → lien affilié de l'enseigne partenaire, avec
+l'identifiant du clic ; m : la mission d'où il part), missions/parse {text} et missions/preview {mission} (ce qui est
+compris, ce qui y répond déjà).
+Recherche (v56) : search?q=&category=&brand=&feat=&attr=&min=&max=&off=&low=&sort=&recent= ; q est une phrase comprise
+(query.read : « aspirateur balai sans fil sous 300 € ») ; les autres paramètres, choisis dans l'app, l'emportent sur ce
+que dit la phrase (feat : fonctions séparées par des virgules ; attr : clé:valeur séparés par des virgules). La réponse
+dit criteria (ce qui est appliqué), chips (les mêmes, en mots), words et ignored (les mots cherchés, ceux qui ne
+trouvaient rien), unsupported (un rayon pas encore suivi) et relaxed (rien sous le budget : les plus proches au-dessus) ;
+sans mot ni filtre, le feed, orienté par recent (les dernières recherches du navigateur, séparées par « | ») et par les
+goûts.
+Ce qu'on garde (v56 : sans e-mail) : save, brand/follow, interests {categories}, missions (POST : sauvegarder une
+recherche, prix facultatif), profile {learn} créent au besoin un compte invité (cookie) ; saves, follows, missions (GET)
+sont vides sans compte ; missions/delete, missions/seen (ce qui y répond n'est plus nouveau), missions/alert {id, on}
+(e-mail de la nuit), profile/reset, account/delete (effacer le compte et ce qu'il gardait).
+Adresse e-mail (facultative) : auth/request {email, mission?} (depuis un compte invité : l'adresse lui sera rattachée),
+auth/verify?token= (pose le cookie ; un compte invité y est rattaché ou versé ; la mission qui attendait est lancée et
+l'app l'ouvre : /?mission=<id> ; lien expiré : /?auth=expired), auth/me (email, guest, variant ; 401 sans compte),
+auth/logout.
+Goûts (profile.py) : today, top, search (le feed) et foryou (« pour vous ») suivent le profil ; le navigateur envoie p
+(fiches vues v<id>.<âge en jours>, clics c…, au plus 60 ; sans compte, ou quand le compte n'apprend pas), i (rayons
+choisis, sans compte) et v=t (témoin) ; rien n'en est gardé. profile : ce que l'app retient et a compris.
 Surveillance : health (pour une sonde extérieure : status ok | degraded | critical, heure de la dernière nuit, taille du
 catalogue ; 503 si aucune nuit depuis 36 h, si la dernière a eu une étape en erreur ou si un incident critique est
 ouvert ; aucun détail de plus).
@@ -40,6 +40,8 @@ from .accounts import Accounts
 from .activity import Activity
 from .catalog import SORTS, Catalog
 from .errors import BadRequest, NotFound
+from .labels import FEATURE_LABEL, ROOMS
+from .query import WANTED
 from .missions import Missions
 from .ops import utc
 from .profile import Profiles, control
@@ -55,6 +57,8 @@ class Request:
     body: dict = field(default_factory=dict)
     session: str = ""
     ip: str = ""
+    cookie: str = None                 # posé par la route : le compte invité créé pendant la requête
+    guest: int = None                  # ce compte invité (effacé si la requête échoue)
 
 
 @dataclass
@@ -76,19 +80,19 @@ class Api:
         self.store, self.clock = store, clock
         C, A, T, M, P = self.catalog, self.accounts, self.activity, self.missions, self.profiles
         uid = lambda r: A.user(r.session)
-        need = lambda r: A.require(r.session)
+        need = self._keep                                   # garder quelque chose : un compte invité au besoin
         prof = lambda r: P.of(uid(r), r.query, self._recent(r.query))
         self.routes = [(m, re.compile(p), f) for m, p, f in [
             ("GET", r"/api/r/today", lambda r: C.today(uid(r), r.query.get("category") or None, r.query.get("q") or None, prof(r))),
             ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None, r.query.get("category") or None,
                                                          *self._filters(r.query), recent=self._recent(r.query),
-                                                         low=r.query.get("low") == "1", prof=prof(r))),
+                                                         low=r.query.get("low") == "1", prof=prof(r), **self._criteria(r.query))),
             ("GET", r"/api/r/top", lambda r: C.top(uid(r), prof(r))),
             ("GET", r"/api/r/foryou", lambda r: C.foryou(uid(r), prof(r))),
             ("GET", r"/api/r/profile", self._profile),
             ("POST", r"/api/r/interests", lambda r: P.choose(need(r), (r.body or {}).get("categories"))),
             ("POST", r"/api/r/profile", lambda r: P.learn(need(r), (r.body or {}).get("learn"))),
-            ("POST", r"/api/r/profile/reset", lambda r: P.reset(need(r))),
+            ("POST", r"/api/r/profile/reset", lambda r: P.reset(uid(r)) if uid(r) is not None else {"reset_at": None}),
             ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
@@ -98,15 +102,19 @@ class Api:
                                                                                          r.query.get("m"), r.query.get("v")))),
             ("POST", r"/api/r/view", lambda r: T.view(uid(r), r.body)),
             ("POST", r"/api/r/save", lambda r: T.save(need(r), r.body)),
-            ("GET", r"/api/r/saves", lambda r: C.saves(need(r))),
+            ("GET", r"/api/r/saves", lambda r: C.saves(uid(r))),
             ("POST", r"/api/r/brand/follow", lambda r: T.follow(need(r), r.body)),
-            ("GET", r"/api/r/follows", lambda r: T.follows(need(r))),
+            ("GET", r"/api/r/follows", lambda r: T.follows(uid(r))),
             ("POST", r"/api/r/missions/parse", lambda r: M.interpret_text(uid(r), (r.body or {}).get("text"))),
             ("POST", r"/api/r/missions/preview", lambda r: M.preview(uid(r), r.body or {})),
-            ("GET", r"/api/r/missions", lambda r: M.list(need(r))),
+            ("GET", r"/api/r/missions", lambda r: M.list(uid(r))),
             ("POST", r"/api/r/missions", lambda r: M.create(need(r), r.body or {})),
-            ("POST", r"/api/r/missions/delete", lambda r: M.remove(need(r), (r.body or {}).get("id"))),
-            ("POST", r"/api/r/auth/request", lambda r: A.request_link(r.body.get("email"), r.ip, *M.pending(r.body.get("mission")))),
+            ("POST", r"/api/r/missions/delete", lambda r: M.remove(uid(r), (r.body or {}).get("id"))),
+            ("POST", r"/api/r/missions/seen", lambda r: M.seen(uid(r), (r.body or {}).get("id"))),
+            ("POST", r"/api/r/missions/alert", lambda r: M.alert(uid(r), (r.body or {}).get("id"), (r.body or {}).get("on"))),
+            ("POST", r"/api/r/account/delete", lambda r: Response(200, A.forget(A.require(r.session)), cookie=A.cookie(None))),
+            ("POST", r"/api/r/auth/request", lambda r: A.request_link(r.body.get("email"), r.ip, *M.pending(r.body.get("mission")),
+                                                                     guest=uid(r))),
             ("GET", r"/api/r/auth/verify", self._verify),
             ("GET", r"/api/r/auth/me", lambda r: {**A.me(r.session), "variant": "t" if control(uid(r)) else "p"}),   # 401 sans session
             ("POST", r"/api/r/auth/logout", lambda r: Response(200, {"ok": True}, cookie=A.logout(r.session))),
@@ -120,10 +128,42 @@ class Api:
             lo, hi, off = (float(query[k]) if query.get(k) else None for k in ("min", "max", "off"))
         except ValueError:
             raise BadRequest("Filtre invalide")
-        sort = query.get("sort") or "relevance"
-        if sort not in SORTS:
+        sort = query.get("sort") or None
+        if sort is not None and sort not in SORTS:
             raise BadRequest("Tri inconnu")
         return lo, hi, off, sort
+
+    @staticmethod
+    def _criteria(query):
+        """Recherche : les critères choisis dans l'app (marque, fonctions, tailles), qui l'emportent sur la phrase."""
+        feats = [f for f in (query.get("feat") or "").split(",") if f]
+        if any(f not in FEATURE_LABEL for f in feats):
+            raise BadRequest("Fonction inconnue")
+        attrs = {}
+        for part in (query.get("attr") or "").split(","):
+            if not part:
+                continue
+            k, _, v = part.partition(":")
+            if k not in WANTED or not v:
+                raise BadRequest("Caractéristique inconnue")
+            attrs[k] = float(v) if re.fullmatch(r"\d+(?:\.\d+)?", v) else v.upper() if k == "energy_class" else v
+            if isinstance(attrs[k], float) and attrs[k].is_integer():
+                attrs[k] = int(attrs[k])
+        room = query.get("room") or None
+        if room is not None and room not in ROOMS:
+            raise BadRequest("Pièce inconnue")
+        return {"brand": query.get("brand") or None, "features": feats, "attrs": attrs, "room": room}
+
+    def _keep(self, r):
+        """Le compte de la requête ; sans compte, un compte invité est créé et son cookie part avec la réponse ; un invité
+        qui garde encore quelque chose voit sa clé renouvelée."""
+        who = self.accounts.user(r.session)
+        if who is None:
+            who, r.cookie = self.accounts.guest(r.ip)
+            r.guest = who                                       # à oublier si la requête échoue (handle)
+        else:
+            r.cookie = self.accounts.renew(r.session)           # un invité : sa clé repart pour un an
+        return who
 
     @staticmethod
     def _recent(query):
@@ -148,24 +188,29 @@ class Api:
 
     def _profile(self, r):
         """Ce que l'app retient et a compris des goûts : rayons choisis (du compte ; sans compte, ceux que le navigateur
-        envoie), rayons et marques compris (taste), apprentissage par les fiches et les clics (compte), témoin ou non."""
+        envoie), rayons et marques compris (taste), apprentissage par les fiches et les clics, témoin ou non, compte
+        invité ou adresse donnée."""
         who = self.accounts.user(r.session)
         prof = self.profiles.of(who, r.query, self._recent(r.query))
+        email = self.store.q("SELECT email FROM users WHERE id=?", (who,), one=True)["email"] if who is not None else None
         return {"picks": list(prof.picks) if who is None else [x["category"] for x in self.store.q(
                     "SELECT category FROM interests WHERE user_id=? ORDER BY created_at", (who,))],
-                "taste": self.catalog.taste(prof), "learn": bool(self.profiles.prefs(who)["learn"]) if who else None,
-                "variant": ("t" if control(who) else "p") if who else ("t" if r.query.get("v") == "t" else "p"),
-                "signed_in": who is not None}
+                "taste": self.catalog.taste(prof), "learn": bool(self.profiles.prefs(who)["learn"]) if who is not None else None,
+                "variant": ("t" if control(who) else "p") if who is not None else ("t" if r.query.get("v") == "t" else "p"),
+                "signed_in": who is not None, "guest": who is not None and email is None, "email": email}
 
     def _verify(self, r):
         """Le lien ouvert connecte la personne ; la mission qui attendait ce lien est lancée, et l'app l'ouvre."""
-        location, cookie, waiting = self.accounts.verify(r.query.get("token", ""))
-        if waiting:
-            uid, mission = waiting
-            try:
-                location = f"/?mission={self.missions.create(uid, json.loads(mission))['id']}"
-            except (BadRequest, NotFound):
-                pass                                            # produit retiré depuis, ou 20 missions déjà : connecté quand même
+        location, cookie, opened = self.accounts.verify(r.query.get("token", ""))
+        if opened:
+            uid, mission, attached = opened
+            if attached:
+                self.missions.caught_up(uid)                    # ce que l'invité voyait déjà ne part pas par e-mail
+            if mission:
+                try:
+                    location = f"/?mission={self.missions.create(uid, json.loads(mission))['id']}"
+                except (BadRequest, NotFound):
+                    pass                                        # produit retiré depuis, ou 20 missions déjà : connecté quand même
         return Response(302, location=location, cookie=cookie)
 
     def handle(self, req):
@@ -175,10 +220,15 @@ class Api:
                 try:
                     out = fn(req, *m.groups())
                 except Exception as e:      # erreurs métier → statut ; le reste → 500 sans détail interne
+                    if req.guest is not None:   # rien n'a été gardé : pas de compte invité orphelin
+                        self.accounts.forget(req.guest)
                     status = getattr(e, "status", None)
                     if status is None:
                         traceback.print_exc()
                         return Response(500, {"error": "Erreur interne"})
                     return Response(status, {"error": str(e)})
-                return out if isinstance(out, Response) else Response(200, out)
+                out = out if isinstance(out, Response) else Response(200, out)
+                if req.cookie and not out.cookie:
+                    out.cookie = req.cookie                     # le compte invité créé pendant la requête
+                return out
         return Response(404, {"error": "Route inconnue"})
