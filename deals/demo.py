@@ -1,6 +1,7 @@
 """Démo : la vraie nuit (night.py : collecte → agent → publication → contrôles) sur le marché simulé, nuit après nuit.
 
-59 produits des trois familles, quatre enseignes fictives (une source chacune, toutes partenaires : RULES), trois
+84 produits des trois familles (dont 33 aspirateurs de tous types, fiches plus ou moins complètes : v57), quatre
+enseignes fictives (une source chacune, toutes partenaires : RULES), trois
 enseignes par produit, une nuit par jour du 1er octobre au 14 décembre 2025 (Black Friday compris) ; la dernière nuit est
 un jour ordinaire de décembre : des remises qui commencent, d'autres qui finissent, des fausses promos écartées.
 L'aspirateur balai haut de gamme (Zephyr V15) n'y est pas en remise, mais trois modèles comparables coûtent bien moins
@@ -33,7 +34,8 @@ def world(store, start, seed=4, catalog=sim.SHOWCASE):
     """Le marché simulé branché sur `store` depuis le jour `start` (même départ, même marché) : sim (le marché simulé),
     market, clock, crawler, retailers (une source par enseigne simulée). Pour la démo, le banc et les tests."""
     merchants = sim.SHOWCASE_MERCHANTS if catalog is sim.SHOWCASE else sim.MERCHANTS
-    m = sim.Market(start=start, days=HORIZON, seed=seed, catalog=catalog, merchants=merchants)
+    m = sim.Market(start=start, days=HORIZON, seed=seed, catalog=catalog, merchants=merchants,
+                   extra=sim.SHOWCASE_MORE if catalog is sim.SHOWCASE else ())
     clock = sim.SimClock(start)
     market = Market(store, clock)
     known = retailers(merchants)

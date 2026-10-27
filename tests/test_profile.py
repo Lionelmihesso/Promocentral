@@ -347,10 +347,14 @@ class Reads(unittest.TestCase):
 
     def test_a_mission_counts_as_a_chosen_rayon(self):
         uid, token = self.account()
-        cat = self.deal_category()
+        cat = self.s.q("SELECT category FROM catalog WHERE category NOT IN ('aspirateur', 'robot_aspirateur') ORDER BY pct DESC, "
+                       "category LIMIT 1", one=True)["category"]                 # un rayon hors domaine à ontologie : la mission le garde
         self.assertEqual(self.post("/api/r/missions", {"category": cat, "max_price": 5000}, token).status, 200)
         cats = self.get("/api/r/profile", token)["taste"]["cats"]
         self.assertEqual((cats[0]["key"], cats[0]["chosen"]), (cat, True))
+        uid, token = self.account()                                               # une recherche de besoin (aspirateurs) : ses rayons
+        self.assertEqual(self.post("/api/r/missions", {"domain": "aspirateurs", "sub": "robot", "needs": ["animaux"]}, token).status, 200)
+        self.assertEqual([(c["key"], c["chosen"]) for c in self.get("/api/r/profile", token)["taste"]["cats"]], [("robot_aspirateur", True)])
         uid, token = self.account()                                               # une mission sur un produit : son rayon, sa marque
         r = self.s.q("SELECT product_id, category, brand FROM catalog WHERE pct > 0 ORDER BY product_id LIMIT 1", one=True)
         self.assertEqual(self.post("/api/r/missions", {"product_id": r["product_id"], "max_price": 5000}, token).status, 200)

@@ -22,11 +22,13 @@ dernière remise à zéro ; sinon, ceux de la visite, envoyés par le navigateur
 que la personnalisation rapporte (activity.metrics, by_variant).
 """
 import hashlib
+import json
 import re
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
+from . import ontology
 from .errors import BadRequest
 from .extract.categories import FAMILY_OF
 
@@ -170,6 +172,16 @@ def control(uid):
     return int(hashlib.sha256(f"deals-{uid}".encode()).hexdigest(), 16) % CONTROL == 0
 
 
+def domain_rayons(want):
+    """Les rayons d'une recherche gardée dans un domaine à ontologie (« aspirateur pour un chat ») : ceux de son type, ou
+    tous ceux du domaine."""
+    w = json.loads(want or "{}")
+    d = ontology.DOMAINS.get(w.get("domain"))
+    if d is None:
+        return []
+    return [d.category_of(w["sub"])] if w.get("sub") in d.sub else list(d.categories)
+
+
 class Profiles:
     """Le profil d'une requête : celui du compte (ses tables) ou celui que le navigateur envoie ; et les gestes qui le règlent
     (rayons choisis, apprentissage, remise à zéro). Seul module qui écrit interests et prefs."""
@@ -236,7 +248,7 @@ class Profiles:
                     f"SELECT product_id, at FROM {table} WHERE user_id=? AND at>? ORDER BY at DESC LIMIT 300", (uid, since))]
         else:                                                  # n'apprend pas : seulement cette visite, envoyée par le navigateur
             rows += [(k, i, now - age * 86400) for k, i, age in parse_events(query.get("p"))]
-        missions = self.s.q("SELECT product_id, category, brand FROM missions WHERE user_id=?", (uid,))
+        missions = self.s.q("SELECT product_id, category, brand, want FROM missions WHERE user_id=?", (uid,))
         things = self._things([i for _, i, _ in rows] + [m["product_id"] for m in missions if m["product_id"]])
         seen = [(k, things[i]["category"], things[i]["brand"], (now - at) / 86400) for k, i, at in rows if i in things]
         chosen = [r["category"] for r in self.s.q("SELECT category FROM interests WHERE user_id=? ORDER BY created_at", (uid,))]
@@ -244,6 +256,7 @@ class Profiles:
         for m in missions:                                     # une mission en cours : on est en train d'acheter
             thing = things.get(m["product_id"]) or {}
             chosen.append(m["category"] or thing.get("category"))
+            chosen += domain_rayons(m["want"]) if not m["category"] and not m["product_id"] else []
             follows.append(m["brand"] or (thing.get("brand") if m["product_id"] else None))
         return build(chosen, follows, seen + searched, personal=not control(uid))
 

@@ -99,6 +99,49 @@ SHOWCASE = [
     ("canape", "Canapé d'angle convertible {brand} Nordic 5 places", 899, "Lumen"),
 ]
 SHOWCASE_MERCHANTS = ["Électro Plus", "Maison & Co", "Rapido", "Grand Bazar"]
+# v57 : de quoi parcourir les aspirateurs par type et par besoin — chaque sous-famille, des fiches plus ou moins
+# complètes (caractéristiques déclarées comme le font les enseignes, avec leurs noms et leurs formats), marques fictives.
+# Simulés à part (leur propre tirage) : les produits d'avant gardent exactement leurs prix.
+SHOWCASE_MORE = [
+    ("aspirateur", "Aspirateur balai sans fil {brand} Aero 12 Animal", 329, "Kessler",
+     {"Autonomie": "60 min", "Poids": "2,4 kg", "Brosse anti-enchevêtrement": "Oui", "Filtre HEPA": "Oui", "Utilisable en aspirateur à main": "Oui",
+      "Niveau sonore": "78 dB"}),
+    ("aspirateur", "Aspirateur balai sans fil {brand} Slim 5 Lite", 189, "Helio",
+     {"Autonomie maximale": "35 minutes", "Poids net": "1,9 kg", "Brosse motorisée": "Oui", "Filtre HEPA": "Non", "Utilisable en aspirateur à main": "Oui"}),
+    ("aspirateur", "Aspirateur balai 2 en 1 sans fil {brand} Duo 25 min", 129, "Brava", {"Poids": "2,1 kg", "Brosse motorisée": "Non"}),
+    ("aspirateur", "Aspirateur balai sans fil {brand} U9 Ultra 90 min", 549, "Zephyr",
+     {"Autonomie": "90 min", "Poids": "3,1 kg", "Batterie amovible": "Oui", "Filtre HEPA": "Oui", "Brosse parquet": "Oui", "Brosse motorisée": "Oui",
+      "Puissance d'aspiration": "230 AW"}),
+    ("aspirateur", "Aspirateur balai filaire {brand} Classic", 99, "Ostra", {"Poids": "3,4 kg", "Niveau sonore": "80 dB", "Rayon d'action": "8 m"}),
+    ("aspirateur", "Aspirateur balai sans fil {brand} Flex Pet 50 min", 279, "Brava", {"Poids": "2,7 kg", "Spécial animaux": "Oui", "Filtre HEPA": "Oui"}),
+    ("aspirateur", "Aspirateur balai sans fil {brand} Parquet 45 min", 239, "Kessler", {"Brosse parquet": "Oui", "Poids": "2,5 kg", "Niveau sonore": "74 dB"}),
+    ("aspirateur", "Aspirateur balai sans fil {brand} Calme 40 min", 219, "Helio", {"Niveau sonore (dB)": "69 dB(A)", "Poids": "2,2 kg"}),
+    ("aspirateur", "Aspirateur traîneau avec sac {brand} Silence Pro 650 W", 249, "Kessler",
+     {"Niveau sonore": "62 dB", "Filtre HEPA": "Oui", "Rayon d'action": "10 m", "Sac": "Avec sac", "Poids": "5,8 kg"}),
+    ("aspirateur", "Aspirateur traîneau sans sac {brand} Cyclo Animal 800 W", 199, "Brava",
+     {"Brosse motorisée": "Oui", "Brosse poils d'animaux": "Oui", "Niveau sonore": "78 dB", "Rayon d'action": "9 m"}),
+    ("aspirateur", "Aspirateur traîneau sans sac {brand} Compact 700 W", 119, "Helio", {"Poids": "4,6 kg", "Rayon d'action": "7 m", "Niveau sonore": "80 dB"}),
+    ("aspirateur", "Aspirateur traîneau sans sac {brand} Allergy 750 W", 279, "Zephyr",
+     {"Filtration": "HEPA H13", "Niveau sonore": "70 dB", "Brosse parquet": "Oui", "Rayon d'action": "11 m"}),
+    ("aspirateur", "Aspirateur traîneau avec sac {brand} Eco 550 W", 89, "Ostra", {"Sac": "Avec sac", "Niveau sonore": "76 dB"}),
+    ("robot_aspirateur", "Robot aspirateur laveur {brand} Q7 navigation laser avec station de vidage", 649, "Kessler",
+     {"Navigation": "Laser (LiDAR)", "Station de vidage": "Oui", "Fonction serpillière": "Oui", "Autonomie": "180 min", "Puissance d'aspiration": "5000 Pa",
+      "Brosse anti-enchevêtrement": "Oui", "Niveau sonore": "65 dB"}),
+    ("robot_aspirateur", "Robot aspirateur {brand} Navi 3 caméra", 299, "Helio",
+     {"Navigation": "Caméra", "Autonomie": "120 min", "Puissance d'aspiration": "2700 Pa", "Niveau sonore": "62 dB"}),
+    ("robot_aspirateur", "Robot aspirateur {brand} Mini R2", 149, "Brava", {"Navigation": "Aléatoire", "Autonomie": "90 min", "Cartographie": "Non", "Niveau sonore": "64 dB"}),
+    ("robot_aspirateur", "Robot aspirateur {brand} Pet S5 navigation laser", 399, "Ostra",
+     {"Navigation": "Laser", "Brosse anti-enchevêtrement": "Oui", "Filtre HEPA": "Oui", "Autonomie": "150 min", "Station de vidage": "Non"}),
+    ("robot_aspirateur", "Robot aspirateur laveur {brand} Aqua 2 gyroscope", 229, "Zephyr", {"Navigation": "Gyroscope", "Fonction lavage": "Oui", "Autonomie": "100 min"}),
+    ("robot_aspirateur", "Robot aspirateur {brand} X9 avec station de vidage", 499, "Brava",
+     {"Navigation": "Laser", "Station de vidage": "Oui", "Autonomie": "200 min", "Puissance d'aspiration": "4000 Pa"}),
+    ("aspirateur", "Aspirateur laveur sans fil {brand} Wave 1", 349, "Kessler", {"Autonomie": "35 min", "Auto-nettoyage": "Oui", "Poids": "4,4 kg", "Niveau sonore": "78 dB"}),
+    ("aspirateur", "Aspirateur laveur sans fil {brand} Aqua Pro", 449, "Ostra", {"Autonomie": "45 min", "Auto-nettoyage": "Oui", "Poids": "4,9 kg"}),
+    ("aspirateur", "Nettoyeur de sols sans fil {brand} Clean 3", 279, "Helio", {"Autonomie": "30 min", "Poids": "3,9 kg"}),
+    ("aspirateur", "Aspirateur à main sans fil {brand} Mini Animal", 79, "Brava", {"Autonomie": "20 min", "Poids": "1,1 kg", "Brosse poils d'animaux": "Oui"}),
+    ("aspirateur", "Aspirateur à main sans fil {brand} Auto 15 min", 49, "Helio", {"Poids": "0,9 kg"}),
+    ("aspirateur", "Aspirateur à main sans fil {brand} Pocket", 39, "Ostra", {}),
+]
 
 
 def gtin(n):
@@ -125,24 +168,35 @@ def slug(name):
 
 
 class Market:
-    def __init__(self, start=date(2026, 1, 5), days=200, seed=4, catalog=CATALOG, merchants=MERCHANTS):
+    def __init__(self, start=date(2026, 1, 5), days=200, seed=4, catalog=CATALOG, merchants=MERCHANTS, extra=()):
+        """extra : des produits de plus (catégorie, titre, prix, marque, fiche déclarée), simulés avec leur propre tirage :
+        les produits du catalogue gardent exactement leurs prix."""
         self.start, self.days = start, days
         rng = random.Random(seed)
         self.products, self.offers = [], []
-        for i, (slug_, label, base, *named) in enumerate(catalog):
+        self._add(catalog, rng, merchants)
+        self._simulate(rng)
+        if extra:
+            more = random.Random(seed * 1000 + 57)
+            first = len(self.offers)
+            self._add(extra, more, merchants)
+            self._simulate(more, self.offers[first:])
+
+    def _add(self, catalog, rng, merchants):
+        for slug_, label, base, *named in catalog:
+            i = len(self.products)
             brand = named[0] if named else BRANDS[i % len(BRANDS)]
             cls = re.search(r"classe ([A-G])", label)
             title = label.format(brand=brand) if "{brand}" in label else \
                 label.replace(" classe", f" {brand} classe") if cls else f"{label} {brand}"
             self.products.append({"id": i, "category": slug_, "brand": brand, "gtin": gtin(i), "base": base * rng.uniform(0.92, 1.08),
-                                  "title": title, "energy": cls.group(1) if cls else None})
+                                  "title": title, "energy": cls.group(1) if cls else None, "props": named[1] if len(named) > 1 else {}})
             for m in rng.sample(merchants, 3):
                 self.offers.append({"pid": i, "merchant": m, "url": f"https://{slug(m)}.sim/p/{i}", "factor": rng.uniform(0.97, 1.06)})
-        self._simulate(rng)
 
-    def _simulate(self, rng):
+    def _simulate(self, rng, offers=None):
         D = self.days
-        for o in self.offers:
+        for o in self.offers if offers is None else offers:
             p = self.products[o["pid"]]
             normal, noise = [], 1.0
             for k in range(D):
@@ -225,7 +279,8 @@ class Market:
                                             "price": o["list"][k], "priceCurrency": "EUR"}]
         ld = {"@context": "https://schema.org", "@type": "Product", "name": p["title"], "gtin13": p["gtin"],
               "brand": {"@type": "Brand", "name": p["brand"]}, "category": p["category"].replace("_", "-"),
-              "additionalProperty": [{"@type": "PropertyValue", "name": "Classe énergétique", "value": p["energy"]}] if p["energy"] else [],
+              "additionalProperty": ([{"@type": "PropertyValue", "name": "Classe énergétique", "value": p["energy"]}] if p["energy"] else [])
+              + [{"@type": "PropertyValue", "name": k, "value": v} for k, v in p["props"].items()],
               "offers": offer}
         return f"<html><head><script type='application/ld+json'>{json.dumps(ld, ensure_ascii=False)}</script></head><body></body></html>"
 

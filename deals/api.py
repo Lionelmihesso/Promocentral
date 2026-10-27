@@ -35,7 +35,7 @@ import traceback
 from dataclasses import dataclass, field
 from urllib.parse import unquote
 
-from . import affiliate
+from . import affiliate, ontology
 from .accounts import Accounts
 from .activity import Activity
 from .catalog import SORTS, Catalog
@@ -87,6 +87,7 @@ class Api:
             ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None, r.query.get("category") or None,
                                                          *self._filters(r.query), recent=self._recent(r.query),
                                                          low=r.query.get("low") == "1", prof=prof(r), **self._criteria(r.query))),
+            ("GET", r"/api/r/explore", lambda r: C.explore(r.query.get("domain") or None)),
             ("GET", r"/api/r/top", lambda r: C.top(uid(r), prof(r))),
             ("GET", r"/api/r/foryou", lambda r: C.foryou(uid(r), prof(r))),
             ("GET", r"/api/r/profile", self._profile),
@@ -152,7 +153,26 @@ class Api:
         room = query.get("room") or None
         if room is not None and room not in ROOMS:
             raise BadRequest("Pièce inconnue")
-        return {"brand": query.get("brand") or None, "features": feats, "attrs": attrs, "room": room}
+        out = {"brand": query.get("brand") or None, "features": feats, "attrs": attrs, "room": room}
+        domain = query.get("domain") or None                # un domaine à ontologie : type, besoins, caractéristiques exigées
+        d = ontology.DOMAINS.get(domain) if domain else None
+        if domain and d is None:
+            raise BadRequest("Domaine inconnu")
+        sub, needs = query.get("sub") or None, [n for n in (query.get("need") or "").split(",") if n]
+        props = {}
+        for part in (query.get("prop") or "").split(","):
+            if part:
+                k, _, v = part.partition(":")
+                props[k] = v != "0"
+        if (sub or needs or props) and d is None:
+            raise BadRequest("Ces critères demandent un domaine")
+        if d and (sub and sub not in d.sub or any(n not in d.needs for n in needs)
+                  or any(k not in d.props or d.props[k]["type"] != "bool" for k in props)):
+            raise BadRequest("Critère inconnu")
+        if d:
+            out.update(domain=domain, sub=sub, needs=needs, props=props)
+        out["noq"] = query.get("noq") == "1"
+        return out
 
     def _keep(self, r):
         """Le compte de la requête ; sans compte, un compte invité est créé et son cookie part avec la réponse ; un invité

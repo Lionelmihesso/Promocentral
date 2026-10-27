@@ -54,6 +54,9 @@ RETAILERS = {
 # En dessous, c'est presque toujours un accessoire (filtre, housse, pieds…) : la fiche n'entre pas au catalogue.
 # Un produit déjà suivi qui passe sous ce seuil reste suivi (c'est peut-être une bonne affaire).
 MIN_PRICE = {"electromenager": 100.0, "ameublement": 100.0, "literie": 100.0}
+# Un rayon où un vrai produit coûte moins (v57 : un aspirateur à main dès 30 €) ; ses accessoires sont écartés par leur
+# titre (« Filtre pour… », « Brosse… », « Sac… » : extract.categories.ACCESSORY).
+MIN_PRICE_CATEGORY = {"aspirateur": 30.0}
 
 # Mots repérables dans l'adresse des fiches (tri de départ ; le titre de la fiche confirme ensuite)
 CATEGORY_URL_HINTS = {

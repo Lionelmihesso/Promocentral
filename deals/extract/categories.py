@@ -133,8 +133,11 @@ def _num(v):
         return None
 
 
-def attributes(title=None, properties=None):
-    """Attributs trouvés dans les propriétés déclarées (prioritaires) puis dans le titre."""
+def attributes(title=None, properties=None, category=None):
+    """Attributs trouvés dans les propriétés déclarées (prioritaires) puis dans le titre. Une catégorie qui a son
+    ontologie (deals/ontology : les aspirateurs) y lit aussi ses caractéristiques, sa sous-famille et leur provenance
+    (_src), sous la version de l'ontologie (_v) ; ce qui n'a pas de sens pour elle est écarté (« 2,6 kg » est un poids,
+    pas une capacité de lave-linge)."""
     out = {}
     for k, v in (properties or {}).items():
         key = PROP_ALIASES.get(plain(k))
@@ -160,4 +163,57 @@ def attributes(title=None, properties=None):
     features = sorted(f for f, rx in FEATURES.items() if rx.search(t))
     if features:
         out["features"] = features
+    if category:
+        from ..ontology import domain_of                 # l'ontologie lit avec plain : importée à l'usage
+        d = domain_of(category)
+        if d:
+            _domain(d, out, title, properties, category)
+    return out
+
+
+def _domain(d, out, title, properties, category):
+    """Les caractéristiques que l'ontologie du domaine lit (fiche, puis titre), la sous-famille et la provenance ; les
+    fonctions suivent ce que la fiche dit (« Alimentation : batterie » : sans fil ; un robot qui lave : laveur)."""
+    for k in d.drops:
+        out.pop(k, None)
+    vals, src = d.read(title, properties)
+    out.update(vals)
+    feats = set(out.get("features", ()))
+    if vals.get("cordless") is True:
+        feats.add("sans_fil")
+    elif vals.get("cordless") is False:
+        feats.discard("sans_fil")
+    out["sub"] = d.sub_of(category, title, {**out, "features": sorted(feats)})
+    if out["sub"] == "robot" and vals.get("mop") is True:
+        feats.add("laveur")
+    if feats:
+        out["features"] = sorted(feats)
+    else:
+        out.pop("features", None)
+    out["_src"], out["_v"] = src, d.version
+
+
+PROPS_KEPT, PROP_LEN = 40, 120                         # une fiche gardée : 40 caractéristiques au plus, 120 caractères chacune
+
+
+def product_attributes(title, category, stored=None, props=None, now=None):
+    """Les caractéristiques d'un produit (marché, publication) : relues du titre et de sa fiche — celle gardée (_props),
+    complétée par celle du jour (props) — avec les règles en vigueur : une ontologie révisée s'applique sans relire les
+    pages. Hors ontologie, ce qui est déjà connu prime (comme avant) ; dans un domaine qui a son ontologie, elle relit tout
+    ce qui la concerne et écarte ce qui n'a pas de sens pour lui. _at : quand la fiche a été lue."""
+    stored = stored or {}
+    day = {str(k).strip().lower()[:60]: str(v).strip()[:PROP_LEN] for k, v in (props or {}).items() if str(v).strip()}
+    raw = dict(list({**(stored.get("_props") or {}), **day}.items())[:PROPS_KEPT])
+    fresh = attributes(title, raw, category)
+    from ..ontology import domain_of
+    d = domain_of(category)
+    if d is None:
+        out = {**fresh, **{k: v for k, v in stored.items() if not k.startswith("_")}}
+    else:
+        out = {**fresh, **{k: v for k, v in stored.items() if not k.startswith("_") and k != "features" and not d.owns(k) and k not in d.drops}}
+    if raw:
+        out["_props"] = raw
+    at = now if day and now is not None else stored.get("_at")
+    if at is not None:
+        out["_at"] = at
     return out

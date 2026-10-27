@@ -12,12 +12,15 @@ from deals.missions import interpret, label
 
 BRANDS = ["Zephyr", "Kessler", "Dormea", "Nordvik", "Helio", "Lumen", "Brava", "Ostra"]
 SUIVI, RECONNU = ("refus", "pas encore suivis"), ("refus", "pas reconnu")
-# phrase → (catégorie, marque, fonctions, attributs, prix max)
+# phrase → (catégorie, marque, fonctions, attributs, prix max[, domaine à ontologie : type, besoins, caractéristiques exigées])
+# Les aspirateurs (v57) : le domaine entier tant qu'aucun type n'est nommé ; « balai » est un type, « sans fil » une
+# caractéristique exigée, « laveur » après « robot » un besoin (laver le sol).
 PHRASES = [
-    ("aspirateur balai sous 300 €", ("aspirateur", None, ["balai"], {}, 300)),
-    ("Je veux un aspirateur balai sans fil à moins de 300 euros", ("aspirateur", None, ["balai", "sans_fil"], {}, 300)),
-    ("un aspirateur pas plus de 200 €", ("aspirateur", None, [], {}, 200)),
-    ("robot aspirateur laveur jusqu'à 500 €", ("robot_aspirateur", None, ["laveur"], {}, 500)),
+    ("aspirateur balai sous 300 €", (None, None, [], {}, 300, {"domain": "aspirateurs", "sub": "balai"})),
+    ("Je veux un aspirateur balai sans fil à moins de 300 euros", (None, None, [], {}, 300, {"domain": "aspirateurs", "sub": "balai",
+                                                                                            "props": {"cordless": True}})),
+    ("un aspirateur pas plus de 200 €", (None, None, [], {}, 200, {"domain": "aspirateurs"})),
+    ("robot aspirateur laveur jusqu'à 500 €", (None, None, [], {}, 500, {"domain": "aspirateurs", "sub": "robot", "needs": ["lavage"]})),
     ("lave-linge 9 kg moins de 500€", ("lave_linge", None, [], {"capacity_kg": 9}, 500)),
     ("lave linge 8kg max 450", ("lave_linge", None, [], {"capacity_kg": 8}, 450)),
     ("sèche-linge 8 kg sous 600 €", ("seche_linge", None, [], {"capacity_kg": 8}, 600)),
@@ -40,7 +43,7 @@ PHRASES = [
     ("smartphone sous 300 €", SUIVI),
     ("un truc sympa pour le salon", RECONNU),
     # tournures du quotidien
-    ("aspi sans fil 250 balles", ("aspirateur", None, ["sans_fil"], {}, 250)),
+    ("aspi sans fil 250 balles", (None, None, [], {}, 250, {"domain": "aspirateurs", "props": {"cordless": True}})),
     ("je cherche un frigo pas cher", ("refrigerateur", None, [], {}, None)),
     ("machine à laver 9kg 450€", ("lave_linge", None, [], {"capacity_kg": 9}, 450)),
     ("lave-linge 1400 tours 9 kg moins de 600", ("lave_linge", None, [], {"capacity_kg": 9}, 600)),
@@ -48,7 +51,7 @@ PHRASES = [
     ("lit 2 places sous 400", ("lit", None, [], {}, 400)),                  # un lit n'a pas de places assises
     ("canapé 3 places en dessous de 1 500 €", ("canape", None, [], {"seats": 3}, 1500)),
     ("meuble télé sous 200 €", ("meuble_tv", None, [], {}, 200)),
-    ("aspirateur Dyson V15 sous 500 €", ("aspirateur", None, [], {}, 500)),  # marque inconnue : pas inventée
+    ("aspirateur Dyson V15 sous 500 €", (None, None, [], {}, 500, {"domain": "aspirateurs"})),  # marque inconnue : pas inventée
     ("réfrigérateur sous 0 €", ("refrigerateur", None, [], {}, None)),      # prix impossible : demandé ensuite
     ("TV 55 pouces sous 500", SUIVI),
     ("micro-ondes sous 150 €", SUIVI),
@@ -60,12 +63,13 @@ def run():
     for text, want in PHRASES:
         try:
             m = interpret(text, BRANDS)
-            got = (m["category"], m["brand"], sorted(m["features"]), m["attrs"], m["max_price"])
+            got = (m["category"], m["brand"], sorted(m["features"]), m["attrs"], m["max_price"],
+                   {k: m[k] for k in ("domain", "sub", "needs", "props") if m.get(k)})
             shown = label(m)
         except BadRequest as e:
             shown = str(e)
             got = ("refus", want[1]) if want[0] == "refus" and want[1] in shown else ("refus", shown)
-        expected = want if want[0] == "refus" else (want[0], want[1], sorted(want[2]), want[3], want[4])
+        expected = want if want[0] == "refus" else (want[0], want[1], sorted(want[2]), want[3], want[4], want[5] if len(want) > 5 else {})
         good = got == expected
         ok += good
         rows.append((good, text, shown, None if good else (got, expected)))

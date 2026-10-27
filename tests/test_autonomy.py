@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-from deals import cli, config, demo, health, night, quarantine, sources
+from deals import cli, config, demo, health, night, quarantine, sim, sources
 from deals.agent import POLICY, Agent, Tools, urgent
 from deals.api import Api, Request
 from deals.collect.report import summarize
@@ -25,6 +25,8 @@ START, WARM_END = date(2025, 10, 1), date(2025, 10, 21)
 D = WARM_END + timedelta(days=1)                 # première nuit de chaque scénario
 OPERATOR = "ops@exemple.test"
 WARM = None
+
+SHOWN = len(sim.SHOWCASE) + len(sim.SHOWCASE_MORE)          # la vitrine de la démo : 84 produits, trois enseignes chacun
 
 
 def setUpModule():
@@ -169,7 +171,7 @@ class Sources(Scenario):
         self.assertEqual(hits, [5, 5, 5, 0, 0, 1])
         self.assertEqual(len(self.box.to(OPERATOR)), 2)                      # rien de neuf : pas d'e-mail
         self.assertEqual(self.incident("source_blocked")["status"], "open")  # mise de côté : reste ouvert
-        self.assertEqual(self.s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"], 59)   # rien de perdu, pas de garde
+        self.assertEqual(self.s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"], SHOWN)   # rien de perdu, pas de garde
 
     def test_a_probe_that_reads_again_proposes_to_resume_and_approval_resumes(self):
         self.faults.add("blocked", self.day(0), self.day(3), host="rapido.sim")
@@ -367,9 +369,9 @@ class Catalog(Scenario):
         self.assertEqual({r["key"]: r["partner"] for r in sources.listing(self.s)},
                          {"rapido": 1, "electroplus": 0, "maisonco": 0, "grandbazar": 0})
         held = out["publish"]["held"]
-        self.assertEqual((held["before"], held["offers_before"]), (59, 177))
-        self.assertLess(held["offers_after"], 0.8 * 177)
-        self.assertEqual(self.s.q("SELECT COUNT(*) n FROM catalog_offers", one=True)["n"], 177)    # celui de la veille reste
+        self.assertEqual((held["before"], held["offers_before"]), (SHOWN, 3 * SHOWN))
+        self.assertLess(held["offers_after"], 0.8 * 3 * SHOWN)
+        self.assertEqual(self.s.q("SELECT COUNT(*) n FROM catalog_offers", one=True)["n"], 3 * SHOWN)    # celui de la veille reste
         self.assertEqual(self.incident("catalog_held")["severity"], "critical")
         proposal = self.actions("force_publication")[0]
         self.assertEqual(proposal["status"], "proposed")
@@ -596,7 +598,7 @@ class Command(Scenario):
         self.nights(1)
         now = self.w.clock()
         r = api(now).handle(Request("GET", "/api/r/health"))
-        self.assertEqual((r.status, r.body["status"], r.body["catalog"]), (200, "ok", 59))
+        self.assertEqual((r.status, r.body["status"], r.body["catalog"]), (200, "ok", SHOWN))
         self.assertEqual(set(r.body), {"status", "last_night", "catalog"})                       # rien de plus
         self.assertEqual(api(now + 37 * 3600).handle(Request("GET", "/api/r/health")).status, 503)   # la nuit n'a pas tourné
 

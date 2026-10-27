@@ -1,9 +1,10 @@
-# La Recherche de DEALS — trouver vite, modifier d'un geste, garder sans e-mail (v56)
+# La Recherche de DEALS — trouver vite, comprendre un besoin, garder sans e-mail (v56, v57)
 
 DEALS n'est pas un fil de bons plans à faire défiler : on vient chercher quelque chose et on doit le trouver vite. Deux
 leviers : **on vous recommande** (l'accueil et le feed suivent vos goûts, `docs/PERSONNALISATION.md`) et **vous
 cherchez** — une phrase comme on la dit, comprise en critères qu'on modifie d'un geste, une recherche qu'on garde et que
-DEALS surveille. Le tout sans IA (des règles écrites, testées) et sans e-mail.
+DEALS surveille ; depuis la v57, dans un domaine qui a son ontologie (les aspirateurs), un **besoin** compris, une
+sélection classée et expliquée. Le tout sans IA (des règles écrites, testées) et sans e-mail.
 
 ## Une phrase, des critères
 
@@ -35,6 +36,19 @@ critères de l'app et le champ ne garde que les mots en plus : rien n'est compri
 en mots lisibles (« Matelas · Moins de 500 € ») et, relue, redonne exactement les mêmes critères (vérifié pour toutes
 les phrases du banc).
 
+## Un besoin (v57, les aspirateurs)
+
+« Aspirateur pour mon chat avec du parquet, 300 € max », « robot qui se vide tout seul », « silencieux pour le soir » :
+dans un domaine qui a son ontologie, la phrase dit aussi un **type** (robot, balai, traîneau, laveur, à main), des
+**caractéristiques exigées** (« sans fil », « sans sac », « HEPA ») et des **besoins** (« chat », « allergies »,
+« escaliers », « 120 m² »). Les besoins deviennent des puces (« Pour Poils d'animaux ») et un encadré qui dit ce qu'ils
+demandent et d'après quels mots. La sélection est classée par adéquation (d'abord ce dont la fiche dit qu'il convient,
+puis ce dont elle ne dit rien, puis le reste), chaque carte dit pourquoi ; un besoin sans exception (laver le sol)
+écarte ce qui ne peut pas y répondre, et le dit. Une demande vague (« quel aspirateur choisir ? ») reçoit une question
+utile, qui ne bloque rien ; un type qui ne peut pas répondre à un besoin (« robot pour les escaliers ») garde sa
+sélection, et un autre type est proposé avec sa raison ; une référence (« Kessler Aero 12 ») vient en premier. Règles,
+format et mesures : `docs/ONTOLOGIE.md`.
+
 ## Affiner
 
 Une feuille qui rassemble tout ce que la recherche demande, modifiable à tout moment : le **rayon** (celui choisi seul,
@@ -42,7 +56,8 @@ Une feuille qui rassemble tout ce que la recherche demande, modifiable à tout m
 **marque**, le **budget** (de… à…, ou un plafond proposé), la **promo**, le **tri**. Chaque choix dit combien de
 produits la recherche donnerait avec lui, ses autres critères gardés ; un choix qui ne donnerait rien, ou qui ne
 changerait rien, n'est pas proposé (sauf s'il est déjà pris, pour pouvoir le retirer). Le bouton dit le résultat
-(« Voir 5 produits »).
+(« Voir 5 produits »). Dans un domaine qui a son ontologie, Affiner propose le **type**, l'**usage** et les
+caractéristiques qui décident pour ce type (« Filtre HEPA », « Sans sac », « 2,5 kg au plus »), chacune avec son nombre.
 
 ## Jamais d'impasse
 
@@ -92,33 +107,42 @@ et la politique de confidentialité (durée : un an, renouvelée à chaque geste
 
 41 phrases comme on les tape (celles du banc des missions et les exemples de la Recherche), la première réponse de
 l'API, sans rien toucher d'autre. Ce qu'attend chaque phrase est écrit à la main ; une carte y répond si elle a tout
-ce qui est demandé (mêmes règles que les missions).
+ce qui est demandé (mêmes règles que les missions). Chaque version est mesurée avec son banc : en v57, les phrases sur
+les aspirateurs demandent le domaine (robots compris tant qu'aucun type n'est nommé, « balai » est un type), et la
+démo compte 25 aspirateurs de plus.
 
-| | v55 démo | v56 démo | v55 3 000 produits | v56 3 000 produits |
-|---|---|---|---|---|
-| Phrases dont le catalogue a la réponse | 24 | 24 | 19 | 19 |
-| Impasses (« Rien pour … » alors que des produits répondent) | 15 | **0** | 15 | **0** |
-| Première carte juste | 9 | **24** | 4 | **19** |
-| Pertinence (les n premières cartes) · rappel | 36 % · 36 % | **100 % · 100 %** | 21 % · 21 % | **100 % · 100 %** |
-| Phrases sans réponse au catalogue : réponse vide | 17 | **0** (les plus proches) | 22 | 20 |
+| | v55 démo | v56 démo | v57 démo | v55 3 000 produits | v56 3 000 | v57 3 000 |
+|---|---|---|---|---|---|---|
+| Produits | 59 | 59 | 84 | 3 000 | 3 000 | 3 000 |
+| Phrases dont le catalogue a la réponse | 24 | 24 | 25 | 19 | 19 | 19 |
+| Impasses (« Rien pour … » alors que des produits répondent) | 15 | **0** | **0** | 15 | **0** | **0** |
+| Première carte juste | 9 | **24** | **25** | 4 | **19** | **19** |
+| Pertinence (les n premières cartes) · rappel | 36 % · 36 % | **100 % · 100 %** | **100 % · 100 %** | 21 % · 21 % | **100 % · 100 %** | **100 % · 100 %** |
+| Phrases sans réponse au catalogue : réponse vide | 17 | **0** (les plus proches) | **0** | 22 | 20 | 20 |
 
 Lecture honnête : la pertinence à 100 % vient en partie de la construction (la Recherche et la vérité du banc suivent
 les mêmes règles que les missions) ; ce que le banc mesure vraiment, c'est que la phrase est comprise et que plus aucune
-ne tombe dans une impasse. Sur le catalogue de 3 000 produits (titres générés, sans fonctions comme « balai » ni ces
-marques), 20 phrases n'ont aucun produit qui y réponde, même au-dessus du budget : l'écran le dit, propose de
-sauvegarder et garde le feed.
+ne tombe dans une impasse. Le catalogue de 3 000 produits n'a que 8 rayons (lave-linge, réfrigérateurs,
+lave-vaisselle, fours, canapés, lits, matelas, tables), aucun aspirateur, et des marques numérotées : 20 phrases n'y ont
+aucun produit qui réponde, même au-dessus du budget ; l'écran le dit, propose de sauvegarder et garde le feed. Ce que
+la v57 change pour les besoins se mesure sur un autre banc, à vérité connue (`python -m bench.needs`,
+`docs/ONTOLOGIE.md`) : bons parmi les 6 premières cartes 35 % → 96 %, mots ignorés 42 → 0.
 
 ## Vérifier
 
 - Tests : `tests/test_query.py` (lecture d'une phrase, puces relues à l'identique, migration v11 → v12),
-  `tests/test_catalog.py` (Affiner et ses nombres, `said`), `tests/test_missions.py`, `tests/test_accounts.py`
-  (comptes invités, adresse rattachée ou versée, clé renouvelée, effacement), `tests/test_autonomy.py` (invités expirés
-  la nuit). 104 mutations de ces règles : toutes détectées.
-- Navigateur (Chromium, 68 étapes, deux passages) et audit d'accessibilité (65 écrans : contrastes, zones à toucher,
+  `tests/test_catalog.py` (Affiner et ses nombres, `said`, le parcours d'un besoin), `tests/test_ontology.py` et
+  `tests/test_journey.py` (v57), `tests/test_missions.py`, `tests/test_accounts.py` (comptes invités, adresse
+  rattachée ou versée, clé renouvelée, effacement), `tests/test_autonomy.py` (invités expirés la nuit). 125 mutations
+  des règles v57 (ontologie, code et données ; moteur de parcours ; phrase ; Recherche ; missions ; API ; profil) :
+  toutes détectées. Les 104 mutations de la v56, rejouées sur la v57 : 97 s'appliquent encore, 93 détectées ; des
+  quatre autres, l'une visait du code devenu mort (retiré), trois ont reçu un test (détectées).
+- Navigateur (Chromium, 79 étapes, deux passages) et audit d'accessibilité (86 écrans : contrastes, zones à toucher,
   noms accessibles, feuilles modales titrées) : sans défaut.
-- Temps, 3 000 produits (`python -m bench.scale`) : une phrase comprise ~11 à 14 ms, critères choisis ~13 ms, une pièce
-  ~16 ms ; les recherches d'un invité ~8 ms ; la nuit des missions plus rapide qu'avant (règle préparée une fois par
-  mission, mots cherchés par la base).
+- Temps, 3 000 produits (`python -m bench.scale`) : une phrase comprise ~2,6 ms (~11 ms en v56 : seuls les produits
+  du rayon sont lus), critères choisis ~6 ms, une pièce ~16 ms, les recherches d'un invité ~7 ms ; avec 640
+  aspirateurs de plus (`--aspirateurs 640`) : un besoin ~12 ms, la question d'une demande vague ~15 ms, Affiner par type
+  ~12 ms, Explorer ~4 ms.
 
 ## Où sont les règles
 
@@ -126,6 +150,7 @@ sauvegarder et garde le feed.
 |---|---|
 | Lire une phrase, dire ses critères en puces, une caractéristique répond-elle | `deals/query.py` (`read`, `chips`, `fits`, `satisfies`) ; libellés `deals/labels.py` |
 | Chercher : la phrase et les critères de l'app, les mots qui restent, les plus proches, Affiner et ses nombres | `deals/catalog.py` (`search`, `_options`) |
+| Un besoin (v57) : l'ontologie du domaine, le moteur de parcours, Affiner par type et usage, Explorer | `deals/ontology/`, `deals/journey.py`, `deals/catalog.py` (`_journey`, `_domain_options`, `explore`) ; `docs/ONTOLOGIE.md` |
 | Sauvegarder, ce qui est nouveau, la cloche, la nuit | `deals/missions.py` |
 | Compte invité, adresse rattachée ou versée, effacer | `deals/accounts.py`, `deals/api.py` (`_keep`) |
-| L'écran | `web/src/App.jsx` (Recherche, `RefineSheet`, `EmailSheet`, `BrandSheet`, Profil) |
+| L'écran | `web/src/App.jsx` (Recherche, `RefineSheet`, `EmailSheet`, `BrandSheet`, Profil ; v57 : les trois portes, Explorer, « L'essentiel ») |

@@ -18,8 +18,8 @@ import time
 from collections import defaultdict
 from email.message import EmailMessage
 
-from . import query
-from .catalog import cheap, matches as named_by, tokens
+from . import journey, ontology, query
+from .catalog import cheap, enrich, matches as named_by, tokens
 from .errors import BadRequest, NotFound, Unavailable
 from .extract.categories import FAMILY_OF, plain
 from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS
@@ -42,9 +42,32 @@ def interpret(text, brands=()):
     if r["unsupported"]:
         raise BadRequest(f"Les {CATEGORY_LABEL.get(r['unsupported'], r['unsupported']).lower()} ne sont pas encore suivis : "
                          "électroménager, ameublement et literie seulement")
-    if not r["category"] and not r["brand"]:
+    if not r["category"] and not r["brand"] and not r["domain"]:
         raise BadRequest("Je n'ai pas reconnu le produit : essayez « lave-linge 9 kg sous 500 € » ou « matelas 160x200 »")
-    return {"category": r["category"], "brand": r["brand"], "features": r["features"], "attrs": r["attrs"], "max_price": r["max_price"]}
+    return {"category": r["category"], "brand": r["brand"], "features": r["features"], "attrs": r["attrs"], "max_price": r["max_price"],
+            **({k: r[k] for k in ("domain", "sub", "needs", "props")} if r["domain"] else {})}
+
+
+def normalize(spec):
+    """Une recherche gardée avant l'ontologie de son domaine (v56 : « aspirateur » et des fonctions : balai, sans fil,
+    laveur) : relue comme la même phrase l'est aujourd'hui — le domaine (robots compris), le type, les caractéristiques
+    exigées, les besoins (un robot « laveur » : laver le sol). Les autres restent telles quelles."""
+    cat = spec.get("category")
+    d = ontology.domain_of(cat) if cat and not spec.get("product_id") else None
+    if d is None:
+        return spec
+    feats, needs, props = list(spec.get("features") or []), list(spec.get("needs") or []), dict(spec.get("props") or {})
+    sub = spec.get("sub") or next((x["key"] for x in d.subs if x["match"]["category"] == [cat] and not x["match"].get("any")), None)
+    for f in ("laveur", "balai", "traineau"):              # « balai laveur » : un laveur
+        if f in feats:
+            if sub == "robot" and f == "laveur":
+                needs.append("lavage")
+            elif sub is None:
+                sub = f
+    if "sans_fil" in feats:
+        props["cordless"] = True
+    return {**spec, "category": None, "domain": d.key, "sub": sub, "needs": list(dict.fromkeys(needs)), "props": props,
+            "features": [f for f in feats if f not in query.DOMAIN_FEATURES]}
 
 
 def like(p):
@@ -62,9 +85,15 @@ def matches(m, p):
 
 
 def matcher(m):
-    """matches, préparé une fois pour une mission (la nuit : des milliers de produits par mission)."""
+    """matches, préparé une fois pour une mission (la nuit : des milliers de produits par mission). Des besoins (un
+    domaine à ontologie) : le produit doit les satisfaire tout à fait, d'après ce qu'on sait de lui (un besoin dont la
+    fiche ne dit rien n'est pas promis) ; ce que le type demandé ne peut pas satisfaire est mis à part, comme dans la
+    Recherche (« un robot ne monte pas les marches » : la recherche gardée répond comme la recherche)."""
     top, floor, pid, off, low = m.get("max_price"), m.get("min_price"), m.get("product_id"), m.get("off"), m.get("low")
     fit, toks = query.fitter(m), tokens(" ".join(m["words"])) if m.get("words") else None
+    d = ontology.DOMAINS.get(m.get("domain")) if m.get("domain") else None
+    needs = m.get("needs") or ()
+    plan = journey.Plan(d, needs, drop={c for c, _, _ in journey.conflict(d, m.get("sub"), needs, weak=True)}) if d else None
 
     def ok(p):
         if not p["in_stock"] or top is not None and p["price"] > top or floor is not None and p["price"] < floor:
@@ -73,6 +102,10 @@ def matcher(m):
             return p["product_id"] == pid
         if not fit(p) or off and (p.get("pct") or 0) < off or low and not cheap(p):
             return False
+        if plan:
+            j = plan.judge(p["attrs"])
+            if j["out"] or j["met"] < len(plan.strong):
+                return False
         return not toks or named_by(p.get("search") or "", toks)
     return ok
 
@@ -83,8 +116,12 @@ def label(m, name=None):
         head = name or "Ce produit"
     else:
         f, a = m.get("features") or [], m.get("attrs") or {}
-        bits = [CATEGORY_ONE.get(m["category"], m["category"])] if m.get("category") else [ROOMS[m["room"]][0]] if m.get("room") in ROOMS else []
+        d = ontology.DOMAINS.get(m.get("domain")) if m.get("domain") else None
+        bits = [CATEGORY_ONE.get(m["category"], m["category"])] if m.get("category") else \
+            [d.sub[m["sub"]]["one"] if m.get("sub") in d.sub else d.one] if d else [ROOMS[m["room"]][0]] if m.get("room") in ROOMS else []
         bits += [FEATURE_LABEL[x].lower() for x in FORM if x in f] + [FEATURE_LABEL[x].lower() for x in FEATURE_LABEL if x in f and x not in FORM]
+        if d:
+            bits += [d.props[k]["yes" if v else "no"].lower() for k, v in (m.get("props") or {}).items() if k in d.props]
         fmt = {"bed_size": lambda v: v.replace("x", " × "), "width_cm": "{:g} cm".format, "capacity_kg": lambda v: f"{v:g} kg".replace(".", ","),
                "place_settings": "{:g} couverts".format, "zones": "{:g} foyers".format, "volume_l": "{:g} L".format,
                "autonomy_min": "{:g} min".format, "seats": "{:g} places".format, "energy_class": "classe {}".format, "noise_db": "{:g} dB".format}
@@ -93,6 +130,11 @@ def label(m, name=None):
             bits.append(m["brand"])
         if m.get("words"):
             bits.append(f"« {' '.join(m['words'])} »")
+        if d and m.get("needs"):                           # « silencieux », puis « pour les allergies et le parquet »
+            said = [d.needs[n].get("phrase") or f"pour {d.needs[n]['label'].lower()}" for n in m["needs"] if n in d.needs]
+            fors = [x[5:] for x in said if x.startswith("pour ")]
+            both = ", ".join(fors[:-1]) + " et " + fors[-1] if len(fors) > 1 else "".join(fors)
+            bits += [x for x in said if not x.startswith("pour ")] + ([f"pour {both}"] if fors else [])
         head = " ".join(bits)
         head = head[:1].upper() + head[1:]
     extra = (["en promo" if m["off"] <= 1 else f"−{m['off']:g} % et plus"] if m.get("off") else []) + (["prix bas"] if m.get("low") else []) \
@@ -153,7 +195,7 @@ class Missions:
     def _rows(self, spec):
         """Les produits publiés que la mission peut viser (colonnes légères), du moins cher au plus cher : une mission
         ne lit en détail que ceux sous son prix ; des mots : seulement les produits qui les contiennent."""
-        room = ROOMS.get(spec.get("room"), (None, ()))[1]
+        room = ROOMS.get(spec.get("room"), (None, ()))[1] or (ontology.DOMAINS[spec["domain"]].categories if spec.get("domain") in ontology.DOMAINS else ())
         where, args = (" WHERE c.product_id=?", (spec["product_id"],)) if spec.get("product_id") else \
             (" WHERE c.category=?", (spec["category"],)) if spec.get("category") else \
             (f" WHERE c.category IN ({','.join('?' * len(room))})", tuple(room)) if room else \
@@ -167,7 +209,7 @@ class Missions:
     @staticmethod
     def _product(r):
         return {"product_id": r["product_id"], "category": r["category"], "brand": r["brand"], "price": r["price"], "pct": r["pct"],
-                "in_stock": r["availability"] != "out_of_stock", "attrs": json.loads(r["attrs"] or "{}"), "search": r["search"],
+                "in_stock": r["availability"] != "out_of_stock", "attrs": enrich(json.loads(r["attrs"] or "{}"), r), "search": r["search"],
                 "level": r["level"], "span": r["span"], "usual": r["usual"]}
 
     def _match(self, spec, rows=None, nearest=True, memo=None):
@@ -242,21 +284,36 @@ class Missions:
         room = body.get("room") or None
         if room is not None and room not in ROOMS:
             raise BadRequest("Pièce inconnue")
-        if cat:
+        dom = body.get("domain") or None                   # un domaine à ontologie : type, besoins, caractéristiques exigées
+        d = ontology.DOMAINS.get(dom) if dom else None
+        if dom and d is None:
+            raise BadRequest("Domaine inconnu")
+        if cat or d:
             room = None
-        if not cat and not room and not brand and not words:
+        if not cat and not room and not brand and not words and not d:
             raise BadRequest("Dites ce que vous cherchez : une catégorie, une pièce, une marque, des mots ou un produit")
         feats = [f for f in body.get("features") or [] if f in FEATURE_LABEL]
         attrs = {k: v for k, v in (body.get("attrs") or {}).items() if k in WANTED and isinstance(v, (int, float, str))}
-        return {"product_id": None, "category": cat, "room": room, "brand": brand, "features": feats, "attrs": attrs, "max_price": price,
-                "min_price": floor, "off": off, "low": bool(body.get("low")), "words": words}
+        out = {"product_id": None, "category": cat, "room": room, "brand": brand, "features": feats, "attrs": attrs, "max_price": price,
+               "min_price": floor, "off": off, "low": bool(body.get("low")), "words": words}
+        if d:
+            sub = body.get("sub") or None
+            if sub is not None and sub not in d.sub:
+                raise BadRequest("Type inconnu")
+            needs = body.get("needs") or []
+            props = body.get("props") or {}
+            if not isinstance(needs, list) or not isinstance(props, dict) or any(n not in d.needs for n in needs) \
+                    or any(k not in d.props or d.props[k]["type"] != "bool" for k in props):
+                raise BadRequest("Critère inconnu")
+            out.update(domain=dom, sub=sub, needs=list(dict.fromkeys(needs)), props={k: bool(v) for k, v in props.items()})
+        return normalize(out)                              # « aspirateur balai » d'avant : comme aujourd'hui
 
     @staticmethod
     def _want(spec):
         """Ce qui est cherché, en plus du rayon et de la marque (colonne want) : seulement ce qui est dit, pour qu'une même
         recherche se reconnaisse (une mission d'avant la v56 n'a que features et attrs)."""
         w = {"features": sorted(spec.get("features") or []), "attrs": spec.get("attrs") or {}}
-        w.update({k: spec[k] for k in ("words", "off", "low", "min_price", "room") if spec.get(k)})
+        w.update({k: spec[k] for k in ("words", "off", "low", "min_price", "room", "domain", "sub", "needs", "props") if spec.get(k)})
         return json.dumps(w, sort_keys=True)
 
     def _cards(self, uid, rows):
@@ -276,7 +333,8 @@ class Missions:
         out = {"id": mid, "product_id": spec.get("product_id"), "category": spec.get("category"), "brand": spec.get("brand"),
                "features": spec.get("features") or [], "attrs": spec.get("attrs") or {}, "max_price": spec.get("max_price"),
                "min_price": spec.get("min_price"), "off": spec.get("off"), "low": bool(spec.get("low")), "words": spec.get("words") or [],
-               "room": spec.get("room"),
+               "room": spec.get("room"), "domain": spec.get("domain"), "sub": spec.get("sub"), "needs": spec.get("needs") or [],
+               "props": spec.get("props") or {},
                "label": label(spec, spec.get("name")), "kind": CATEGORY_ONE.get(spec.get("category")) if spec.get("category") else None,
                # ce qui est guetté, sans le prix : « Aspirateur balai sans fil », « Zephyr V8 »
                "title": (self._name(spec["product_id"]) or "Produit retiré du suivi") if spec.get("product_id")
@@ -306,7 +364,7 @@ class Missions:
             raise BadRequest("Mission invalide")
         spec = self._spec(body, need_price=True)
         keep = {k: spec[k] for k in ("product_id", "category", "room", "brand", "features", "attrs", "max_price", "min_price", "off", "low",
-                                     "words") if spec.get(k) not in (None, [], {}, False)}
+                                     "words", "domain", "sub", "needs", "props") if spec.get(k) not in (None, [], {}, False)}
         return json.dumps(keep, ensure_ascii=False), label(spec, spec.get("name"))
 
     # ------------------------------------------------------------------ les missions d'une personne
@@ -315,6 +373,7 @@ class Missions:
         ou mêmes rayon, marque et souhaits) change seulement de prix : pas de doublon, même depuis deux onglets."""
         spec = self._spec(body or {}, need_price=False)
         want = self._want(spec)
+        self._renew(uid, self.s.q("SELECT * FROM missions WHERE user_id=?", (uid,)))    # une recherche d'avant : réécrite d'abord
         hits, _ = self._match(spec, nearest=False)
         seen = json.dumps({str(r["product_id"]): r["price"] for r in hits})   # déjà sous les yeux : ni nouveauté ni e-mail
         lab, now = label(spec, spec.get("name")), self.clock()
@@ -334,11 +393,16 @@ class Missions:
         return self._view(uid, spec, mid, now, json.loads(seen), 1)
 
     def _spec_of(self, row):
+        return normalize(self._stored(row))
+
+    @staticmethod
+    def _stored(row):
         want = json.loads(row["want"] or "{}")
         return {"product_id": row["product_id"], "category": row["category"], "brand": row["brand"],
                 "features": want.get("features", []), "attrs": want.get("attrs", {}), "max_price": row["max_price"],
                 "min_price": want.get("min_price"), "off": want.get("off"), "low": bool(want.get("low")), "words": want.get("words", []),
-                "room": want.get("room")}
+                "room": want.get("room"), "domain": want.get("domain"), "sub": want.get("sub"), "needs": want.get("needs", []),
+                "props": want.get("props", {})}
 
     def _mine(self, uid, mid):
         try:
@@ -354,12 +418,26 @@ class Missions:
         """Les missions d'une personne, avec ce qui y répond, ce qui est nouveau depuis qu'elle les a ouvertes, et si
         elles sont atteintes ; rien pour une personne qui n'a encore rien gardé."""
         rows = self.s.q("SELECT * FROM missions WHERE user_id=? ORDER BY created_at DESC, id DESC", (uid,)) if uid is not None else []
+        rows = self._renew(uid, rows)
         views = []
         for r in rows:
             v = self._view(uid, self._spec_of(r), r["id"], r["created_at"], json.loads(r["seen"] or r["notified"] or "{}"), r["alert"])
             v["label"] = r["label"]
             views.append(v)
         return {"missions": views, "reached": sum(v["reached"] for v in views), "fresh": sum(v["fresh"] > 0 for v in views)}
+
+    def _renew(self, uid, rows):
+        """Les recherches gardées avant l'ontologie de leur domaine sont réécrites comme aujourd'hui (normalize), une fois ;
+        la même recherche gardée deux fois (avant, après) n'en fait plus qu'une, la plus ancienne."""
+        old = [(r, normalize(self._stored(r))) for r in rows if not r["product_id"] and normalize(self._stored(r)) != self._stored(r)]
+        if not old:
+            return rows
+        with self.s.tx() as c:
+            for r, spec in old:
+                c.execute("UPDATE missions SET category=?, want=? WHERE id=?", (spec["category"], self._want(spec), r["id"]))
+            c.execute("DELETE FROM missions WHERE user_id=? AND id NOT IN (SELECT MIN(id) FROM missions WHERE user_id=? "
+                      "GROUP BY product_id, category, brand, want)", (uid, uid))
+        return self.s.q("SELECT * FROM missions WHERE user_id=? ORDER BY created_at DESC, id DESC", (uid,))
 
     def seen(self, uid, mid):
         """La personne a ouvert la mission : ce qui y répond aujourd'hui n'est plus nouveau."""

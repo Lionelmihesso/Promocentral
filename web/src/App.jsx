@@ -27,6 +27,13 @@
    tour de rôle, chacun dit pourquoi il est là) ; la Recherche filtre par promo (−10 % à −50 %, ou prix bas), avec le
    nombre de produits de chaque choix ; les favoris passent dans le Profil : quatre onglets.
 
+   v57 : trois portes — Rechercher (une phrase, même un besoin : « un aspirateur pour un chat »), Les bonnes affaires,
+   Explorer (par type, par usage, sans rien configurer). Dans un domaine qui a son ontologie (les aspirateurs), le besoin
+   est compris et dit (puces « Pour »), la sélection classée par adéquation puis par affaire, chaque carte dit pourquoi
+   (fait et source) ; une question seulement si la demande est vague et que la réponse change la sélection, jamais
+   bloquante ; un autre type proposé, avec sa raison, quand celui demandé ne peut pas ; la fiche dit ce qui décide pour ce
+   type, et ce qui n'est pas précisé.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -57,6 +64,8 @@ const UI = {
   up: ["M12 18.5v-12", "M6.5 12l5.5-5.5 5.5 5.5"],
   bookmark: ["M7.5 4.5h9a1 1 0 0 1 1 1v14.5l-5.5-3.6-5.5 3.6V5.5a1 1 0 0 1 1-1z"],
   sliders: ["M4 7.5h9", "M18.5 7.5H20", C(15.8, 7.5, 2.2), "M4 16.5h2.5", "M11 16.5h9", C(8.7, 16.5, 2.2)],
+  tag: ["M4.5 12.2V5.5a1 1 0 0 1 1-1h6.7l7.3 7.3a1 1 0 0 1 0 1.4l-6.6 6.6a1 1 0 0 1-1.4 0z", C(8.6, 8.6, 1.3)],
+  compass: [C(12, 12, 8), "M15.2 8.8l-1.9 4.5-4.5 1.9 1.9-4.5z"],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
   fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -74,7 +83,7 @@ const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toL
 const spanOf = days => days >= 30 ? `${Math.floor(days / 30)} mois` : `${days} jours`;      // « depuis 2 mois » : arrondi en dessous
 const FAMILY = { electromenager: "Électroménager", ameublement: "Ameublement", literie: "Literie" };
 // Recherche : des exemples pour démarrer, les filtres (budget maximum, remise minimale) et les tris.
-const TRY = ["aspirateur balai", "lave-linge 9 kg", "matelas 160x200", "canapé d'angle", "réfrigérateur"];
+const TRY = ["aspirateur pour un chat, 300 € max", "robot aspirateur qui se vide tout seul", "lave-linge 9 kg", "matelas 160x200", "canapé d'angle"];
 const BUDGETS = [["", "Tous les budgets"], ["200", "Moins de 200 €"], ["500", "Moins de 500 €"], ["1000", "Moins de 1 000 €"], ["2000", "Moins de 2 000 €"]];
 // Promo : un palier de remise, ou un prix parmi les plus bas depuis longtemps (catalog.cheap) ; seuls les choix qui
 // donnent quelque chose sont proposés, avec leur nombre de produits.
@@ -82,20 +91,33 @@ const OFFS = [["", "Toutes"], ["1", "En promo"], ["10", "−10 % et plus"], ["2
   ["40", "−40 % et plus"], ["50", "−50 % et plus"], ["low", "Prix parmi les plus bas"]];
 const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Plus forte promo"]];
 // Les critères choisis dans l'app (puces, Affiner) ; la phrase tapée dit le reste (deals/query.py).
-const NO_CRIT = { category: null, room: null, brand: null, features: [], attrs: {}, min: null, max: null, off: null, low: false, sort: null };
+// Dans un domaine à ontologie (les aspirateurs) : domain, sub (le type), needs (les besoins), props (caractéristiques exigées).
+const NO_CRIT = { category: null, room: null, brand: null, features: [], attrs: {}, min: null, max: null, off: null, low: false, sort: null,
+  domain: null, sub: null, needs: [], props: {} };
 const hasCrit = c => !!(c.category || c.room || c.brand || c.features.length || Object.keys(c.attrs).length || c.min != null || c.max != null
-  || c.off || c.low || c.sort);
-const searchParams = (text, c) => {
+  || c.off || c.low || c.sort || c.domain || c.sub || c.needs.length || Object.keys(c.props).length);
+const searchParams = (text, c, noq) => {
   const p = new URLSearchParams();
   if (text) p.set("q", text);
-  for (const [k, v] of [["category", c.category], ["room", c.room], ["brand", c.brand], ["min", c.min], ["max", c.max], ["off", c.off], ["sort", c.sort]])
+  for (const [k, v] of [["category", c.category], ["room", c.room], ["brand", c.brand], ["min", c.min], ["max", c.max], ["off", c.off], ["sort", c.sort],
+                        ["domain", c.domain], ["sub", c.sub]])
     if (v != null && v !== "") p.set(k, v);
   if (c.features.length) p.set("feat", c.features.join(","));
   const a = Object.entries(c.attrs);
   if (a.length) p.set("attr", a.map(([k, v]) => `${k}:${v}`).join(","));
   if (c.low) p.set("low", "1");
+  if (c.needs.length) p.set("need", c.needs.join(","));
+  const pr = Object.entries(c.props);
+  if (pr.length) p.set("prop", pr.map(([k, v]) => `${k}:${v ? 1 : 0}`).join(","));
+  if (noq) p.set("noq", "1");
   return p;
 };
+/* Une explication de carte ou de fiche : oui, en partie, non, inconnu ; et d'où vient le fait. */
+const VERDICT_MARK = v => v === 1 ? ["ok", "✓"] : v === 0.5 ? ["part", "≈"] : v === 0 ? ["no", "✗"] : ["unk", "?"];
+const SOURCE = { fiche: "fiche de l'enseigne", titre: "titre", nom: "nom du modèle", deduit: "déduit", type: "selon le type" };
+/* Une raison d'une carte, et sa source quand elle est plus faible qu'un fait lu (le nom du modèle, une déduction). */
+const WEAK = { nom: "d'après le nom", deduit: "déduit" };
+const whyText = w => w.text + (w.v != null && WEAK[w.src] ? ` (${WEAK[w.src]})` : "");
 /* Vos dernières recherches (4, la plus récente d'abord), gardées par ce navigateur seulement : elles orientent le feed
    de la Recherche (« Pour vous ») ; le serveur ne les garde pas. */
 const RECENT = "deals.recent", RECENT_MAX = 4;
@@ -444,6 +466,49 @@ const CSS = `
 .d .confirm .ghost{margin:0}
 .d .danger{border:0;background:var(--accent-ink);color:#fff;border-radius:999px;min-height:44px;padding:0 18px;font-size:14px;font-weight:800}
 .d .toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:700;z-index:11;white-space:nowrap}
+/* v57 : trois portes, explorer, besoins compris, question, explications, l'essentiel */
+.d .doors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:16px 16px 0}
+.d .doors button{display:flex;flex-direction:column;align-items:flex-start;gap:6px;border:0;background:var(--tint);border-radius:18px;padding:14px 12px 13px;text-align:left;min-height:116px;min-width:0}
+.d .doors button .i{color:var(--accent-ink)}
+.d .doors b{font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.d .doors small{font-size:12px;font-weight:600;color:var(--mid);line-height:1.3}
+.d .crit.need{background:var(--accent-soft);color:var(--accent-ink)}
+.d .crit.need .cl small{font-size:12px;font-weight:800;margin-right:6px}
+.d .understood{margin:2px 16px 12px;padding:10px 14px;border-left:3px solid var(--accent);background:var(--tint);border-radius:0 14px 14px 0}
+.d .understood p{margin:0;font-size:13.5px;line-height:1.45;color:#33363A}
+.d .understood p + p{margin-top:4px}
+.d .understood b{font-weight:800;color:var(--ink)}
+.d .understood span{color:var(--mid)}
+.d .understood small{display:block;margin-top:6px;font-size:12px;font-weight:600;color:var(--mid)}
+.d .qcard{margin:0 16px 14px;padding:14px 14px 12px;border-radius:20px;border:1.5px solid var(--ink)}
+.d .qcard .qh{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.d .qcard h3{margin:0;font-size:16px;font-weight:800;letter-spacing:-.01em;line-height:1.25}
+.d .qcard .qopts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.d .qcard .qopts button{display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:var(--tint);border-radius:14px;min-height:52px;padding:6px 12px;text-align:left;min-width:0}
+.d .qcard .qopts button span{min-width:0}
+.d .qcard .qopts b{display:block;font-size:14px;font-weight:800}
+.d .qcard .qopts small{display:block;font-size:12px;font-weight:700;color:var(--mid)}
+.d .qcard .qopts em{font-style:normal;font-size:12.5px;font-weight:700;color:var(--mid)}
+.d .suggest{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin:0 16px 14px;padding:12px 12px 12px 16px;border-radius:18px;background:var(--accent-soft);font-size:14px;font-weight:700;color:var(--accent-ink)}
+.d .suggest button{border:0;background:var(--ink);color:#fff;border-radius:999px;min-height:44px;padding:0 16px;font-size:14px;font-weight:800}
+.d .meta .fit{display:flex;align-items:flex-start;gap:5px;margin-top:3px;font-size:12px;font-weight:700;line-height:1.3;color:var(--mid)}
+.d .meta .fit i{font-style:normal;flex:0 0 auto;width:13px;text-align:center;font-weight:800}
+.d .meta .fit span{min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.d .meta .fit.ok{color:var(--good)}.d .meta .fit.part{color:var(--warn)}
+.d .exact{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:0 16px 14px;padding:12px 12px 12px 16px;border-radius:18px;background:var(--tint)}
+.d .exact small{display:block;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid)}
+.d .exact b{font-size:15px;font-weight:800}
+.d .exact a{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;text-decoration:none;font-size:14px;font-weight:800}
+.d .path{font-family:var(--mono);font-size:11.5px;color:var(--soft);letter-spacing:.02em;margin-bottom:6px}
+.d .mini{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);margin:16px 16px 10px}
+.d .domain .sechead{padding-bottom:0}
+.d .ctags.wrap{padding:0 16px}
+.d .facts{margin:0 16px;border-top:1px solid var(--line)}
+.d .facts div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.d .facts dt{font-size:14px;font-weight:700;color:var(--mid)}
+.d .facts dd{margin:0;text-align:right;font-size:14.5px;font-weight:800}
+.d .facts dd small{display:block;font-size:11.5px;font-weight:600;color:var(--soft)}
+.d .facts .unk dd{color:var(--soft);font-weight:600}
 nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:5;padding:6px 8px calc(10px + env(safe-area-inset-bottom))}
 .d-nav button{position:relative;border:0;background:none;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:700;color:var(--soft);border-radius:16px}
 .d-nav button.on{color:var(--ink);font-weight:800}
@@ -464,6 +529,8 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
   .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
   .d .idline,.d .savebar,.d .confirm{margin-left:0;margin-right:0}
+  .d .doors{padding-left:0;padding-right:0;max-width:900px}.d .doors button{min-height:96px;padding:18px 18px 16px}
+  .d .understood,.d .qcard,.d .suggest,.d .exact,.d .facts,.d .mini{margin-left:0;margin-right:0}.d .ctags.wrap{padding:0}
   .d .center{max-width:900px}
   .d .brow{margin-left:0;margin-right:0;width:100%;max-width:640px}
   .d .ctags.row{flex-wrap:wrap;margin:0;padding:0}
@@ -536,6 +603,7 @@ function EmailSheet({ reason, onClose, onDone }) {
    existent dans ce rayon (avec leur nombre de produits), la marque, le budget, la promo, le tri. Chaque choix s'applique
    aussitôt ; la feuille dit combien de produits répondent. */
 function RefineSheet({ results, base, cats, brands, onEdit, onClose }) {
+  const dom = results?.domain?.key || base.domain;          // un domaine à ontologie : le type, l'usage, ce qui compte
   useEscape(onClose);
   const box = useRef(null);
   useEffect(() => { box.current?.focus(); }, []);
@@ -549,28 +617,41 @@ function RefineSheet({ results, base, cats, brands, onEdit, onClose }) {
   const brandList = opts ? opts.brands.map(b => ({ name: b.name, count: b.count }))          // dans le rayon ou la pièce, selon la recherche
     : brands.filter(b => b.products > 0).map(b => ({ name: b.name, count: b.products }));
   // Le rayon choisi seul, la liste entière sur demande : ses fonctions et ses tailles viennent juste dessous.
-  const [wide, setWide] = useState(!c.category && !c.room);
+  const [wide, setWide] = useState(!c.category && !c.room && !c.domain);
   const rayons = useRef(null), moved = useRef(false);
   useEffect(() => {
     const box = rayons.current;
     if (moved.current && box) (wide ? box.querySelector(".ctag.on") || box.querySelector(".ctag") : box.querySelector(".ctag.more"))?.focus();
   }, [wide]);
-  const none = x => ({ ...x, category: null, room: null, features: [], attrs: {} });
+  const none = x => ({ ...x, category: null, room: null, features: [], attrs: {}, domain: null, sub: null, needs: [], props: {} });
   const pickCat = key => { const was = c.category === key; onEdit(x => was ? none(x) : { ...none(x), category: key }); moved.current = true; setWide(was); };
   const unpick = () => { onEdit(none); moved.current = true; setWide(true); };
   const picked = cats.find(k => k.key === c.category);
   const promos = OFFS.filter(([k]) => k && (offs[k] > 0 || (k === "low" ? c.low : String(c.off || "") === k)));
-  const chosenLabel = picked?.label || results?.chips?.find(x => x.id === (c.category ? "category" : "room"))?.label || "Rayon choisi";
+  const chosenLabel = picked?.label || (c.domain && results?.domain?.label) || results?.chips?.find(x => ["category", "room", "domain", "sub"].includes(x.id))?.label
+    || "Rayon choisi";
   return <div className="sheet-wrap" onClick={onClose}>
     <div className="sheet refine" ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="refine-h" onClick={e => e.stopPropagation()}>
       <div className="eyebrow">Recherche</div>
       <h2 id="refine-h">Affiner</h2>
       <h3>Rayon</h3>
-      <div className="ctags" ref={rayons}>{wide ? <>{chip("all", "Tous", !c.category && !c.room, unpick)}
+      <div className="ctags" ref={rayons}>{wide ? <>{chip("all", "Tous", !c.category && !c.room && !c.domain, unpick)}
         {cats.map(k => chip(k.key, k.label, c.category === k.key, () => pickCat(k.key), k.products))}</>
         : <>{chip("chosen", chosenLabel, true, unpick, picked?.products)}
           <button className="ctag more" aria-expanded="false" onClick={() => { moved.current = true; setWide(true); }}>Changer de rayon
             <Icon d={UI.down} size={15} sw={2.4} /></button></>}</div>
+      {opts?.subs?.length > 0 && <><h3>Type</h3>
+        <div className="ctags">{opts.subs.map(t => chip(t.key, t.label, c.sub === t.key, () => onEdit(x => ({ ...x, domain: x.domain || dom,
+          sub: x.sub === t.key ? null : t.key })), t.count))}</div></>}
+      {opts?.needs?.length > 0 && <><h3>Usage</h3>
+        <div className="ctags">{opts.needs.map(n => chip(n.key, n.label, c.needs.includes(n.key), () => onEdit(x => ({ ...x, domain: x.domain || dom,
+          needs: x.needs.includes(n.key) ? x.needs.filter(y => y !== n.key) : [...x.needs, n.key] })), n.count))}</div></>}
+      {opts?.props?.length > 0 && <><h3>Ce qui compte</h3>
+        <div className="ctags">{opts.props.map(p => chip(`${p.key}:${p.value}`, p.label, c.props[p.key] === p.value, () => onEdit(x => {
+          const props = { ...x.props };
+          if (props[p.key] === p.value) delete props[p.key]; else props[p.key] = p.value;
+          return { ...x, domain: x.domain || dom, props };
+        }), p.count))}</div></>}
       {opts?.features?.length > 0 && <><h3>Fonctions</h3>
         <div className="ctags">{opts.features.map(f => chip(f.key, f.label, c.features.includes(f.key), () => onEdit(x => ({ ...x,
           features: x.features.includes(f.key) ? x.features.filter(y => y !== f.key) : [...x.features, f.key] })), f.count))}</div></>}
@@ -755,6 +836,8 @@ export default function App() {
   const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
   const [picking, setPicking] = useState(null);    // feuille ouverte : category | budget | off | refine | brands
   const [results, setResults] = useState(null);    // Recherche : la réponse (produits, critères compris, puces)
+  const [noq, setNoq] = useState(false);           // Recherche : la personne a passé les questions (jusqu'à sa prochaine phrase)
+  const [explore, setExplore] = useState(null);    // Explorer : les domaines, leurs types et leurs usages
   const [searching, setSearching] = useState(false);  // une réponse est attendue : les résultats montrés pâlissent
   const [feed, setFeed] = useState(null);          // Recherche : le feed d'avant toute saisie
   const [recent, setRecent] = useState(() => recents.get());
@@ -886,11 +969,12 @@ export default function App() {
     if (view || tab !== "search") return;                                   // une fiche ouverte : les résultats attendent le retour
     if (!any) { setResults(null); setSearching(false); return; }            // plus rien de demandé : le feed
     setSearching(true);
-    const t = setTimeout(() => api(`search?${searchParams(term, crit)}`)
+    const t = setTimeout(() => api(`search?${searchParams(term, crit, noq)}`)
       .then(d => { if (n === seq.current) { setResults({ ...d, _q: term }); setSearching(false); } })
       .catch(() => { if (n === seq.current) setSearching(false); }), term ? 120 : 0);
     return () => clearTimeout(t);
-  }, [tab, q, crit, view, version]);
+  }, [tab, q, crit, view, version, noq]);
+  useEffect(() => { setNoq(false); }, [q]);                                // une nouvelle phrase : les questions reviennent si utiles
 
   useEffect(() => {
     if (!view) return;
@@ -899,6 +983,7 @@ export default function App() {
     if (view.kind === "brand") api(`brand/${encodeURIComponent(view.name)}`).then(setBrandPage).catch(() => setError("Marque introuvable."));
     if (view.kind === "category") api(`category/${view.key}`).then(setCatPage).catch(() => setError("Catégorie introuvable."));
     if (view.kind === "room") api(`today?category=${view.room.cats.join(",")}`).then(setList).catch(() => setError("Pièce introuvable."));
+    if (view.kind === "explore") api("explore").then(setExplore).catch(() => setError("Impossible de charger l'exploration."));
   }, [view, version]);
 
   useEffect(() => { window.scrollTo(0, 0); setAlertOpen(false); setPicking(null); setErase(false); }, [view, tab]);
@@ -973,7 +1058,11 @@ export default function App() {
   };
   const forget = () => { setRecent([]); recents.set([]); };
   const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ("");
-    setCrit(NO_CRIT); if (t === tab && !view) window.scrollTo(0, 0); };   // l'onglet déjà ouvert : en haut
+    setCrit(NO_CRIT); setNoq(false); if (t === tab && !view) window.scrollTo(0, 0); };   // l'onglet déjà ouvert : en haut
+  // Les trois portes de l'accueil : rechercher, les bonnes affaires (les vraies remises, la plus forte d'abord), explorer.
+  const openSearch = c => { goTab("search"); setCrit({ ...NO_CRIT, ...c }); };
+  const openDeals = () => openSearch({ off: 1, sort: "discount" });
+  const openExplore = () => setView(v => ({ kind: "explore", from: v }));
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
   const open = (id, via, mission) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, mission, from: v })); };
   const openAbout = () => setView(v => ({ kind: "about", from: v }));
@@ -988,10 +1077,13 @@ export default function App() {
   // champ ne garde que les mots qui restent : rien n'est compris deux fois. Chaque geste part du dernier état voulu, sans
   // attendre la réponse du précédent.
   const phraseSaid = results && results._q === q.trim() && q.trim() ? results.said : null;
-  const merged = (s, c) => !s ? c : { category: c.category || s.category || null, room: c.category ? null : c.room || s.room || null,
+  const merged = (s, c) => !s ? c : { category: c.category || (c.domain ? null : s.category) || null,
+    room: c.category || c.domain ? null : c.room || s.room || null,
     brand: c.brand || s.brand || null, features: [...new Set([...c.features, ...(s.features || [])])], attrs: { ...(s.attrs || {}), ...c.attrs },
     min: c.min ?? s.min_price ?? null, max: c.max ?? s.max_price ?? null, off: c.off || s.off || null, low: c.low || !!s.low,
-    sort: c.sort || (s.sort && s.sort !== "relevance" ? s.sort : null) };
+    sort: c.sort || (s.sort && s.sort !== "relevance" ? s.sort : null),
+    domain: c.category ? null : c.domain || s.domain || null, sub: c.category ? null : c.sub || s.sub || null,
+    needs: c.category ? [] : [...new Set([...c.needs, ...(s.needs || [])])], props: c.category ? {} : { ...(s.props || {}), ...c.props } };
   const applied = () => merged(phraseSaid, crit);
   const edit = (fn, words) => {
     const s = phraseSaid;
@@ -999,7 +1091,10 @@ export default function App() {
     if (s || words) setQ((words || results?.words || []).join(" "));
   };
   const dropChip = id => edit(c => {
-    if (id === "category" || id === "room") return { ...c, category: null, room: null, features: [], attrs: {} };
+    if (id === "category" || id === "room" || id === "domain") return { ...c, category: null, room: null, features: [], attrs: {}, domain: null, sub: null, needs: [], props: {} };
+    if (id === "sub") return { ...c, sub: null };
+    if (id.startsWith("need:")) return { ...c, needs: c.needs.filter(n => n !== id.slice(5)) };
+    if (id.startsWith("prop:")) { const props = { ...c.props }; delete props[id.slice(5)]; return { ...c, props }; }
     if (id === "brand") return { ...c, brand: null };
     if (id.startsWith("feature:")) return { ...c, features: c.features.filter(f => f !== id.slice(8)) };
     if (id.startsWith("attr:")) { const attrs = { ...c.attrs }; delete attrs[id.slice(5)]; return { ...c, attrs }; }
@@ -1010,10 +1105,12 @@ export default function App() {
     return c;
   }, id.startsWith("word:") ? (results?.words || []).filter(w => w !== id.slice(5)) : undefined);
   const clearAll = () => { setCrit(NO_CRIT); setQ(""); };
+  const answer = a => edit(c => ({ ...c, domain: a.domain || c.domain, sub: a.sub || c.sub, needs: a.need ? [...new Set([...c.needs, a.need])] : c.needs }));
 
   // Vos recherches sauvegardées (des missions : Deals les surveille ; le prix est facultatif).
   const sig = m => JSON.stringify([m.category || null, m.room || null, m.brand || null, [...(m.features || [])].sort(),
-    Object.entries(m.attrs || {}).sort(), m.min_price ?? null, m.max_price ?? null, m.off || null, !!m.low, [...(m.words || [])]]);
+    Object.entries(m.attrs || {}).sort(), m.min_price ?? null, m.max_price ?? null, m.off || null, !!m.low, [...(m.words || [])],
+    m.domain || null, m.sub || null, [...(m.needs || [])].sort(), Object.entries(m.props || {}).sort()]);
   const current = results?.criteria ? { ...results.criteria, words: results.words || [] } : null;
   const searches = (missions?.missions || []).filter(m => !m.product_id);
   const savedMatch = current && searches.find(m => sig(m) === sig(current));
@@ -1022,7 +1119,8 @@ export default function App() {
     const c = current;
     try {
       const made = await keep("missions", { category: c.category, room: c.room, brand: c.brand, features: c.features, attrs: c.attrs,
-        min_price: c.min_price, max_price: c.max_price, off: c.off, low: c.low, words: c.words });
+        min_price: c.min_price, max_price: c.max_price, off: c.off, low: c.low, words: c.words,
+        domain: c.domain, sub: c.sub, needs: c.needs, props: c.props });
       setMissions(x => ({ reached: 0, fresh: 0, ...x, missions: [made, ...(x?.missions || []).filter(m => m.id !== made.id)] }));   // « Sauvegardée » aussitôt
       remember(intent); setVersion(v => v + 1);
       flash(c.max_price != null ? "Sauvegardée : on vous prévient sous votre prix" : "Recherche sauvegardée dans votre Profil");
@@ -1038,7 +1136,8 @@ export default function App() {
     else {
       setView(null); setItem(null); setTab("search"); setQ((m.words || []).join(" "));
       setCrit({ category: m.category || null, room: m.room || null, brand: m.brand || null, features: m.features || [], attrs: m.attrs || {},
-        min: m.min_price ?? null, max: m.max_price ?? null, off: m.off || null, low: !!m.low, sort: null });
+        min: m.min_price ?? null, max: m.max_price ?? null, off: m.off || null, low: !!m.low, sort: null,
+        domain: m.domain || null, sub: m.sub || null, needs: m.needs || [], props: m.props || {} });
     }
     if (m.fresh) api("missions/seen", { id: m.id }).then(() => setVersion(v => v + 1)).catch(() => {});
   };
@@ -1053,7 +1152,8 @@ export default function App() {
   };
   const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
-  const said = p => `${p.brand}, ${p.name || p.title}, ${p.pct > 0 ? `moins ${p.pct} %, ` : ""}${eur(p.price)}`;
+  const said = p => `${p.brand}, ${p.name || p.title}, ${p.pct > 0 ? `moins ${p.pct} %, ` : ""}${eur(p.price)}${
+    Array.isArray(p.why) && p.why.length ? `, ${p.why.slice(0, 2).map(whyText).join(", ")}` : ""}`;
 
   const card = (via, mission) => p => <article key={p.id} className="card" role="button" tabIndex={0} aria-label={said(p)}
     onClick={() => open(p.id, via, mission)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via, mission); }}>
@@ -1071,6 +1171,8 @@ export default function App() {
       <div className="price"><b className={p.pct > 0 ? "deal" : ""}>{eur(p.price)}</b>{p.pct > 0 && p.was && <s>{eur(p.was)}</s>}</div>
       {dropOf(p) >= 1 && <div className="drop">Baisse de {eur(dropOf(p))}</div>}
       {p.why?.low && <div className="why"><Icon d={UI.check} size={13} sw={3} />{p.why.low === "lowest" ? "Au plus bas" : "Parmi les plus bas"}</div>}
+      {Array.isArray(p.why) && p.why.slice(0, 2).map(w => { const [cls, mark] = VERDICT_MARK(w.v);
+        return <div key={w.c} className={`fit ${cls}`} aria-hidden="true"><i>{mark}</i><span>{whyText(w)}</span></div>; })}
     </div>
   </article>;
   const grid = (items, via) => <Masonry items={items} cols={cols} render={card(via)} />;
@@ -1163,6 +1265,13 @@ export default function App() {
           budget), chaque critère se modifie ; d'abord les produits que vos mots nomment, puis les remises, puis le prix ; ou le
           tri que vous choisissez. Rien sous votre budget : les plus proches au-dessus. Avant toute recherche : vos recherches
           récentes, puis vos rayons, puis une catégorie à tour de rôle.</li>
+        <li><b>Un besoin</b> (« un aspirateur pour un chat et du parquet ») : pour les aspirateurs, des règles écrites et
+          vérifiées, sans IA, relient vos mots à ce qui compte (une brosse faite pour les poils, une brosse douce) ; d'abord les
+          produits dont la fiche de l'enseigne dit qu'ils conviennent, puis ceux dont elle ne dit rien, puis les autres ; à
+          adéquation égale, la meilleure affaire. Chaque carte dit pourquoi, et quand l'information ne vient que du nom du
+          modèle ou d'une déduction, elle le dit ; la fiche dit d'où vient chaque caractéristique (fiche de l'enseigne, titre,
+          nom du modèle, déduite). Un besoin sans exception (laver le sol) écarte ce qui ne peut pas y répondre, et l'écran le
+          dit ; ce qu'un type ne peut pas faire (un robot dans l'escalier) est dit, et un autre type proposé, jamais imposé.</li>
         <li><b>Marque, catégorie</b> : les remises d'abord, ou le tri que vous choisissez.</li>
         <li><b>Fiche</b> : l'offre la moins chère parmi nos partenaires.</li>
       </ul>
@@ -1211,6 +1320,12 @@ export default function App() {
           <button className={`alertbtn ${mine ? "on" : ""}`} onClick={() => setAlertOpen(true)}>
             <Icon d={mine ? UI.check : UI.bell} size={19} sw={2.1} />{mine ? `Alerte à ${eur(mine.max_price)}` : "Me prévenir sous un prix"}</button>
         </div>
+        {item.facts?.length > 0 && <section className="essentials" aria-labelledby="ess-h">
+          <div className="sechead"><div><h2 id="ess-h">L'essentiel</h2><span className="n">{item.sub?.label} : ce qui décide</span></div></div>
+          <dl className="facts">{item.facts.map(f => <div key={f.key} className={f.value == null ? "unk" : ""}>
+            <dt>{f.label}</dt><dd>{f.value ?? "Non précisé"}{f.src && <small>{SOURCE[f.src]}</small>}</dd></div>)}</dl>
+          <p className="note">Caractéristiques lues sur la page de l'enseigne{item.read_at ? ` le ${shortDay(item.read_at)}` : ""} ; ce qui n'y est pas reste « non précisé », jamais deviné.</p>
+        </section>}
         {item.alternatives.length > 0 && <>
           <div className="sechead"><h2>Moins cher, comparable</h2></div>
           <div className="scroller">{item.alternatives.map(card("alternative"))}</div>
@@ -1246,6 +1361,30 @@ export default function App() {
       <div style={{ height: 16 }} />
       {grid(ordered(catPage.products), "category")}
     </>;
+  } else if (view?.kind === "explore") {          // explorer sans rien configurer : un domaine, ses types, ses usages ; puis les rayons
+    body = <>
+      {back}
+      <div className="pagehead"><div><h1>Explorer</h1><div className="sub">Par type, par usage : rien à régler, tout se précise ensuite.</div></div></div>
+      {(explore?.domains || []).map(d => <section key={d.key} className="domain">
+        <div className="sechead"><div><div className="path">{d.path.join(" › ")}</div><h2>{d.label}</h2>
+          <span className="n">{plural(d.count, "produit")}{d.from != null ? ` · dès ${eur(d.from)}` : ""}{d.deals ? ` · ${plural(d.deals, "remise")}` : ""}</span></div>
+          <button className="forget" onClick={() => openSearch({ domain: d.key })} aria-label={`Voir tous les ${d.label.toLowerCase()}`}>Tout voir</button></div>
+        <h3 className="mini">Quel type ?</h3>
+        <div className="rooms">{d.subs.map(t => <button key={t.key} className="room" onClick={() => openSearch({ domain: d.key, sub: t.key })}
+          aria-label={`${t.label}, ${plural(t.count, "produit")}, dès ${eur(t.from)}. ${t.pitch}`}>
+          <Vignette category={t.art} seed={t.seed} ratio={1.32} floor={0.7} zoom={ratioOf(t.art) > 1 ? 0.9 : 1.04} /><span className="shade" />
+          <span className="rt"><b>{t.label}</b><span>Dès {eur(t.from)}</span><small>{t.pitch}</small></span></button>)}</div>
+        {d.needs?.length > 0 && <><h3 className="mini">Pour quel usage ?</h3>
+          <div className="ctags wrap">{d.needs.map(n => <button key={n.key} className="ctag" onClick={() => openSearch({ domain: d.key, needs: [n.key] })}
+            aria-label={`${n.label}, ${plural(n.count, "produit")} qui conviennent`}>{n.label}<em>{n.count}</em></button>)}</div></>}
+      </section>)}
+      <div className="sechead"><h2>Tous les rayons</h2></div>
+      <div className="byroom">{ROOMS.map(r => {
+        const here = allCats.filter(c => r.cats.includes(c.key) && c.products > 0);
+        return here.length ? <div key={r.key}><h3 className="mini">{r.label}</h3>
+          <div className="ctags wrap">{here.map(c => <button key={c.key} className="ctag" onClick={() => openCategory(c.key)}>{c.label}<em>{c.products}</em></button>)}</div></div> : null;
+      })}</div>
+    </>;
   } else if (view?.kind === "room") {
     body = <>
       {back}
@@ -1264,6 +1403,11 @@ export default function App() {
     body = <>
       <Ticker items={items} publishedAt={all?.published_at} />
       <div className="intro"><h1>De bonnes affaires, pour vos envies.</h1></div>
+      <nav className="doors" aria-label="Trois façons de commencer">
+        <button onClick={() => goTab("search")}><Icon d={UI.search} size={22} sw={2} /><b>Rechercher</b><small>Dites ce qu'il vous faut, même un besoin</small></button>
+        <button onClick={openDeals}><Icon d={UI.tag} size={22} sw={2} /><b>Les bonnes affaires</b><small>Les vraies remises du jour</small></button>
+        <button onClick={openExplore}><Icon d={UI.compass} size={22} sw={2} /><b>Explorer</b><small>Par type, par usage</small></button>
+      </nav>
       {tops.length > 0 && <>
         <div className="sechead"><h2>Top deals</h2><span className="n">Remises et prix bas</span></div>
         <div className="scroller tops">{tops.map(card("top"))}</div>
@@ -1317,8 +1461,8 @@ export default function App() {
       <div className="filters" role="group" aria-label="Critères de la recherche">
         <button className={`fchip refine ${chips.length ? "on" : ""}`} onClick={() => setPicking("refine")} aria-haspopup="dialog">
           <Icon d={UI.sliders} size={16} sw={2.2} />Affiner</button>
-        {chips.length ? chips.map(c => <span key={c.id} className="crit">
-          <button className="cl" onClick={() => setPicking("refine")} aria-label={`${c.label} : modifier`}>{c.label}</button>
+        {chips.length ? chips.map(c => <span key={c.id} className={`crit ${c.need ? "need" : ""}`}>
+          <button className="cl" onClick={() => setPicking("refine")} aria-label={`${c.need ? "Pour : " : ""}${c.label} : modifier`}>{c.need && <small>Pour</small>}{c.label}</button>
           <button className="cx" onClick={() => dropChip(c.id)} aria-label={`Retirer ${c.label}`}><Icon d={UI.x} size={14} sw={2.6} /></button></span>)
           : <>{quick("category", "Catégorie")}{quick("budget", "Budget")}{quick("off", "Promo")}</>}
         {chips.length > 0 && <button className="fchip clear" onClick={clearAll}><Icon d={UI.x} size={15} sw={2.4} />Tout effacer</button>}
@@ -1353,6 +1497,25 @@ export default function App() {
           <div className="savebar"><span>On vous prévient dès qu'un produit passe sous {eur(shownRes.relaxed.max_price)}.</span>{saveBtn("Me prévenir")}</div>
         </> : <div className="sechead"><h2>{plural(shownRes.total, "produit")}</h2>{saveBtn("Sauvegarder")}</div>}
         {shownRes.ignored?.length > 0 && <p className="note">« {shownRes.ignored.join(" ")} » : aucun produit ; voici le reste de votre recherche.</p>}
+        {shownRes.needs?.length > 0 && <div className="understood" aria-label="Ce que l'app a compris de votre besoin">
+          {shownRes.needs.map(n => <p key={n.key}><b>{n.label}</b> · {n.say}{n.from?.length > 0 && <span> (d'après « {n.from.join(" », « ")} »)</span>}</p>)}
+          <small>Une puce se retire d'un geste : rien d'autre n'est supposé.</small></div>}
+        {shownRes.suggest && <div className="suggest" role="note"><span>{shownRes.suggest.why}.</span>
+          <button onClick={() => edit(c => ({ ...c, domain: c.domain || shownRes.domain?.key, sub: shownRes.suggest.sub }))}>
+            Voir les {shownRes.suggest.label.toLowerCase()} ({shownRes.suggest.count})</button></div>}
+        {!shownRes.suggest && shownRes.conflicts?.length > 0 && <div className="suggest" role="note">
+          <span>{[...new Set(shownRes.conflicts.map(x => x.why))].join(". ")}.</span></div>}
+        {shownRes.question && <section className="qcard" aria-labelledby="q-h">
+          <div className="qh"><h3 id="q-h">{shownRes.question.text}</h3><button className="lnk" onClick={() => setNoq(true)}>Passer</button></div>
+          <div className="qopts">{shownRes.question.options.map(o => <button key={o.label} onClick={() => answer(o.apply)}
+            aria-label={`${o.label}${o.small ? ` (${o.small})` : ""}, ${plural(o.count, "produit")}`}>
+            <span><b>{o.label}</b>{o.small && <small>{o.small}</small>}</span><em>{o.count}</em></button>)}</div></section>}
+        {shownRes.exact && shownRes.products[0]?.id === shownRes.exact && <div className="exact">
+          <span><small>Votre référence</small><b>{shownRes.products[0].brand} {shownRes.products[0].name}</b></span>
+          <a href={`/api/r/out/${shownRes.products[0].offer_id}?from=search&v=${variant}`} target="_blank" rel="noopener"
+            aria-label={`Voir l'offre : ${said(shownRes.products[0])}, chez ${shownRes.products[0].merchant}`}>
+            Voir l'offre · {eur(shownRes.products[0].price)}<Icon d={UI.ext} size={16} sw={2.2} /></a></div>}
+        {shownRes.excluded && <p className="note">{plural(shownRes.excluded.count, "produit")} écarté{shownRes.excluded.count > 1 ? "s" : ""} : {shownRes.excluded.why.toLowerCase()}.</p>}
         <div className={`flow ${searching ? "dim" : ""}`}>{grid(shownRes.products, "search")}</div>
       </>}
       {picking && sheets[picking] && <ChoiceSheet title={sheets[picking][0]} options={sheets[picking][1]} value={sheets[picking][2]} onPick={sheets[picking][3]}

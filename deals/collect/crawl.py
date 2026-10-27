@@ -16,8 +16,9 @@ import time
 from collections import Counter, defaultdict
 
 from .. import extract as X
+from ..labels import CATEGORY_LABEL
 from .report import previous_retailers, summarize
-from .retailers import BREAKER, FAMILY_OF, MIN_PRICE, RETAILERS
+from .retailers import BREAKER, FAMILY_OF, MIN_PRICE, MIN_PRICE_CATEGORY, RETAILERS
 
 REFUSALS = ("blocked", "rate_limited", "error")
 KEEPS = {"gone", "blocked", "disallowed", "out_of_scope"}
@@ -29,8 +30,9 @@ def in_scope(ex):
     fam = FAMILY_OF.get(cat)
     if fam is None:
         return "accessoire" if src == "accessory" else f"hors des familles suivies ({cat or 'catégorie inconnue'})"
-    if ex["price"] < MIN_PRICE[fam]:
-        return f"{ex['price']:.2f} € : sous le seuil de {MIN_PRICE[fam]:.0f} € ({fam}), accessoire probable"
+    floor = MIN_PRICE_CATEGORY.get(cat, MIN_PRICE[fam])
+    if ex["price"] < floor:
+        return f"{ex['price']:.2f} € : sous le seuil de {floor:.0f} € ({CATEGORY_LABEL.get(cat, fam).lower()}), accessoire probable"
     return None
 
 

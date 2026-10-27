@@ -54,8 +54,8 @@ def wanted():
     for text, want in PHRASES + EXTRA:
         if want[0] == "refus":
             continue
-        cat, brand, feats, attrs, price = want
-        out.append((text, {"category": cat, "brand": brand, "features": feats, "attrs": attrs, "max_price": price}))
+        cat, brand, feats, attrs, price, *extra = want
+        out.append((text, {"category": cat, "brand": brand, "features": feats, "attrs": attrs, "max_price": price, **(extra[0] if extra else {})}))
     return out
 
 
@@ -103,7 +103,7 @@ def main():
     out = {"phrases": len(rows), "avec réponse": t["found"], "impasses": t["dead"], "1re juste": t["first"],
            "pertinence": round(t["precision"] / f, 3), "rappel": round(t["recall"] / f, 3),
            "sans réponse": t["none"], "écrans vides": t["blank"], "détail": rows}
-    print(f"{len(rows)} recherches tapées ({'3 000 produits' if ARGS.scale else 'démo, 59 produits'})")
+    print(f"{len(rows)} recherches tapées ({'3 000 produits' if ARGS.scale else f'démo, {len(catalog)} produits'})")
     print(f"  {t['found']} dont le catalogue a la réponse : impasses {t['dead']} · 1re carte juste {t['first']} · "
           f"pertinence {out['pertinence']:.0%} · rappel {out['rappel']:.0%}")
     print(f"  {t['none']} sans réponse au catalogue : écran vide {t['blank']}")

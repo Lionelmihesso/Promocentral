@@ -73,20 +73,23 @@ class Market:
 
     # ------------------------------------------------------------ produits
     def match_product(self, ex):
+        """Le produit de la page (retrouvé ou créé) ; ses caractéristiques relues du titre et de la fiche du jour, la fiche
+        gardée pour qu'une ontologie révisée s'applique sans relire la page (extract.product_attributes)."""
         cat, _ = X.categorize(ex.get("title"), ex.get("category"))
-        attrs = X.attributes(ex.get("title"), ex.get("properties"))
         pid = self._find(ex)
         if pid:
-            p = self.s.q("SELECT attributes FROM products WHERE id=?", (pid,), one=True)
-            merged = {**attrs, **json.loads(p["attributes"] or "{}")}      # ce qui est déjà connu prime
+            p = self.s.q("SELECT category, attributes FROM products WHERE id=?", (pid,), one=True)
+            merged = X.product_attributes(ex.get("title"), p["category"] or cat, json.loads(p["attributes"] or "{}"), ex.get("properties"),
+                                          self.clock())     # hors ontologie, ce qui est déjà connu prime
             self.s.x("UPDATE products SET category=COALESCE(category, ?), attributes=?, image=COALESCE(image, ?) WHERE id=?",
-                     (cat, json.dumps(merged), ex.get("image"), pid))
+                     (cat, json.dumps(merged, ensure_ascii=False), ex.get("image"), pid))
             return pid
+        attrs = X.product_attributes(ex.get("title"), cat, None, ex.get("properties"), self.clock())
         review = 0 if ex.get("gtin") or (ex.get("brand") and ex.get("mpn")) else 1
         return self.s.x("INSERT INTO products(gtin, brand, mpn, title, norm_title, category, attributes, image, needs_review, created_at) "
                         "VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (ex.get("gtin"), ex.get("brand"), ex.get("mpn"), ex.get("title") or "?", norm_title(ex.get("title")), cat,
-                         json.dumps(attrs), ex.get("image"), review, self.clock()))
+                         json.dumps(attrs, ensure_ascii=False), ex.get("image"), review, self.clock()))
 
     def _find(self, ex):
         if ex.get("gtin"):

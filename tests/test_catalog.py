@@ -112,8 +112,13 @@ class Search(unittest.TestCase):
         self.assertEqual([p["id"] for p in get(brand="Brava").body["products"]], [1])
         self.assertEqual([p["id"] for p in get(feat="laveur").body["products"]], [1])
         self.assertEqual([p["id"] for p in get(q="robot aspirateur", sort="price").body["products"]], [1])
-        both = get(q="aspirateur").body                                        # un aspirateur n'est pas un robot ; le filtre le propose
-        self.assertEqual((both["products"], {c["key"]: c["count"] for c in both["categories"]}["robot_aspirateur"]), ([], 1))
+        both = get(q="aspirateur").body                                        # les aspirateurs : le domaine entier, robots compris
+        self.assertEqual(([p["id"] for p in both["products"]], both["chips"]), ([1], [{"id": "domain", "label": "Aspirateurs"}]))
+        self.assertEqual([p["id"] for p in get(domain="aspirateurs", sub="robot", need="lavage").body["products"]], [1])
+        self.assertEqual(get(domain="aspirateurs", prop="bagless:0").body["criteria"]["props"], {"bagless": False})
+        for bad in ({"sub": "robot"}, {"domain": "jardin"}, {"domain": "aspirateurs", "sub": "fusee"},
+                    {"domain": "aspirateurs", "need": "vol"}, {"domain": "aspirateurs", "prop": "weight_kg:1"}):
+            self.assertEqual(get(**bad).status, 400, bad)
         self.assertEqual(get(off="20").body["chips"], [{"id": "off", "label": "−20 % et plus"}])   # un palier de promo, dit en entier
         self.assertEqual(get(q="lave-linge", attr="energy_class:a").body["criteria"]["attrs"], {"energy_class": "A"})
         for bad in ({"feat": "volant"}, {"attr": "couleur:rouge"}, {"sort": "hasard"}, {"max": "beaucoup"}):
@@ -150,17 +155,18 @@ class Search(unittest.TestCase):
 class Refine(unittest.TestCase):
     """Affiner : chaque choix dit ce que la recherche donnerait avec lui, ses autres critères gardés ; un choix qui ne donne
     rien ou ne change rien n'est pas proposé, sauf s'il est pris."""
+    ROWS = [(1, "Canapé d'angle convertible 5 places", "Nordvik", 899, 20), (2, "Canapé d'angle 4 places", "Nordvik", 1290, 0),
+            (3, "Canapé d'angle convertible 3 places", "Varenne", 749, 10), (4, "Canapé 3 places velours", "Lumen", 599, 0),
+            (5, "Canapé convertible 2 places", "Varenne", 499, 0), (6, "Lit coffre 160x200", "Nordvik", 699, 0)]
+
     def setUp(self):
         self.s = Store(Path(tempfile.mkdtemp(), "r.sqlite"))
-        rows = [(1, "Aspirateur balai sans fil 40 min", "Zephyr", 199, 20), (2, "Aspirateur balai sans fil 60 min", "Zephyr", 349, 0),
-                (3, "Aspirateur balai sans fil 30 min", "Helio", 149, 10), (4, "Aspirateur traîneau sans sac", "Brava", 129, 0),
-                (5, "Aspirateur balai filaire", "Helio", 99, 0), (6, "Aspirateur à main sans fil", "Lumen", 89, 0),
-                (7, "Aspirateur main sans fil compact", "Lumen", 79, 0)]
         with self.s.tx() as c:
-            for pid, title, brand, price, pct in rows:
+            for pid, title, brand, price, pct in self.ROWS:
+                cat = categorize(title)[0]
                 c.execute("INSERT INTO catalog(product_id, name, title, brand, category, price, pct, search, published_on, attrs) "
-                          "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, "aspirateur", price, pct,
-                                                         haystack(title, brand, "Site", "aspirateur"), "2026-10-24", json.dumps(attributes(title))))
+                          "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, cat, price, pct,
+                                                         haystack(title, brand, "Site", cat), "2026-10-24", json.dumps(attributes(title, None, cat))))
         self.c = Catalog(self.s)
 
     def tearDown(self):
@@ -173,34 +179,187 @@ class Refine(unittest.TestCase):
                 [(b["name"], b["count"]) for b in o["brands"]])
 
     def test_each_choice_counts_what_it_would_give(self):
-        self.assertEqual(self.options(q="aspirateur balai sans fil"),
-                         ([("Balai", 3), ("Sans fil", 3)],                    # pris ; « Traîneau » ne donnerait rien
-                          {"autonomy_min": [("40 min et plus", 2), ("60 min et plus", 1)]},   # « 30 min et plus » : les trois, rien ne change
-                          [("Zephyr", 2), ("Helio", 1)]))
-        self.assertEqual(self.options(q="aspirateur balai sans fil", attrs={"autonomy_min": 40})[1:],
-                         ({"autonomy_min": [("40 min et plus", 2), ("60 min et plus", 1)]}, [("Zephyr", 2)]))
-        self.assertEqual(self.options(q="aspirateur", brand="Helio")[0], [("Sans fil", 1)])   # chez Helio, tout est balai
-        self.assertEqual(self.options(q="aspirateur sous 150 €")[0], [("Sans fil", 3), ("Balai", 2), ("Traîneau", 1)])   # les plus courantes d'abord
-        self.assertEqual(self.options(q="aspirateur balai sans fil sous 100 €"), self.options(q="aspirateur balai sans fil"))   # au-dessus du budget : ce qui est montré
-        self.assertEqual(self.options(q="pour l'entretien"), ([], {}, [("Helio", 2), ("Lumen", 2), ("Zephyr", 2), ("Brava", 1)]))   # une pièce : ses marques
-        self.assertEqual(self.options(q="aspirateur en promo")[0], [])               # la promo demandée compte : deux balais sans fil
-        self.assertEqual(self.options(q="aspirateur filaire")[0::2], ([], [("Helio", 1)]))   # les mots aussi
-        self.assertEqual(self.options(q="aspirateur balai sans fil", attrs={"autonomy_min": 30})[1],   # pris, même s'il ne change rien
-                         {"autonomy_min": [("30 min et plus", 3), ("40 min et plus", 2), ("60 min et plus", 1)]})
-        self.assertEqual(self.options(q="aspirateur balai sans fil", attrs={"autonomy_min": 90})[1],   # pris, même s'il ne donne rien
-                         {"autonomy_min": [("40 min et plus", 2), ("60 min et plus", 1), ("90 min et plus", 0)]})
-        self.assertIn(("Ostra", 0), self.options(q="aspirateur", brand="Ostra")[2])
-        with self.s.tx() as c:                                                   # la nuit suivante : une autonomie relue
-            c.execute("UPDATE catalog SET attrs=? WHERE product_id=3", (json.dumps({"features": ["balai", "sans_fil"], "autonomy_min": 50}),))
+        self.assertEqual(self.options(q="canapé d'angle"),
+                         ([("D'angle", 3), ("Convertible", 2)],              # pris ; « Convertible » en donnerait 2
+                          {"seats": [("4 places et plus", 2), ("5 places et plus", 1)]},   # « 3 places et plus » : les trois, rien ne change
+                          [("Nordvik", 2), ("Varenne", 1)]))
+        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 4})[1:],
+                         ({"seats": [("4 places et plus", 2), ("5 places et plus", 1)]}, [("Nordvik", 2)]))
+        self.assertEqual(self.options(q="canapé", brand="Varenne")[0], [("D'angle", 1)])   # chez Varenne, tout est convertible : seul « D'angle » change
+        self.assertEqual(self.options(q="canapé sous 800 €")[0], [("Convertible", 2), ("D'angle", 1)])   # les plus courantes d'abord
+        self.assertEqual(self.options(q="canapé d'angle sous 100 €"), self.options(q="canapé d'angle"))   # au-dessus du budget : ce qui est montré
+        self.assertEqual(self.options(q="pour la chambre"), ([], {}, [("Nordvik", 1)]))   # une pièce : ses marques
+        self.assertEqual(self.options(q="pour le salon"), ([], {}, [("Nordvik", 2), ("Varenne", 2), ("Lumen", 1)]))   # pas les fonctions de ses rayons
+        self.assertEqual(self.options(q="canapé en promo")[0], [])                     # la promo demandée compte : deux d'angle convertibles
+        self.assertEqual(self.options(q="canapé velours")[0::2], ([], [("Lumen", 1)]))     # les mots aussi
+        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 3})[1],         # pris, même s'il ne change rien
+                         {"seats": [("3 places et plus", 3), ("4 places et plus", 2), ("5 places et plus", 1)]})
+        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 8})[1],         # pris, même s'il ne donne rien
+                         {"seats": [("4 places et plus", 2), ("5 places et plus", 1), ("8 places et plus", 0)]})
+        self.assertIn(("Ostra", 0), self.options(q="canapé", brand="Ostra")[2])
+        with self.s.tx() as c:                                                   # la nuit suivante : une taille relue
+            c.execute("UPDATE catalog SET attrs=? WHERE product_id=3", (json.dumps({"features": ["angle", "convertible"], "seats": 4}),))
             c.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('published_at', '2')")
-        self.assertEqual(self.options(q="aspirateur balai sans fil")[1], {"autonomy_min": [("50 min et plus", 2), ("60 min et plus", 1)]})
+        self.assertEqual(self.options(q="canapé d'angle")[1], {"seats": [("5 places et plus", 1)]})
 
     def test_the_phrase_alone_is_given_back(self):
         """said : ce que la phrase seule demande, pour que l'app en fasse ses critères quand on touche une puce."""
-        out = self.c.search(q="aspirateur balai sous 200 € en promo", brand="Helio")
-        self.assertEqual(out["said"], {"category": "aspirateur", "room": None, "brand": None, "features": ["balai"], "attrs": {},
-                                       "min_price": None, "max_price": 200, "off": 1, "low": False, "sort": None})
+        out = self.c.search(q="aspirateur balai sous 200 € en promo pour chat", brand="Helio")
+        self.assertEqual(out["said"], {"category": None, "room": None, "brand": None, "features": [], "attrs": {},
+                                       "min_price": None, "max_price": 200, "off": 1, "low": False, "sort": None,
+                                       "domain": "aspirateurs", "sub": "balai", "needs": ["animaux"], "props": {}})
         self.assertEqual(out["criteria"]["brand"], "Helio")
+
+
+class Journey(unittest.TestCase):
+    """Les aspirateurs, domaine à ontologie : une sélection classée par adéquation aux besoins, expliquée, sans rien
+    écarter sur un inconnu ; la question utile quand la demande est vague ; un autre type quand celui demandé ne peut pas ;
+    la référence exacte d'abord ; Affiner par type, usage et caractéristiques."""
+    ROWS = [  # id, titre, marque, prix, remise, fiche déclarée
+        (1, "Aspirateur balai sans fil Zephyr V15 Animal 60 min", "Zephyr", 449, 0, {"poids": "2,9 kg", "filtre hepa": "Oui"}),
+        (2, "Aspirateur balai sans fil Kessler Flex 45 min", "Kessler", 259, 20, {"poids": "2,3 kg", "brosse poils d'animaux": "Non"}),
+        (3, "Aspirateur balai sans fil Helio Agile", "Helio", 179, 0, {}),
+        (4, "Aspirateur traîneau sans sac Ostra Silence", "Ostra", 229, 10, {"niveau sonore": "64 dB", "filtre hepa": "Oui"}),
+        (5, "Robot aspirateur laveur Ostra S8 navigation laser", "Ostra", 549, 0, {"station de vidage": "Oui"}),
+        (6, "Robot aspirateur Brava R5", "Brava", 329, 15, {"navigation": "Gyroscope"}),
+        (7, "Aspirateur à main sans fil Helio H3", "Helio", 59, 0, {"poids": "1,2 kg"}),
+        (8, "Lave-linge hublot 9 kg", "Kessler", 449, 0, {}),
+        (9, "Aspirateur traîneau avec sac filaire Kessler Eco", "Kessler", 99, 0, {})]
+
+    def setUp(self):
+        self.s = Store(Path(tempfile.mkdtemp(), "j.sqlite"))
+        with self.s.tx() as c:
+            for pid, title, brand, price, pct, props in self.ROWS:
+                cat = categorize(title)[0]
+                c.execute("INSERT INTO catalog(product_id, name, title, brand, category, price, pct, search, published_on, attrs) "
+                          "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, cat, price, pct, haystack(title, brand, "Site", cat),
+                                                         "2026-10-24", json.dumps(attributes(title, props, cat))))
+        self.c = Catalog(self.s)
+
+    def tearDown(self):
+        self.s.close()
+
+    def ids(self, **kw):
+        return [p["id"] for p in self.c.search(**kw)["products"]]
+
+    def test_needs_rank_first_what_is_known_to_fit_then_the_unknown(self):
+        out = self.c.search(q="aspirateur pour mon chat")
+        self.assertEqual([p["id"] for p in out["products"]][:1], [1])               # « Animal » : le nom le dit
+        first = out["products"][0]
+        self.assertEqual(first["why"], [{"c": "poils", "v": 1, "text": "Brosse pour les poils", "src": "nom"}])
+        known_no = next(p for p in out["products"] if p["id"] == 2)
+        self.assertEqual((known_no["why"][0]["v"], known_no["why"][0]["text"]),     # la fiche dit non : au mieux « en partie »
+                         (None, "Pas de brosse pour les poils ; brosse motorisée non précisée"))
+        ids = [p["id"] for p in out["products"]]
+        self.assertLess(ids.index(3), ids.index(2))                                 # inconnu (rien dit) avant non (dit non)
+        self.assertEqual(out["needs"], [{"key": "animaux", "label": "Poils d'animaux", "say": "Un chat ou un chien : une brosse faite pour les poils",
+                                         "from": ["chat"]}])
+        self.assertEqual(len(ids), 8)                                               # rien n'est écarté sur un inconnu ; pas le lave-linge
+        self.assertEqual(out["question"], None)                                     # un besoin dit : pas de question
+        three = self.c.search(q="aspirateur pour mon chat, silencieux, pour allergiques")["products"][0]["why"]
+        self.assertEqual([w["c"] for w in three], ["poils", "silence"])            # trois critères : les deux premiers, ce qu'une carte montre
+
+    def test_an_eliminatory_need_excludes_and_says_why(self):
+        out = self.c.search(q="aspirateur qui lave le sol")
+        self.assertEqual([p["id"] for p in out["products"]], [5, 6])                # le robot laveur ; le R5 : rien n'est dit, il reste, après
+        self.assertEqual(out["excluded"], {"count": 6, "why": "Ne lave pas le sol"})   # un balai, un traîneau, un aspirateur à main ne lavent pas
+        self.assertEqual(self.ids(q="robot aspirateur qui se vide tout seul"), [5, 6])   # le robot R5 : rien n'est dit, il reste, après
+        out = self.c.search(q="robot aspirateur avec cartographie")
+        self.assertEqual(([p["id"] for p in out["products"]], out["excluded"]), ([5, 6], None))   # laser : il cartographie (déduit) ;
+        self.assertEqual(out["products"][0]["why"][0]["src"], "deduit")                    # gyroscope : rien n'est dit, il reste après
+        self.assertEqual(out["products"][1]["why"][0]["v"], None)
+
+    def test_a_vague_request_gets_a_useful_question_and_a_precise_one_none(self):
+        q = self.c.search(q="aspirateur")["question"]
+        self.assertEqual(q["key"], "type")
+        self.assertEqual([o["apply"]["sub"] for o in q["options"]], ["robot", "balai", "traineau", "main"])   # pas de laveur au catalogue
+        self.assertEqual(q["options"][0]["apply"], {"domain": "aspirateurs", "sub": "robot"})
+        self.assertIsNone(self.c.search(q="aspirateur", noq=True)["question"])         # passée : plus de question
+        self.assertIsNone(self.c.search(q="aspirateur balai sans fil")["question"])    # une demande précise : aucune question
+        self.assertIsNone(self.c.search(q="Zephyr")["question"])
+        then = self.c.search(q="aspirateur", sub="balai", domain="aspirateurs")["question"]   # le type répondu : l'usage, si utile
+        self.assertTrue(then is None or then["key"] == "usage")
+
+    def test_another_type_is_suggested_with_its_reason_never_imposed(self):
+        out = self.c.search(q="robot aspirateur pour les escaliers")
+        self.assertEqual(out["suggest"], {"sub": "main", "label": "Aspirateurs à main", "why": "Un robot ne monte pas les marches", "count": 1})
+        self.assertEqual(sorted(p["id"] for p in out["products"]), [5, 6])          # la sélection reste celle des robots
+        self.assertEqual(out["conflicts"], [{"c": "escaliers", "why": "Un robot ne monte pas les marches"}])
+        self.assertIsNone(self.c.search(q="aspirateur pour les escaliers")["suggest"])   # aucun type demandé : rien à corriger
+        cheap = self.c.search(q="aspirateur à main pour une grande maison sous 60 €")   # aucun autre type sous 60 € : rien à proposer,
+        self.assertEqual(([p["id"] for p in cheap["products"]], cheap["suggest"]), ([7], None))   # mais la raison reste dite
+        self.assertEqual(cheap["conflicts"], [{"c": "couverture", "why": "Un aspirateur à main est fait pour les petits travaux"}])
+
+    def test_the_exact_reference_comes_first_and_is_said(self):
+        out = self.c.search(q="Zephyr V15")
+        self.assertEqual(([p["id"] for p in out["products"]], out["exact"]), ([1], 1))
+        self.assertIsNone(self.c.search(q="aspirateur balai")["exact"])
+
+    def test_refine_by_type_usage_and_what_decides(self):
+        o = self.c.search(q="aspirateur")["options"]
+        self.assertEqual([(x["key"], x["count"]) for x in o["subs"]], [("robot", 2), ("main", 1), ("balai", 3), ("traineau", 2)])
+        self.assertIn({"key": "animaux", "label": "Poils d'animaux", "count": 1}, o["needs"])
+        self.assertIn({"key": "lavage", "label": "Laver le sol", "count": 1}, o["needs"])   # le robot laveur
+        self.assertNotIn("tapis", [x["key"] for x in o["needs"]])                    # aucun produit ne lui convient tout à fait
+        o = self.c.search(q="aspirateur balai")["options"]
+        self.assertEqual([x["key"] for x in o["subs"]][:1], ["robot"])              # les autres types restent proposés
+        self.assertIn({"key": "hepa", "value": True, "label": "Filtre HEPA", "count": 1}, o["props"])
+        self.assertEqual(o["attrs"]["weight_kg"]["values"][0]["label"], "2,5 kg au plus")
+        self.assertEqual(self.ids(q="aspirateur balai", attrs={"weight_kg": 2.5}), [2])   # 2,9 kg : non ; inconnu : pas de promesse
+        self.assertEqual(self.ids(q="aspirateur", domain="aspirateurs", props={"hepa": True}), [4, 1])
+
+    def test_a_category_of_the_domain_is_the_domain_and_its_type(self):
+        out = self.c.search(category="robot_aspirateur")
+        self.assertEqual((out["criteria"]["category"], out["criteria"]["domain"], out["criteria"]["sub"], out["chips"]),
+                         (None, "aspirateurs", "robot", [{"id": "sub", "label": "Robots aspirateurs"}]))
+        self.assertEqual(self.c.search(q="aspirateur sans sac")["criteria"]["props"], {"bagless": True})   # la phrase dit une exigence
+        self.assertEqual(self.c.search(q="aspirateur sans sac", props={"hepa": True})["criteria"]["props"], {"bagless": True, "hepa": True})
+        self.assertIsNone(self.c.search(q="aspirateur agile")["exact"])            # un mot qui trouve un seul produit : pas une référence
+        self.assertIsNone(self.c.search(q="aspirateur", domain="aspirateurs", needs=["animaux"])["question"])   # un besoin choisi : pas de question
+
+    def test_with_the_type_chosen_the_next_question_is_the_use(self):
+        s = Store(Path(tempfile.mkdtemp(), "q.sqlite"))
+        with s.tx() as c:                                                        # douze balais : les six moins chers sans rien de dit
+            for pid in range(1, 13):
+                title = f"Aspirateur balai sans fil Kessler B{pid}" + (" Allergy" if pid > 9 else " Animal" if pid > 6 else "")
+                c.execute("INSERT INTO catalog(product_id, name, title, brand, category, price, pct, search, published_on, attrs) "
+                          "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, "Kessler", "aspirateur", 100 + 10 * pid, 0,
+                                                         haystack(title, "Kessler", "Site", "aspirateur"), "2026-10-24",
+                                                         json.dumps(attributes(title, None, "aspirateur"))))
+        q = Catalog(s).search(q="aspirateur", domain="aspirateurs", sub="balai")["question"]
+        self.assertEqual((q["key"], [o["apply"]["need"] for o in q["options"]]), ("usage", ["animaux", "allergies"]))
+        s.close()
+
+    def test_refine_counts_each_choice_without_itself(self):
+        o = self.c.search(q="aspirateur traîneau", props={"bagless": True})["options"]
+        self.assertEqual([(p["label"], p["count"]) for p in o["props"] if p["key"] == "bagless"], [("Sans sac", 1), ("Avec sac", 1)])
+        o = self.c.search(q="aspirateur balai", needs=["vidage"])["options"]
+        self.assertIn({"key": "vidage", "label": "Se vide tout seul", "count": 0}, o["needs"])   # choisi : reste proposé, pour le retirer
+        self.assertNotIn("cordless", [p["key"] for p in o["props"]])                # tous sans fil : ce choix ne changerait rien
+        self.assertEqual([(v["label"], v["count"]) for v in o["attrs"]["autonomy_min"]["values"]],
+                         [("30 min et plus", 2), ("45 min et plus", 2), ("60 min et plus", 1)])
+
+    def test_the_product_page_says_what_decides_and_where_it_comes_from(self):
+        balai = self.c.item(None, 1)
+        self.assertEqual((balai["sub"], balai["facts"][0]), ({"key": "balai", "label": "Aspirateur balai"},
+                                                               {"key": "cordless", "label": "Alimentation", "value": "Sans fil", "src": "titre"}))
+        self.assertIn({"key": "hepa", "label": "Filtre HEPA", "value": "Oui", "src": "fiche"}, balai["facts"])
+        self.assertIn({"key": "removable_battery", "label": "Batterie amovible", "value": None, "src": None}, balai["facts"])   # non précisé
+        robot = self.c.item(None, 5)
+        self.assertIn({"key": "mapping", "label": "Cartographie", "value": "Oui", "src": "deduit"}, robot["facts"])
+        self.assertEqual(self.c.item(None, 8).get("facts"), None)                   # hors ontologie : rien de plus
+
+    def test_explore_a_domain_without_configuring_anything(self):
+        out = self.c.explore(domain="aspirateurs")
+        self.assertEqual((out["path"], out["count"], [s["key"] for s in out["subs"]]),
+                         (["Maison", "Entretien", "Aspirateurs"], 8, ["robot", "main", "balai", "traineau"]))
+        self.assertEqual({s["key"]: s["from"] for s in out["subs"]}["balai"], 179)
+        self.assertIn("animaux", [n["key"] for n in out["needs"]])
+        self.assertNotIn("tapis", [n["key"] for n in out["needs"]])                 # aucun produit ne lui convient : pas proposé
+        self.assertEqual((out["from"], out["deals"]), (59, 3))
+        self.assertEqual(out["subs"][0], {"key": "robot", "label": "Robots aspirateurs", "pitch": "Il passe tout seul, même en votre absence",
+                                          "count": 2, "from": 329, "art": "robot_aspirateur", "seed": 6})   # illustré par sa meilleure remise
+        self.assertEqual([d["key"] for d in self.c.explore()["domains"]], ["aspirateurs"])
 
 
 class Top(unittest.TestCase):

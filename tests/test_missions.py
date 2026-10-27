@@ -16,7 +16,7 @@ from pathlib import Path
 from deals.catalog import Catalog
 from deals.errors import BadRequest, NotFound
 from deals.extract import attributes, categorize
-from deals.missions import Missions, interpret, label, like, matches
+from deals.missions import Missions, interpret, label, like, matches, normalize
 from deals.accounts import Outbox
 from deals.store import Store
 
@@ -24,14 +24,17 @@ BRANDS = ["Zephyr", "Kessler", "Dormea"]
 
 
 def product(title, price, stock=True, brand=None, pid=1):
-    return {"product_id": pid, "category": categorize(title)[0], "brand": brand, "price": price, "in_stock": stock, "attrs": attributes(title)}
+    cat = categorize(title)[0]
+    return {"product_id": pid, "category": cat, "brand": brand, "price": price, "in_stock": stock, "attrs": attributes(title, None, cat)}
 
 
 class Interpret(unittest.TestCase):
     def test_one_sentence(self):
         m = interpret("Je veux un aspirateur balai sans fil à moins de 300 euros", BRANDS)
-        self.assertEqual((m["category"], m["features"], m["max_price"]), ("aspirateur", ["balai", "sans_fil"], 300))
+        self.assertEqual((m["domain"], m["sub"], m["props"], m["max_price"]), ("aspirateurs", "balai", {"cordless": True}, 300))
         self.assertEqual(label(m), "Aspirateur balai sans fil · 300 € max")
+        self.assertEqual(label(interpret("aspirateur silencieux pour les escaliers et un chat", BRANDS)),
+                         "Aspirateur silencieux pour les escaliers et les poils d'animaux")
         m = interpret("lave-linge 9 kg moins de 500 €", BRANDS)
         self.assertEqual((m["category"], m["attrs"], m["max_price"]), ("lave_linge", {"capacity_kg": 9}, 500))
         m = interpret("un lit 160x200 jusqu'à 1 200€", BRANDS)
@@ -43,7 +46,7 @@ class Interpret(unittest.TestCase):
 
     def test_everyday_wording(self):
         m = interpret("aspi sans fil 250 balles", BRANDS)
-        self.assertEqual((m["category"], m["features"], m["max_price"]), ("aspirateur", ["sans_fil"], 250))
+        self.assertEqual((m["domain"], m["props"], m["max_price"]), ("aspirateurs", {"cordless": True}, 250))
         self.assertEqual(interpret("matelas 160 sur 200", BRANDS)["attrs"], {"bed_size": "160x200"})
         self.assertEqual(interpret("lit 2 places sous 400", BRANDS)["attrs"], {})                      # pas des places assises
         self.assertEqual(interpret("canapé 3 places", BRANDS)["attrs"], {"seats": 3})
@@ -67,7 +70,15 @@ class Matches(unittest.TestCase):
         self.assertFalse(matches(m, product("Aspirateur balai sans fil Flex 45 min", 301)))            # trop cher
         self.assertFalse(matches(m, product("Aspirateur balai sans fil Flex 45 min", 242, stock=False)))
         self.assertFalse(matches(m, product("Aspirateur traîneau sans sac 750 W", 199)))               # pas balai
-        self.assertFalse(matches(m, product("Robot aspirateur laveur S8", 199)))                       # autre catégorie
+        self.assertFalse(matches(m, product("Robot aspirateur laveur S8", 199)))                       # un robot n'est pas un balai
+        self.assertTrue(matches(interpret("aspirateur sans fil"), product("Robot aspirateur laveur S8", 199)))   # sans fil : déduit du type
+        m = interpret("aspirateur pour chat")                                                          # un besoin : satisfait tout à fait
+        self.assertTrue(matches(m, product("Aspirateur balai sans fil X5 Animal", 349)))               # « Animal » : le nom le dit
+        self.assertFalse(matches(m, product("Aspirateur balai sans fil Flex 45 min", 242)))           # rien ne le dit : pas promis
+        self.assertFalse(matches(interpret("aspirateur qui lave le sol"), product("Aspirateur balai sans fil Flex 45 min", 242)))
+        self.assertTrue(matches(interpret("aspirateur qui lave le sol"), product("Robot aspirateur laveur S8", 199)))
+        self.assertTrue(matches(interpret("robot aspirateur pour les escaliers"), product("Robot aspirateur laveur S8", 199)))   # comme la Recherche :
+        self.assertFalse(matches(interpret("robot aspirateur pour les escaliers"), product("Aspirateur à main Mini", 59)))    # ce qu'un robot ne peut pas, à part
         m = interpret("lave-linge 9 kg sous 600 €")
         self.assertTrue(matches(m, product("Lave-linge hublot 10 kg classe A", 549)))                  # au moins 9 kg
         self.assertFalse(matches(m, product("Lave-linge hublot 8 kg classe A", 449)))
@@ -161,6 +172,30 @@ class Night(unittest.TestCase):
         self.assertEqual(body.count("/?p="), 5)                                                       # les cinq moins chers
         self.assertIn("M10 30 min : 110 €", body)
         self.assertIn("et 3 autres à votre prix", body)
+
+    def test_a_search_kept_before_the_ontology_is_read_as_today(self):
+        """v56 gardait « aspirateur balai sans fil » en rayon et fonctions : relue comme la même phrase aujourd'hui, une
+        fois réécrite, et la même recherche gardée avant et après n'en fait qu'une."""
+        self.assertEqual(normalize({"category": "aspirateur", "features": ["balai", "sans_fil"], "attrs": {}}),
+                         {"category": None, "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "balai", "needs": [], "props": {"cordless": True}})
+        self.assertEqual(normalize({"category": "robot_aspirateur", "features": ["laveur"]})["needs"], ["lavage"])   # un robot qui lave
+        self.assertEqual(normalize({"category": "aspirateur", "features": ["balai", "laveur"]})["sub"], "laveur")    # un balai laveur
+        self.assertEqual(normalize({"category": "lave_linge", "attrs": {"capacity_kg": 9}}), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})
+        self.assertEqual(normalize({"product_id": 3, "category": "aspirateur"}), {"product_id": 3, "category": "aspirateur"})   # un produit précis
+        with self.s.tx() as c:
+            c.execute("INSERT INTO missions(user_id, category, want, max_price, label, created_at) VALUES (?,?,?,?,?,?)",
+                      (self.uid, "aspirateur", json.dumps({"attrs": {}, "features": ["balai", "sans_fil"]}), 300, "Aspirateur balai sans fil · 300 € max", 1))
+        made = self.m.create(self.uid, {"domain": "aspirateurs", "sub": "balai", "props": {"cordless": True}, "max_price": 300})   # la même, d'aujourd'hui
+        self.assertEqual(made["id"], 1)                                                               # reconnue : pas une seconde
+        views = self.m.list(self.uid)["missions"]
+        self.assertEqual([(v["domain"], v["sub"], v["props"], v["total"]) for v in views], [("aspirateurs", "balai", {"cordless": True}, 1)])
+        self.assertEqual(self.s.q("SELECT category, want FROM missions", one=True)["category"], None)                 # réécrite une fois
+
+    def test_a_domain_mission_reads_only_its_domain_and_checks_its_type(self):
+        self.put(9, "Lave-linge hublot 9 kg", "Kessler", 279)
+        self.assertEqual({r["category"] for r in self.m._rows({"domain": "aspirateurs"})}, {"aspirateur"})
+        with self.assertRaises(BadRequest):
+            self.m.create(self.uid, {"domain": "aspirateurs", "sub": "fusee"})
 
     def test_a_person_manages_her_missions(self):
         self.assertEqual(self.m.list(self.uid), {"missions": [], "reached": 0, "fresh": 0})
