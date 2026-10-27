@@ -41,7 +41,7 @@ CATEGORIES = [
     ("casque_audio", ["casque audio", "casque bluetooth", "ecouteurs", "headphones", "earbuds"]),
     ("robot_aspirateur", ["robot aspirateur", "robots aspirateurs", "aspirateur robot", "aspirateurs robots", "robot laveur",
                           "roomba"]),
-    ("aspirateur", ["aspirateur", "vacuum"]),
+    ("aspirateur", ["aspirateur", "vacuum", "nettoyeur de sol", "nettoyeurs de sol"]),
     ("tablette", ["tablette tactile", "ipad", "galaxy tab"]),
     ("montre_connectee", ["montre connectee", "apple watch", "galaxy watch", "smartwatch"]),
     ("enceinte", ["enceinte bluetooth", "enceinte connectee", "enceinte portable", "barre de son", "soundbar"]),
@@ -60,7 +60,7 @@ FAMILY_OF = {c: f for f, cats in FAMILIES.items() for c in cats}
 ACCESSORY = re.compile(r"^(?:housse|protege|protection|alese|surmatelas|sur-matelas|drap|oreiller|couette|piece|filtre|"
                        r"joint|tuyau|pied|pieds|poignee|kit|support|accessoire|coussin|plaid|tete de lit|cache|rallonge|bac|"
                        r"panier|grille|ampoule|resistance|courroie|thermostat|carte|module|lot de|set de|nettoyant|detartrant|brosse|batterie|"
-                       r"sacs?|chargeur|embout)\b")
+                       r"sacs?|chargeur|embout|station)\b")
 
 ATTR_PATTERNS = {
     "energy_class": re.compile(r"(?:classe(?: energetique| energie)?|energie|energy class)\s*:?\s*([a-g]\+{0,3})(?![a-z0-9+])"),
@@ -133,11 +133,11 @@ def _num(v):
         return None
 
 
-def attributes(title=None, properties=None, category=None):
+def attributes(title=None, properties=None, category=None, declared=None):
     """Attributs trouvés dans les propriétés déclarées (prioritaires) puis dans le titre. Une catégorie qui a son
-    ontologie (deals/ontology : les aspirateurs) y lit aussi ses caractéristiques, sa sous-famille et leur provenance
-    (_src), sous la version de l'ontologie (_v) ; ce qui n'a pas de sens pour elle est écarté (« 2,6 kg » est un poids,
-    pas une capacité de lave-linge)."""
+    ontologie (deals/ontology : les aspirateurs) y lit sa sous-catégorie et ses attributs, dans le titre et la catégorie
+    déclarée de l'offre (declared) ; ce qui n'a pas de sens pour elle est écarté (« 2,6 kg » n'est pas la capacité d'un
+    lave-linge)."""
     out = {}
     for k, v in (properties or {}).items():
         key = PROP_ALIASES.get(plain(k))
@@ -167,53 +167,43 @@ def attributes(title=None, properties=None, category=None):
         from ..ontology import domain_of                 # l'ontologie lit avec plain : importée à l'usage
         d = domain_of(category)
         if d:
-            _domain(d, out, title, properties, category)
+            _domain(d, out, title, category, declared)
     return out
 
 
-def _domain(d, out, title, properties, category):
-    """Les caractéristiques que l'ontologie du domaine lit (fiche, puis titre), la sous-famille et la provenance ; les
-    fonctions suivent ce que la fiche dit (« Alimentation : batterie » : sans fil ; un robot qui lave : laveur)."""
+def _domain(d, out, title, category, declared):
+    """La sous-catégorie et les attributs que l'ontologie du domaine lit dans l'offre (titre, catégorie déclarée) ; la
+    fonction « sans fil » aussi quand seule la catégorie déclarée le dit."""
     for k in d.drops:
         out.pop(k, None)
-    vals, src = d.read(title, properties)
+    vals = d.read(title, declared)
     out.update(vals)
     feats = set(out.get("features", ()))
     if vals.get("cordless") is True:
         feats.add("sans_fil")
-    elif vals.get("cordless") is False:
-        feats.discard("sans_fil")
-    out["sub"] = d.sub_of(category, title, {**out, "features": sorted(feats)})
-    if out["sub"] == "robot" and vals.get("mop") is True:
-        feats.add("laveur")
+    out["sub"] = d.sub_of(category, title, declared)
     if feats:
         out["features"] = sorted(feats)
     else:
         out.pop("features", None)
-    out["_src"], out["_v"] = src, d.version
 
 
-PROPS_KEPT, PROP_LEN = 40, 120                         # une fiche gardée : 40 caractéristiques au plus, 120 caractères chacune
+CAT_LEN = 120                                          # la catégorie déclarée gardée : 120 caractères au plus
 
 
-def product_attributes(title, category, stored=None, props=None, now=None):
-    """Les caractéristiques d'un produit (marché, publication) : relues du titre et de sa fiche — celle gardée (_props),
-    complétée par celle du jour (props) — avec les règles en vigueur : une ontologie révisée s'applique sans relire les
-    pages. Hors ontologie, ce qui est déjà connu prime (comme avant) ; dans un domaine qui a son ontologie, elle relit tout
-    ce qui la concerne et écarte ce qui n'a pas de sens pour lui. _at : quand la fiche a été lue."""
+def product_attributes(title, category, stored=None, props=None, declared=None):
+    """Les caractéristiques d'un produit (marché, publication), relues avec les règles en vigueur : une ontologie révisée
+    s'applique sans relire les offres. Hors ontologie, ce qui est déjà connu prime (comme avant). Dans un domaine qui a
+    son ontologie, elle relit le titre et la catégorie déclarée de l'offre (celle du jour, sinon celle gardée : _cat) et
+    écarte ce qui n'a pas de sens pour lui (les lectures d'une version d'avant comprises)."""
     stored = stored or {}
-    day = {str(k).strip().lower()[:60]: str(v).strip()[:PROP_LEN] for k, v in (props or {}).items() if str(v).strip()}
-    raw = dict(list({**(stored.get("_props") or {}), **day}.items())[:PROPS_KEPT])
-    fresh = attributes(title, raw, category)
     from ..ontology import domain_of
     d = domain_of(category)
+    cat = ((declared or stored.get("_cat") or "").strip()[:CAT_LEN] or None) if d else None
+    fresh = attributes(title, props, category, cat)
     if d is None:
-        out = {**fresh, **{k: v for k, v in stored.items() if not k.startswith("_")}}
-    else:
-        out = {**fresh, **{k: v for k, v in stored.items() if not k.startswith("_") and k != "features" and not d.owns(k) and k not in d.drops}}
-    if raw:
-        out["_props"] = raw
-    at = now if day and now is not None else stored.get("_at")
-    if at is not None:
-        out["_at"] = at
+        return {**fresh, **{k: v for k, v in stored.items() if not k.startswith("_")}}
+    out = {**fresh, **{k: v for k, v in stored.items() if not k.startswith("_") and k != "features" and not d.owns(k) and k not in d.drops}}
+    if cat:
+        out["_cat"] = cat
     return out

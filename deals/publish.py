@@ -114,8 +114,8 @@ def publish(store, today, now, partners=None, guard=False):
         stats["verified"] += bool(deal and verdict.verified)
         stats["fake"] += fake
         stats["new"] += deal_since == day
-        attrs = product_attributes(p["title"], p["category"], json.loads(p["attributes"] or "{}"))   # l'ontologie du jour relit la fiche gardée
-        attrs.pop("_props", None)
+        attrs = product_attributes(p["title"], p["category"], json.loads(p["attributes"] or "{}"))   # l'ontologie du jour relit l'offre
+        attrs.pop("_cat", None)
         history = chart(series, today)
         # le verdict de prix (au plus bas, bas, habituel, cher), pour les listes : top deals, filtre « prix bas »
         pos = position(json.loads(history), best["price"]) if best["availability"] != "out_of_stock" else None

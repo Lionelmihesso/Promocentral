@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from itertools import zip_longest
 
-from . import journey, ontology
+from . import ontology
 from . import profile as P
 from . import query
 from .errors import NotFound
@@ -147,11 +147,11 @@ def lead(rows, recent, score):
 
 
 def enrich(a, r):
-    """Une fiche publiée avant l'ontologie de son domaine (sans sous-famille) : la sous-famille déduite de son texte
+    """Une fiche publiée avant l'ontologie de son domaine (sans sous-catégorie) : la sous-catégorie déduite de son texte
     cherchable (le titre), en attendant la publication suivante, qui la relit."""
     d = ontology.domain_of(r.get("category"))
     if d is not None and "sub" not in a:
-        a = {**a, "sub": d.sub_of(r["category"], (r.get("search") or "").strip(), a)}
+        a = {**a, "sub": d.sub_of(r["category"], (r.get("search") or "").strip())}
     return a
 
 
@@ -165,7 +165,6 @@ class Catalog:
         self.s = store
         self._brands = ("?", [])                           # marques du catalogue, le temps d'une publication (« ? » : pas encore lues)
         self._attrs = ("?", {})                            # caractéristiques lues des produits publiés, le temps d'une publication
-        self._verdicts = ("?", {})                         # verdicts des critères (domaines à ontologie), le temps d'une publication
 
     def _personal(self, uid):
         if uid is None:
@@ -240,13 +239,6 @@ class Catalog:
             self._brands = (at, [r["brand"] for r in self.s.q("SELECT DISTINCT brand FROM catalog WHERE brand IS NOT NULL")])
         return self._brands[1]
 
-    def verdicts(self, d):
-        """Les faits et les verdicts gardés pour le domaine d, le temps d'une publication (journey.Verdicts)."""
-        at = self.published_at()
-        if self._verdicts[0] != at:
-            self._verdicts = (at, {})
-        return self._verdicts[1].setdefault(d.key, journey.Verdicts(d))
-
     def attrs_of(self, rows):
         """Les caractéristiques (JSON de catalog.attrs) des lignes données, lues une fois par publication."""
         at = self.published_at()
@@ -256,12 +248,13 @@ class Catalog:
         return [memo.get(r["product_id"]) or memo.setdefault(r["product_id"], enrich(json.loads(r["attrs"] or "{}"), r)) for r in rows]
 
     def search(self, uid=None, q=None, category=None, lo=None, hi=None, off=None, sort=None, recent=(), low=False, prof=None,
-               brand=None, features=(), attrs=None, room=None, domain=None, sub=None, needs=(), props=None, noq=False):
+               brand=None, features=(), attrs=None, room=None, domain=None, sub=None, props=None):
         """La Recherche répond à une intention précise, dans tout le catalogue suivi (pas seulement les remises).
 
-        q est une phrase comprise (query.read) : « aspirateur balai sans fil sous 300 € » donne un rayon, des fonctions, un
-        budget ; les critères choisis dans l'app (category, brand, features, attrs, lo ≤ prix ≤ hi, off : remise minimale,
-        low : prix parmi les plus bas depuis longtemps, `cheap`) l'emportent sur ce que dit la phrase. Les mots qui restent
+        q est une phrase comprise (query.read) : « aspirateur balai sans fil sous 300 € » donne un rayon, un type, des
+        attributs, un budget ; les critères choisis dans l'app (category, brand, features, attrs, lo ≤ prix ≤ hi, off :
+        remise minimale, low : prix parmi les plus bas depuis longtemps, `cheap` ; dans un domaine qui a son ontologie :
+        domain, sub — le type —, props — les attributs exigés) l'emportent sur ce que dit la phrase. Les mots qui restent
         (« velours ») filtrent s'ils trouvent quelque chose, sinon ils sont signalés (ignored) et la réponse garde le reste ;
         une phrase dont rien n'est compris est cherchée mot à mot (chaque mot doit commencer un mot du produit). Rien sous
         le budget : les plus proches au-dessus, du moins cher au plus cher (relaxed). offs : combien de produits pour chaque
@@ -271,13 +264,7 @@ class Catalog:
         produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis, avec
         des goûts connus (prof), ceux de ses rayons et de ses marques, un sur quatre pris ailleurs (`profile.blend`), puis
         tout le catalogue, une catégorie à tour de rôle (`breadth`) ; recent dans la réponse : les recherches qui ont
-        orienté le feed. said : ce que la phrase seule demande (l'app en fait des critères à elle quand on touche une puce).
-
-        Dans un domaine qui a son ontologie (les aspirateurs) : domain, sub (le type), props (caractéristiques exigées),
-        needs (besoins). Le moteur de parcours (journey.py) classe par adéquation aux besoins puis par l'ordre demandé,
-        écarte ce qu'un besoin éliminatoire exclut (excluded, avec la raison), explique chaque carte (why : critère, verdict,
-        fait, source) ; question : la question utile si la demande est vague (noq : la personne a passé les questions) ;
-        suggest : un autre type quand celui demandé ne peut pas répondre à un besoin ; exact : la référence demandée."""
+        orienté le feed. said : ce que la phrase seule demande (l'app en fait des critères à elle quand on touche une puce)."""
         said = query.read(q, self.brand_names()) if q else query.read("")
         d = ontology.domain_of(category) if category else ontology.DOMAINS.get(domain or said["domain"])
         if category and d:                                 # un rayon d'un domaine à ontologie : le domaine, et son type s'il en est un
@@ -289,7 +276,6 @@ class Catalog:
                 "min_price": lo if lo is not None else said["min_price"], "max_price": hi if hi is not None else said["max_price"],
                 "off": off or said["off"], "low": bool(low or said["low"]), "sort": sort or said["sort"] or "relevance",
                 "domain": d.key if d else None, "sub": (sub or said["sub"]) if d else None,
-                "needs": list(dict.fromkeys(list(needs) + said["needs"])) if d else [],
                 "props": {**said["props"], **(props or {})} if d else {}}
         understood = any(crit[k] for k in ("category", "room", "brand", "features", "attrs", "off", "low", "domain")) or \
             crit["min_price"] is not None or crit["max_price"] is not None
@@ -310,23 +296,19 @@ class Catalog:
 
         rayons = {crit["category"]} if crit["category"] else set(d.categories) if d else set(ROOMS[crit["room"]][1]) if crit["room"] in ROOMS else None
         within = lambda rs: [r for r in rs if rayons is None or r["category"] in rayons]
-
         fit = query.fitter(spec)
 
-        def select(top, fit=fit):
+        def select(top):
             base = [r for r in rows if (crit["min_price"] is None or r["price"] >= crit["min_price"]) and (top is None or r["price"] <= top)
                     and (not crit["brand"] or (r["brand"] or "").lower() == crit["brand"].lower()) and (not detailed or fit(r))]
             return base, within(base)
 
         base, here = select(crit["max_price"])
-        ignored, exact = [], None
+        ignored = []
         if toks:
             hit = [r for r in base if matches(r["search"], toks)]
             if within(hit) or not understood:               # rien n'est compris : la phrase est cherchée mot à mot
                 base, here = hit, within(hit)
-                refs = [w for w in words if query.REF_RE.match(w)]
-                if (refs or crit["brand"]) and len(here) == 1:   # « Zephyr V15 », « S109 », « Kessler Aero » : la référence demandée, seule
-                    exact = here[0]["product_id"]
             else:
                 ignored, words, toks = words, [], []       # « dyson » : rien de tel ; le reste de la demande tient
         hits = [r for r in here if promo(r)] if not said["unsupported"] else []
@@ -341,10 +323,8 @@ class Catalog:
         score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
         order = (lambda r: (r["price"], r["product_id"])) if relaxed or crit["sort"] == "price" else \
             (lambda r: (-r["pct"], r["price"], r["product_id"])) if crit["sort"] == "discount" else relevance(toks, score)
-        used, judged, journey_out = [], {}, {}
-        if d:                                              # le moteur de parcours : besoins, type, questions
-            hits, judged, journey_out = self._journey(d, crit, said, hits, order, spec, select, promo, toks, noq, words)
-        elif relaxed:
+        used = []
+        if relaxed:
             pass                                           # déjà du moins cher au plus cher
         elif crit["sort"] in ("price", "discount"):
             hits.sort(key=order)
@@ -359,11 +339,6 @@ class Catalog:
         else:
             hits.sort(key=order)
         out = self._page(hits, score, uid, followed, saved)
-        if judged:
-            for c in out["products"]:
-                j = judged.get(c["id"])
-                if j:
-                    c["why"] = j["why"][:journey.WHY_SHOWN]
         out["categories"] = sorted(({"key": k, "label": CATEGORY_LABEL.get(k, k), "count": n} for k, n in facet.items()),
                                    key=lambda c: (-c["count"], c["label"]))
         crit["words"] = words
@@ -373,50 +348,16 @@ class Catalog:
         out["relaxed"] = relaxed
         out["options"] = self._options(crit, toks, promo, relaxed, rayons, d) if rayons else None
         out["said"] = {k: said[k] for k in ("category", "room", "brand", "features", "attrs", "min_price", "max_price", "off", "low", "sort",
-                                            "domain", "sub", "needs", "props")}
-        out["exact"] = exact
+                                            "domain", "sub", "props")}
         out["domain"] = {"key": d.key, "label": d.label} if d else None
-        out["needs"] = [{"key": k, "label": d.needs[k]["label"], "say": d.needs[k]["say"], "from": said["said_needs"].get(k, [])}
-                        for k in crit["needs"] if k in d.needs] if d else []
-        out["question"], out["suggest"] = journey_out.get("question"), journey_out.get("suggest")
-        out["excluded"], out["conflicts"] = journey_out.get("excluded"), journey_out.get("conflicts", [])
         return out
-
-    def _journey(self, d, crit, said, hits, order, spec, select, promo, toks, noq, words):
-        """Le domaine à ontologie : classer par adéquation aux besoins (journey.Plan), écarter ce qu'un besoin
-        éliminatoire exclut, poser la question utile si la demande est vague, proposer un autre type si celui demandé ne
-        peut pas répondre à un besoin. → (produits classés, jugements, {plan, question, suggest, excluded, conflicts})"""
-        clash = journey.conflict(d, crit["sub"], crit["needs"])
-        plan = journey.Plan(d, crit["needs"], drop={c for c, _, _ in journey.conflict(d, crit["sub"], crit["needs"], weak=True)})   # dit à part
-        out = {"plan": plan, "conflicts": [{"c": c, "why": why} for c, why, _ in clash]}
-        judged, verdicts = {}, self.verdicts(d)
-        if plan:
-            hits, judged, dropped = plan.rank(hits, order, verdicts)
-            if dropped:
-                why, n = max(dropped.items(), key=lambda kv: kv[1])
-                out["excluded"] = {"count": sum(dropped.values()), "why": why}
-        else:
-            hits.sort(key=order)
-        if clash:                                          # un autre type, pour un besoin que celui-ci ne peut pas satisfaire
-            free = query.fitter({**spec, "sub": None})
-            _, pool = select(crit["max_price"], fit=free)
-            count = Counter((r["attrs"] or {}).get("sub") for r in pool if promo(r) and (not toks or matches(r["search"], toks)))
-            out["suggest"] = journey.suggest(d, crit["sub"], crit["needs"], count)
-        phrase = said["sub"] or said["needs"] or said["props"] or said["attrs"] or said["features"] or said["brand"] or words
-        app = crit["needs"] or crit["props"] or crit["attrs"] or crit["features"] or crit["brand"]
-        if not noq and not phrase and not app and hits:   # une demande vague : la question utile, si elle change la sélection
-            for when in ("sub", "need"):                   # le type d'abord (un type choisi : aucune réponse ne le changerait), puis l'usage
-                out["question"] = journey.question(d, hits, [r["product_id"] for r in hits[:journey.TOP]], order, when, verdicts)
-                if out["question"]:
-                    break
-        return hits, judged, out
 
     def _options(self, crit, toks, promo, relaxed, rayons, d=None):
         """Affiner une recherche dans un rayon : les fonctions, les tailles ou capacités et les marques qui y existent (dans
         une pièce : les marques). Chaque choix dit combien de produits la recherche donnerait avec lui, ses autres critères
         gardés (budget, promo, mots, fonctions, tailles, marque) : un choix qui ne donne rien, ou qui ne change rien, n'est
-        pas proposé, sauf s'il est déjà pris (pour pouvoir le retirer). Dans un domaine à ontologie (d) : le type, les
-        usages (besoins) et les caractéristiques qui comptent pour ce type, dans l'ordre où elles décident."""
+        pas proposé, sauf s'il est déjà pris (pour pouvoir le retirer). Dans un domaine à ontologie (d) : le type et les
+        quelques attributs qui comptent pour lui."""
         category, chosen, feats, brand = crit["category"], crit["attrs"], set(crit["features"]), crit["brand"]
         top = None if relaxed else crit["max_price"]          # rien sous le budget : les plus proches, au-dessus, sont montrés
         cats = sorted(rayons)
@@ -457,93 +398,40 @@ class Catalog:
         return {"features": features, "attrs": attrs, "brands": brands}
 
     def _domain_options(self, d, crit, rows):
-        """Affiner dans un domaine à ontologie : Type (chaque sous-famille, les autres critères gardés), Usage (les besoins
-        qui ont des produits qui leur conviennent tout à fait), les caractéristiques qui décident pour ce type (oui/non, avec
-        leur nombre de produits ; fait ou déduction), poids, bruit et autonomie par paliers, les marques."""
-        sub, props, needs = crit["sub"], crit["props"], crit["needs"]
-        verdicts = self.verdicts(d)
-        if sub in d.sub:                                   # ce qui décide pour ce type ; sans type, ce qui compte pour la plupart
-            keys = d.sub[sub]["decision"]
+        """Affiner dans un domaine à ontologie : le type (chaque sous-catégorie, les autres critères gardés), puis ses
+        attributs (sans fil, sans sac : oui ou non), chacun avec ce qu'il donnerait, et les marques. Sans type : les
+        attributs communs à plusieurs types."""
+        sub, props = crit["sub"], crit["props"]
+        if sub in d.sub:
+            keys = list(d.sub[sub]["attributes"])
         else:
-            seen = Counter(k for s in d.subs for k in s["decision"])
-            keys = [k for k in dict.fromkeys(k for s in d.subs for k in s["decision"]) if seen[k] >= 3]
-        keys = keys + [k for k in props if k not in keys]  # une caractéristique exigée reste proposée, pour la retirer
-        look = set(keys)
-        info = []                                          # une fois par produit : ses valeurs, ce qu'il manque des exigences
+            seen = Counter(k for s in d.subs for k in s["attributes"])
+            keys = [k for k in dict.fromkeys(k for s in d.subs for k in s["attributes"]) if seen[k] >= 2]
+        keys += [k for k in props if k not in keys]        # un attribut exigé reste proposé, pour le retirer
+        info = []                                          # une fois par produit : ce qu'on sait, ce qu'il manque des exigences
         for p in rows:
-            f = verdicts.facts(p["product_id"], p["attrs"])
-            vals = {k: f[k][0] for k in look if k in f}
-            info.append((p, vals, [k for k, v in props.items() if vals.get(k) != v], not sub or p["attrs"].get("sub") == sub,
+            f = d.facts(p["attrs"])
+            info.append((p, f, [k for k, v in props.items() if f.get(k) != v], not sub or p["attrs"].get("sub") == sub,
                          p["b"] and p["f"] and p["a"]))
         mine = [p for p, _, bad, _, ok in info if ok and not bad]
-        here = [p for p, _, bad, same, ok in info if ok and not bad and same]
         scount = Counter(p["attrs"].get("sub") for p in mine)
-        subs = [{"key": s["key"], "label": s["plural"], "count": scount[s["key"]]} for s in d.subs if scount[s["key"]] or s["key"] == sub]
-        usage = []
-        for n in d.needs.values():
-            good = len(verdicts.good(n["key"], here))
-            if good or n["key"] in needs:
-                usage.append({"key": n["key"], "label": n["label"], "count": good})
+        order = [s["key"] for s in d.subs]                 # le nom court (dans le rayon, « Balai » suffit), les plus fournis d'abord
+        subs = sorted(({"key": s["key"], "label": s["label"], "count": scount[s["key"]]} for s in d.subs if scount[s["key"]] or s["key"] == sub),
+                      key=lambda x: (-x["count"], order.index(x["key"])))
         bools = []
         for k in keys:
-            prop = d.props[k]
-            if prop["type"] != "bool":
-                continue
-            pool = [vals for p, vals, bad, same, ok in info if ok and same and (not bad or bad == [k])]
-            for v in ((True, False) if prop.get("words") and False in prop["words"].values() else (True,)):
-                n = sum(vals.get(k) == v for vals in pool)
+            a = d.attrs[k]
+            pool = [f for p, f, bad, same, ok in info if ok and same and (not bad or bad == [k])]
+            for v in (True, False):
+                n = sum(f.get(k) == v for f in pool)
                 if 0 < n < len(pool) or props.get(k) == v:
-                    bools.append({"key": k, "value": v, "label": prop["yes" if v else "no"], "count": n})
-        steps = {}
-        for k, values in (("weight_kg", (1.5, 2, 2.5, 3, 4)), ("noise_db", (65, 70, 75)), ("autonomy_min", (30, 45, 60, 90, 150))):
-            if k not in keys and k not in crit["attrs"]:
-                continue
-            pool = [p["attrs"].get(k) for p, _, bad, same, _ in info if p["b"] and p["f"] and not bad and same
-                    and all(good for y, good in p["ok"].items() if y != k)]
-            known = [a for a in pool if a is not None]
-            count = {v: sum(a <= v for a in known) if k in query.AT_MOST else sum(a >= v for a in known) for v in values}
-            shown = [v for v in values if 0 < count[v] < len(pool) or crit["attrs"].get(k) == v]
-            if shown:
-                steps[k] = {"title": d.props[k]["label"], "values": [{"value": v, "label": query.ATTR_CHIP[k](v), "count": count[v]} for v in shown]}
+                    bools.append({"key": k, "value": v, "label": a["yes" if v else "no"], "count": n})
         bcount = Counter(p["brand"] for p, _, bad, same, _ in info if p["f"] and p["a"] and not bad and same and p["brand"])
         brand = crit["brand"]
         if brand and not any(b.lower() == brand.lower() for b in bcount):
             bcount[brand] = 0
         brands = [{"name": b, "count": n} for b, n in sorted(bcount.items(), key=lambda x: (-x[1], x[0]))]
-        return {"features": [], "attrs": steps, "brands": brands, "subs": subs, "needs": usage, "props": bools}
-
-    def explore(self, domain=None):
-        """Explorer, sans rien configurer : les domaines qui ont leur ontologie (ou celui demandé) — chemin, nombre de
-        produits, prix de départ, remises ; chacune de ses sous-familles (combien, dès quel prix, ce qu'elle fait de mieux,
-        et le produit de sa meilleure remise pour l'illustrer) ; les usages qui ont des produits qui leur conviennent tout
-        à fait, et combien."""
-        doms = [ontology.DOMAINS[domain]] if domain else list(ontology.DOMAINS.values())
-        if domain and domain not in ontology.DOMAINS:
-            raise NotFound("domaine inconnu")
-        out = []
-        for d in doms:
-            cats = list(d.categories)
-            rows = self.s.q(f"SELECT product_id, category, price, pct, search, attrs FROM catalog WHERE category IN "
-                            f"({','.join('?' * len(cats))})", cats)
-            rows = [{**r, "attrs": a} for r, a in zip(rows, self.attrs_of(rows))]
-            subs = []
-            for x in d.subs:
-                mine = [r for r in rows if r["attrs"].get("sub") == x["key"]]
-                if not mine:
-                    continue
-                best = min(mine, key=lambda r: (-r["pct"], r["price"], r["product_id"]))
-                subs.append({"key": x["key"], "label": x["plural"], "pitch": x["pitch"], "count": len(mine),
-                             "from": min(r["price"] for r in mine), "art": best["category"], "seed": best["product_id"]})
-            item = {"key": d.key, "label": d.label, "path": d.path, "count": len(rows), "deals": sum(r["pct"] > 0 for r in rows),
-                    "from": min((r["price"] for r in rows), default=None), "subs": subs}
-            needs, verdicts = [], self.verdicts(d)
-            for n in d.needs.values():
-                good = len(verdicts.good(n["key"], rows))
-                if good:
-                    needs.append({"key": n["key"], "label": n["label"], "count": good})
-            item["needs"] = needs
-            out.append(item)
-        return out[0] if domain else {"domains": out}
+        return {"features": [], "attrs": {}, "brands": brands, "subs": subs, "props": bools}
 
     def foryou(self, uid=None, prof=None):
         """« Pour vous », sur l'accueil : les deals et les prix bas de vos rayons et de vos marques (affinité directe d'au
@@ -649,28 +537,7 @@ class Catalog:
                 "attrs": attrs, "offers": offers,
                 "similar": [self._card(x, followed, saved) for x in similar],
                 "alternatives": [{**self._card(x, followed, saved), "saving": round(r["price"] - x["price"])} for x in cheaper],
-                "signed_in": uid is not None, **self._essentials(r, attrs)}
-
-    @staticmethod
-    def _essentials(r, attrs):
-        """La fiche d'un produit d'un domaine à ontologie : son type, et ce qui décide pour ce type, dans l'ordre où ça
-        décide — chaque caractéristique avec sa valeur et sa source (fiche, titre, nom du modèle, déduite, selon le
-        type), ou « non précisé » : une donnée manquante reste dite manquante."""
-        d = ontology.domain_of(r["category"])
-        if d is None:
-            return {}
-        a = enrich(attrs, r)
-        facts, sub = d.facts(a), a.get("sub")
-        def say(k):
-            p, v = d.props[k], facts[k][0]
-            if p["type"] == "bool":
-                return (p["yes"] if v else p["no"]) if p.get("show") == "label" else "Oui" if v else "Non"
-            return p["format"].format(ontology.show(v)) if p["type"] == "number" else ontology.show(v, p)
-        keys = d.sub[sub]["decision"] if sub in d.sub else []
-        return {"sub": {"key": sub, "label": d.sub[sub]["one"]} if sub in d.sub else None,
-                "facts": [{"key": k, "label": d.props[k]["label"], "value": say(k) if k in facts else None,
-                           "src": facts[k][1] if k in facts else None} for k in keys],
-                "read_at": a.get("_at")}
+                "signed_in": uid is not None}
 
     def saves(self, uid):
         """Favoris : montrés même sans remise du jour (le prix reste utile), le plus récent d'abord, avec le prix du

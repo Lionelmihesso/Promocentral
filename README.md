@@ -32,15 +32,14 @@ dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 41 phra
 impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). Règles et mesures :
 [`docs/RECHERCHE.md`](docs/RECHERCHE.md).
 
-**Comprendre un besoin, choisir, dire pourquoi (v57)** : trois portes sur l'accueil — Rechercher, Les bonnes affaires,
-Explorer (par type, par usage, sans rien régler). Pour les aspirateurs, domaine pilote, ce que l'app sait est écrit en
-données versionnées (une ontologie : types, caractéristiques, critères, besoins, questions), relues et testées, et
-appliqué sans IA : « aspirateur pour mon chat avec du parquet, 300 € max » devient deux besoins en puces, une sélection
-classée (d'abord ce dont la fiche dit qu'il convient, puis ce dont elle ne dit rien) et deux raisons par carte. Une
-demande vague reçoit une question utile qui ne bloque rien ; un type qui ne peut pas répondre (« robot pour les
-escaliers ») garde sa sélection et un autre type est proposé ; la fiche dit « L'essentiel » et d'où vient chaque fait ;
-ce que la page ne dit pas reste « non précisé ». Sur 160 aspirateurs à vérité connue, bons parmi les 6 premières cartes
-35 % → 96 %, mots ignorés 42 → 0. Ontologie, moteur et mesures : [`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
+**Une ontologie simple, bâtie sur ce que donnent les flux (v58)** : pour les aspirateurs, domaine pilote, trois niveaux
+seulement — la catégorie, le type (balai, traîneau, robot, laveur, à main) et deux attributs (sans fil, sans sac) —, lus
+dans ce que l'enseigne donne de son offre par son flux affilié ou son API : le titre et sa catégorie (« Électroménager >
+Aspirateur > Aspirateur balai »). Rien n'est rédigé ni deviné : ce que l'offre ne dit pas reste inconnu (un robot, lui,
+est toujours sans fil et sans sac). « aspirateur balai sans fil » devient deux puces ; Affiner propose le type puis sans
+fil, sans sac, chacun avec ce qu'il donnerait. Sur 160 aspirateurs écrits comme un flux, le type est lu juste 149 fois
+sur 149 quand l'offre le dit (137 en v57), jamais deviné ; les accessoires (sacs, batteries, station de vidage) restent
+hors du rayon. Ontologie et mesures : [`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
@@ -71,9 +70,9 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (193, ~38 s)
+python -m unittest discover -s tests -t .    tests (178, ~37 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale [--aspirateurs N]
-          | bench.autonomy | bench.profiles [--scale] | bench.search [--scale] | bench.needs           mesures
+          | bench.autonomy | bench.profiles [--scale] | bench.search [--scale] | bench.aspirateurs     mesures
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
 `--db` (avant la commande) choisit la base ; réglages par variables `DEALS_*` (`deals/config.py`,
@@ -90,17 +89,12 @@ avec ce qu'on retire en la fermant), `words` (les mots qui filtrent), `ignored` 
 `unsupported` (un rayon pas encore suivi), `relaxed` (rien sous le budget : les plus proches au-dessus, dès quel prix),
 `options` (Affiner : fonctions, tailles et marques du rayon ou de la pièce, avec ce que chacune donnerait), `categories`
 (les catégories trouvées et leur nombre), `offs` (les produits de chaque palier de promo) ; sans mot ni filtre, le feed,
-orienté par `recent` : les dernières recherches gardées par le navigateur, séparées par `|` ; v57, dans un domaine
-qui a son ontologie : `domain=aspirateurs&sub=&need=&prop=&noq=1` — le type, des besoins séparés par des virgules, des
-caractéristiques exigées `clé:1` ou `clé:0`, les questions passées — et la réponse dit `domain`, `needs` (chaque besoin
-compris, ce qu'il demande, d'après quels mots), `question` (la question utile d'une demande vague, ses réponses et leur
-nombre de produits), `suggest` (un autre type, sa raison, son nombre de produits) et `conflicts` (ce que le type demandé
-ne peut pas satisfaire), `exact` (la référence demandée), `excluded` (ce qu'un besoin sans exception écarte, et
-pourquoi), et sur chaque carte `why` (ses deux premières raisons : critère, verdict 1, 0,5, 0 ou inconnu, texte,
-source)), `explore` (v57 : les domaines qui ont leur ontologie, leurs types et leurs usages, avec leurs produits),
+orienté par `recent` : les dernières recherches gardées par le navigateur, séparées par `|` ; v58, dans un domaine
+qui a son ontologie : `domain=aspirateurs&sub=balai&prop=cordless:1` — le type, les attributs exigés `clé:1` ou
+`clé:0` — et la réponse dit `domain`, et dans `options` (Affiner) `subs` (les types, nom court, les plus fournis
+d'abord) et `props` (sans fil, sans sac : oui ou non, avec ce que chacun donnerait)),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
-leurs produits, remises d'abord), `item/<id>` (v57, dans un domaine qui a son ontologie : `sub`, `facts` — ce qui
-décide pour son type, valeur et source, ou rien — et `read_at`),
+leurs produits, remises d'abord), `item/<id>`,
 `out/<offer_id>?from=`, `missions/parse` {text} et `missions/preview` {mission} (ce qui est compris, ce qui y répond
 déjà ; une mission : `product_id`, ou `like` (comparables à ce produit), ou `category`, `brand`, `features`, `attrs` ;
 et `max_price`).
@@ -181,16 +175,12 @@ ouvert).
   croissant ou par remise ; insensible aux accents, à la casse et aux tirets, synonymes courants (frigo, sofa, aspi…).
   Jamais vide : sans mot ni filtre, un feed (les produits des quatre dernières recherches d'abord, puis ceux de vos
   rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue, une catégorie à tour de rôle).
-- **Besoins (v57, les aspirateurs)** : une phrase dit un type, des caractéristiques exigées et des besoins ; un besoin
-  demande des critères, fort (poids 1), faiblement (0,35) ou sans exception ; un critère vaut oui (1), en partie (0,5),
-  non (0) ou inconnu, selon le type et les caractéristiques lues (`deals/ontology/aspirateurs.json`). Classement :
-  d'abord le plus de critères forts tout à fait satisfaits, puis l'adéquation (un inconnu compte un quart de ce qu'il
-  peut encore valoir), puis l'ordre demandé. Un besoin sans exception n'écarte que ce dont on sait qu'il n'y répond pas,
-  et le dit. Une question seulement pour une demande vague, si au moins deux réponses changent la sélection (au plus 3
-  des 6 premiers en commun) ; un type qui ne peut pas répondre garde sa sélection, un autre type est proposé ; rien
-  d'autre n'est supposé. Chaque fait garde sa source (fiche, titre, nom du modèle, déduit, selon le type) et la version
-  de l'ontologie qui l'a lu ; une ontologie révisée relit les fiches gardées à la publication suivante
-  (`deals/journey.py`, `docs/ONTOLOGIE.md`).
+- **Aspirateurs (v58, domaine à ontologie)** : le type et deux attributs (sans fil, sans sac) lus dans le titre de
+  l'offre et la catégorie déclarée par l'enseigne, le plus précis des types d'abord (un « balai laveur » est un laveur) ;
+  un attribut que l'offre ne dit pas reste inconnu, et une recherche ne le promet pas ; ce qu'un type est par définition
+  (un robot est sans fil et sans sac) ne remplace jamais ce que l'offre dit. La catégorie déclarée est gardée et relue à
+  chaque publication : une ontologie révisée s'applique sans relire les offres (`deals/ontology/aspirateurs.json`,
+  `docs/ONTOLOGIE.md`).
 - **Marque et catégorie** (fiche) : deux étiquettes sur le visuel, qui mènent à tous les produits de la marque ou de la
   catégorie, les remises d'abord, même sans remise aujourd'hui.
 - **Recherches sauvegardées et alertes de prix (missions)** : une recherche sauvegardée (prix maximum facultatif), ou
@@ -244,12 +234,12 @@ avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des
 (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Trois onglets :
-Accueil (trois portes — Rechercher, Les bonnes affaires, Explorer —, les top deals, « Pour vous », puis pièces, marques
-en promo, sélection ; « Une envie précise ? » ouvre la Recherche), Recherche (une phrase comprise en puces, Affiner, Sauvegarder ; vos recherches sauvegardées et récentes ;
-un feed qui s'adapte), Profil, le centre de commande (vos recherches et alertes, favoris, marques, rayons, ce que l'app a
-compris, l'e-mail facultatif, effacer) ; « Comment ça marche » au pied de chaque écran ; espaces insécables du français
-dans les textes. Explorer : par type et par usage, sans rien régler ; la fiche d'un aspirateur dit « L'essentiel ».
-Principe, écrans et mesures v41 à v57 : [`docs/UX.md`](docs/UX.md).
+Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection ; « Une envie précise ? » ouvre la
+Recherche), Recherche (une phrase comprise en puces, Affiner, Sauvegarder ; vos recherches sauvegardées et récentes ;
+un feed qui s'adapte), Profil, le centre de commande (vos recherches et alertes, favoris, marques, rayons — repliés,
+ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres seuls, beaucoup d'air) ;
+« Comment ça marche » au pied de chaque écran ; espaces insécables du français dans les textes.
+Principe, écrans et mesures v41 à v58 : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 
@@ -310,9 +300,9 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
 ## Coût de fonctionnement
 - ~4 600 fiches (40 par catégorie et par enseigne) ; le site le plus chargé (~840 fiches × 5 s) fixe la passe : ~70 min
   par nuit. Publication, alternatives et courbes de 90 jours comprises : ~3 s pour 3 000 produits (~1 ms par produit,
-  aspirateurs compris, dont l'ontologie relit la fiche gardée).
+  aspirateurs compris, dont l'ontologie relit la catégorie gardée).
 - Base : quelques dizaines de Mo par an (seuls les changements sont écrits).
-- Missions de la nuit : ~5,5 s pour 10 000 missions sur 3 000 produits (~1,7 s une nuit sans changement).
+- Missions de la nuit : ~6 s pour 10 000 missions sur 3 000 produits (~1,6 à 2,2 s une nuit sans changement).
 - Serveur : Hetzner CX23, 5,49 € HT + 0,50 € d'IPv4 = **5,99 € HT par mois** (tarifs d'août 2026).
 - E-mails (connexion, et missions : au plus un par personne et par nuit) : Brevo gratuit jusqu'à 300 par jour, partagés
   par les deux plafonds (`DEALS_MAILS_PER_DAY` 250, `DEALS_MISSION_MAILS` 50) ; au-delà, une offre payante. Nom de
@@ -340,12 +330,12 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
   exactement ce qui a été compris. Pas de correction des fautes de frappe (« aspirateru ») ni de synonymes appris : une
   liste écrite (`SLANG`, `deals/query.py`). Un produit dont le titre ne dit pas une fonction (« balai ») n'y répond pas :
   pas de promesse sur ce qui n'est pas lu.
-- Besoins (v57) : un seul domaine a son ontologie (les aspirateurs) ; ailleurs, la Recherche de la v56. Une langue
-  écrite à la main : un mot hors de la liste n'est pas compris. Seuils et poids (70 dB, 2,5 kg, 60 min…) sont des choix
-  tirés des guides d'achat, versionnés, pas appris. Le banc des besoins a une vérité écrite par le même auteur que
-  l'ontologie, et des fiches dans des formats qu'elle sait lire : sur de vraies pages, la lecture des caractéristiques
-  reste à mesurer, sur un échantillon de fiches réelles (`sample`). Une fiche d'enseigne peut se tromper : l'app dit
-  d'où vient chaque fait, sans le garantir.
+- Aspirateurs (v58) : un seul domaine a son ontologie ; ailleurs, la Recherche de la v56. Seulement ce que le titre et
+  la catégorie déclarée disent : une offre qui ne dit ni le type ni « sans fil » n'est trouvée que par « aspirateur ».
+  Des règles écrites à la main, en français (« cordless » n'est pas lu). Le banc a une vérité et des offres écrites par
+  le même auteur que les règles, et ses 31 offres « comme dans les flux » ont servi à corriger trois écarts : la lecture
+  sur de vrais flux reste à mesurer, sur un échantillon réel (`sample`). Pas de besoin compris (« pour mon chat ») :
+  le mot est dit sans résultat, rien n'est supposé.
 - Alternatives : jugées sur ce que disent le titre et les caractéristiques déclarées par l'enseigne ; un critère absent
   des deux (puissance d'aspiration, matériaux, finition) n'est pas comparé. Un produit sans comparable dans le
   catalogue n'a pas de section (sur la démo de 84 produits, 26 fiches ; sur 3 000 produits, aucune).

@@ -33,8 +33,7 @@ class Interpret(unittest.TestCase):
         m = interpret("Je veux un aspirateur balai sans fil à moins de 300 euros", BRANDS)
         self.assertEqual((m["domain"], m["sub"], m["props"], m["max_price"]), ("aspirateurs", "balai", {"cordless": True}, 300))
         self.assertEqual(label(m), "Aspirateur balai sans fil · 300 € max")
-        self.assertEqual(label(interpret("aspirateur silencieux pour les escaliers et un chat", BRANDS)),
-                         "Aspirateur silencieux pour les escaliers et les poils d'animaux")
+        self.assertEqual(label(interpret("aspirateur traîneau avec sac", BRANDS)), "Aspirateur traîneau avec sac")
         m = interpret("lave-linge 9 kg moins de 500 €", BRANDS)
         self.assertEqual((m["category"], m["attrs"], m["max_price"]), ("lave_linge", {"capacity_kg": 9}, 500))
         m = interpret("un lit 160x200 jusqu'à 1 200€", BRANDS)
@@ -72,13 +71,11 @@ class Matches(unittest.TestCase):
         self.assertFalse(matches(m, product("Aspirateur traîneau sans sac 750 W", 199)))               # pas balai
         self.assertFalse(matches(m, product("Robot aspirateur laveur S8", 199)))                       # un robot n'est pas un balai
         self.assertTrue(matches(interpret("aspirateur sans fil"), product("Robot aspirateur laveur S8", 199)))   # sans fil : déduit du type
-        m = interpret("aspirateur pour chat")                                                          # un besoin : satisfait tout à fait
-        self.assertTrue(matches(m, product("Aspirateur balai sans fil X5 Animal", 349)))               # « Animal » : le nom le dit
-        self.assertFalse(matches(m, product("Aspirateur balai sans fil Flex 45 min", 242)))           # rien ne le dit : pas promis
-        self.assertFalse(matches(interpret("aspirateur qui lave le sol"), product("Aspirateur balai sans fil Flex 45 min", 242)))
-        self.assertTrue(matches(interpret("aspirateur qui lave le sol"), product("Robot aspirateur laveur S8", 199)))
-        self.assertTrue(matches(interpret("robot aspirateur pour les escaliers"), product("Robot aspirateur laveur S8", 199)))   # comme la Recherche :
-        self.assertFalse(matches(interpret("robot aspirateur pour les escaliers"), product("Aspirateur à main Mini", 59)))    # ce qu'un robot ne peut pas, à part
+        m = interpret("aspirateur traîneau sans sac")
+        self.assertTrue(matches(m, product("Aspirateur traîneau sans sac 750 W", 199)))
+        self.assertFalse(matches(m, product("Aspirateur traîneau avec sac 750 W", 199)))
+        self.assertFalse(matches(m, product("Aspirateur traîneau 750 W", 199)))                       # rien ne le dit : pas promis
+        self.assertTrue(matches(interpret("aspirateur sans sac"), product("Aspirateur balai Flex", 199)))   # un balai : sans sac par définition
         m = interpret("lave-linge 9 kg sous 600 €")
         self.assertTrue(matches(m, product("Lave-linge hublot 10 kg classe A", 549)))                  # au moins 9 kg
         self.assertFalse(matches(m, product("Lave-linge hublot 8 kg classe A", 449)))
@@ -123,7 +120,7 @@ class Night(unittest.TestCase):
         with self.s.tx() as c:
             c.execute("INSERT OR REPLACE INTO catalog(product_id, name, title, brand, category, price, search, published_on, attrs, offer_id) "
                       "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, title, title, brand, categorize(title)[0], price, " x ", "2026-10-24",
-                                                     json.dumps(attributes(title)), 100 + pid))
+                                                     json.dumps(attributes(title, None, categorize(title)[0])), 100 + pid))   # comme publiés
             c.execute("INSERT OR REPLACE INTO catalog_offers(product_id, offer_id, price, availability, rank) VALUES (?,?,?,?,0)",
                       (pid, pid, price, "in_stock" if stock else "out_of_stock"))
             self.night += 1                                                                           # comme une publication
@@ -177,8 +174,11 @@ class Night(unittest.TestCase):
         """v56 gardait « aspirateur balai sans fil » en rayon et fonctions : relue comme la même phrase aujourd'hui, une
         fois réécrite, et la même recherche gardée avant et après n'en fait qu'une."""
         self.assertEqual(normalize({"category": "aspirateur", "features": ["balai", "sans_fil"], "attrs": {}}),
-                         {"category": None, "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "balai", "needs": [], "props": {"cordless": True}})
-        self.assertEqual(normalize({"category": "robot_aspirateur", "features": ["laveur"]})["needs"], ["lavage"])   # un robot qui lave
+                         {"category": None, "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "balai", "props": {"cordless": True}})
+        self.assertEqual(normalize({"category": "robot_aspirateur", "features": ["laveur"]}),                      # un robot qui lave : un robot
+                         {"category": None, "features": [], "domain": "aspirateurs", "sub": "robot", "props": {}})
+        self.assertEqual(normalize({"domain": "aspirateurs", "sub": "robot", "needs": ["lavage"], "props": {"auto_empty": True, "cordless": True}}),
+                         {"category": None, "features": [], "domain": "aspirateurs", "sub": "robot", "props": {"cordless": True}})   # la v57 : oubliés
         self.assertEqual(normalize({"category": "aspirateur", "features": ["balai", "laveur"]})["sub"], "laveur")    # un balai laveur
         self.assertEqual(normalize({"category": "lave_linge", "attrs": {"capacity_kg": 9}}), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})
         self.assertEqual(normalize({"product_id": 3, "category": "aspirateur"}), {"product_id": 3, "category": "aspirateur"})   # un produit précis

@@ -3,13 +3,13 @@ une taille ou une capacité, une marque, un budget, une envie de promo ou de pet
 (« velours », « Lina »). Pur : même phrase, même lecture ; rien n'est deviné, ce qui n'est pas dit n'est pas demandé.
 La Recherche (catalog.search) et les missions (missions.interpret) comprennent ainsi les mêmes phrases.
 
-Dans un domaine qui a son ontologie (deals/ontology : les aspirateurs), la phrase dit aussi un type (sous-famille :
-robot, balai, traîneau, laveur, à main), des caractéristiques exigées (« sans fil », « sans sac », « HEPA ») et des
-besoins (« un chat », « des allergies », « les escaliers ») ; le rayon est alors le domaine entier (robots compris) tant
-qu'aucun type n'est nommé. Une référence (« S109 », « V15 ») reste un mot cherché, pas une quantité.
+Dans un domaine qui a son ontologie (deals/ontology : les aspirateurs), la phrase dit aussi un type (sous-catégorie :
+robot, balai, traîneau, laveur, à main) et des attributs exigés (« sans fil », « sans sac », « 2 en 1 ») ; le rayon est
+alors le domaine entier (robots compris) tant qu'aucun type n'est nommé. Une référence (« S109 », « V15 ») reste un mot
+cherché, pas une quantité.
 
   read(texte, marques)      → {category, room, brand, features, attrs, min_price, max_price, off, low, sort, rest, unsupported,
-                               domain, sub, needs, props, said_needs}
+                               domain, sub, props}
   fits(critères, produit)   → le produit a-t-il le rayon, la marque, les fonctions et les tailles demandés ? (fitter :
                               la même règle, préparée une fois pour une demande)
   satisfies(clé, a, v)      → la valeur a d'une caractéristique répond-elle à la valeur demandée v ?
@@ -27,17 +27,15 @@ MAX_PRICE = 100_000
 AT_LEAST = {"capacity_kg", "place_settings", "zones", "volume_l", "autonomy_min", "seats"}   # au moins ce qui est demandé
 EXACT = {"bed_size"}
 NEAR = {"width_cm": 0.06}                                  # un appareil s'encastre au centimètre près
-AT_MOST = {"noise_db", "weight_kg"}
+AT_MOST = {"noise_db"}
 WANTED = AT_LEAST | EXACT | set(NEAR) | AT_MOST | {"energy_class"}
 FORM = ("balai", "traineau", "angle", "americain", "encastrable")          # dans un libellé, la forme vient d'abord
 # Une caractéristique qui n'a de sens que pour certaines catégories (« lit 2 places » n'est pas un nombre de places
 # assises) : ailleurs, elle n'est pas retenue — sinon rien n'y répondrait jamais.
 ONLY = {"seats": {"canape", "fauteuil", "table"}, "bed_size": {"lit", "matelas", "sommier"},
         "capacity_kg": {"lave_linge", "seche_linge", "lave_linge_sechant"}, "place_settings": {"lave_vaisselle"},
-        "zones": {"plaque_cuisson", "cuisiniere"}, "autonomy_min": {"aspirateur", "robot_aspirateur"},
-        "weight_kg": {"aspirateur", "robot_aspirateur"}}
+        "zones": {"plaque_cuisson", "cuisiniere"}, "autonomy_min": {"aspirateur", "robot_aspirateur"}}
 DOMAIN_FEATURES = {"balai", "traineau", "laveur", "sans_fil"}  # dans un domaine à ontologie : un type ou une caractéristique
-WEIGHT_RE = re.compile(r"(?:moins de|max(?:imum)?|sous|pas plus de|<|≤)\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*kg\b|(\d{1,2}(?:[.,]\d{1,2})?)\s*kg\s*(?:max(?:imum)?|au plus)\b")
 REF_RE = re.compile(r"^(?=.*[a-z])(?=.*\d)[a-z0-9]+$")       # « s109 », « v15 », « x5 » : une référence, pas une quantité
 QTY_RE = re.compile(r"^\d+(?:[.,]\d+)?(?:kg|cm|mm|m2|m|l|w|db|min|mn|h|pa|aw|go|gb|po|tr|x\d+)?$|^\d+x\d+(?:x\d+)?$|^[a-g]\+*$")
 UNIT_AFTER = r"(?![\d.,]*\s*(?:kg|cm|mm|m2|m\b|l\b|litres?|min|minutes|db|w\b|watts?|pa\b|aw\b|places?|couverts?|foyers?|pouces|go\b|x\d))"
@@ -66,7 +64,7 @@ WORDS = sorted({**{w: k for k in CATEGORY_LABEL for w in {plain(CATEGORY_LABEL[k
 KEYWORDS = {slug: {w for k in kws for w in plain(k).replace("-", " ").split()} for slug, kws in CATEGORIES}
 FEATURE_WORDS = {"sans_fil": {"sans", "fil"}, "angle": {"d", "angle"}}
 # Les mots qui disent une taille comprise (« autonomie 40 min ») : expliqués, pas cherchés en plus.
-ATTR_WORDS = {"capacity_kg": {"capacite", "charge"}, "width_cm": {"largeur", "large"},   # l'autonomie : la langue des aspirateurs
+ATTR_WORDS = {"autonomy_min": {"autonomie"}, "capacity_kg": {"capacite", "charge"}, "width_cm": {"largeur", "large"},
               "noise_db": {"bruit", "silencieux", "silencieuse"}, "volume_l": {"volume", "contenance"}, "seats": {"assises"},
               "bed_size": {"taille", "dimensions"}, "energy_class": {"energie", "energetique"}}
 UNITS = {"kg", "cm", "l", "litre", "litres", "couverts", "couvert", "places", "place", "foyers", "foyer", "db", "min", "minutes",
@@ -94,7 +92,7 @@ def read(text, brands=()):
     low : « prix bas » ; sort : « price » pour « pas cher » ; rest : les autres mots, sans les mots vides."""
     out = {"category": None, "room": None, "brand": None, "features": [], "attrs": {}, "min_price": None, "max_price": None,
            "off": None, "low": False, "sort": None, "rest": [], "unsupported": None,
-           "domain": None, "sub": None, "needs": [], "props": {}, "said_needs": {}}
+           "domain": None, "sub": None, "props": {}}
     raw = (text or "").strip()[:200]
     if not raw:
         return out
@@ -140,19 +138,12 @@ def read(text, brands=()):
     a = attributes(t)
     named = category or out["unsupported"] or (d.categories[0] if d else None)
     if d:                                                  # le domaine entier tant qu'aucun type n'est nommé
-        m = WEIGHT_RE.search(t)
-        if m:
-            a["weight_kg"] = float((m.group(1) or m.group(2)).replace(",", "."))
-            t = cut(m)
         sub = u["sub"] or next((x["key"] for x in d.subs if x["match"]["category"] == [category] and not x["match"].get("any")), None)
-        out.update(domain=d.key, sub=sub, needs=[k for k, _ in u["needs"]], said_needs={k: ws for k, ws in u["needs"]}, props=dict(u["props"]))
-        if "autonomy_min" in a and "autonomie" in out["needs"]:      # « autonomie 40 min » : la durée dite suffit
-            out["needs"].remove("autonomie")
-            out["said_needs"].pop("autonomie")
+        out.update(domain=d.key, sub=sub, props=dict(u["props"]))
         category = None
     out["category"] = category
     out["features"] = [f for f in a.get("features", []) if f in FEATURE_LABEL and not (d and f in DOMAIN_FEATURES)]
-    out["attrs"] = {k: v for k, v in a.items() if k in WANTED and (not named or named in ONLY.get(k, {named}))}
+    out["attrs"] = {k: v for k, v in a.items() if k in WANTED and (not named or named in ONLY.get(k, {named})) and not (d and k in d.drops)}
     said = set(u["said"]) if d else set()                  # les mots expliqués par ce qui a été compris
     if named:
         said |= KEYWORDS.get(named, set()) | {w for k in (CATEGORY_LABEL, CATEGORY_ONE) for w in plain(k.get(named, "")).replace("-", " ").split()}
@@ -186,8 +177,8 @@ def fits(m, p):
 
 def fitter(m):
     """fits, préparé une fois pour une même demande (la nuit : une mission, des milliers de produits). Dans un domaine à
-    ontologie : ses rayons, le type demandé (sous-famille), les caractéristiques exigées — un fait ou une déduction de
-    l'ontologie (« un robot est sans fil ») ; inconnue : pas de promesse. Les besoins classent (journey.py)."""
+    ontologie : ses rayons, le type demandé (sous-catégorie), les attributs exigés — lus, ou entraînés par le type (« un
+    robot est sans fil ») ; inconnu : pas de promesse."""
     cat, brand = m.get("category"), (m.get("brand") or "").lower()
     d = ontology.DOMAINS.get(m.get("domain")) if m.get("domain") else None
     rayons = ROOMS.get(m.get("room"), ("", ()))[1] if m.get("room") and not cat else d.categories if d and not cat else None
@@ -209,7 +200,7 @@ def fitter(m):
             return False
         if props:
             facts = d.facts(a)
-            if any(facts.get(k, (None,))[0] != v for k, v in props):
+            if any(facts.get(k) != v for k, v in props):
                 return False
         return True
     return ok
@@ -235,8 +226,7 @@ def euros(v):
 ATTR_CHIP = {"capacity_kg": lambda v: f"{v:g} kg et plus".replace(".", ","), "place_settings": "{:g} couverts et plus".format,
              "zones": "{:g} foyers et plus".format, "seats": "{:g} places et plus".format, "volume_l": "{:g} L et plus".format,
              "autonomy_min": "{:g} min et plus".format, "bed_size": lambda v: v.replace("x", " × "), "width_cm": "{:g} cm".format,
-             "noise_db": "{:g} dB au plus".format, "energy_class": "Classe {} ou mieux".format,
-             "weight_kg": lambda v: f"{v:g} kg au plus".replace(".", ",")}
+             "noise_db": "{:g} dB au plus".format, "energy_class": "Classe {} ou mieux".format}
 
 
 def chips(c):
@@ -255,10 +245,8 @@ def chips(c):
     out += [{"id": f"feature:{f}", "label": FEATURE_LABEL[f]} for f in [x for x in FORM if x in feats] + [x for x in feats if x not in FORM]
             if f in FEATURE_LABEL]
     if d:
-        out += [{"id": f"prop:{k}", "label": d.props[k]["yes" if v else "no"]} for k, v in (c.get("props") or {}).items() if k in d.props]
+        out += [{"id": f"prop:{k}", "label": d.attrs[k]["yes" if v else "no"]} for k, v in (c.get("props") or {}).items() if k in d.attrs]
     out += [{"id": f"attr:{k}", "label": ATTR_CHIP[k](v)} for k, v in (c.get("attrs") or {}).items() if k in ATTR_CHIP]
-    if d:
-        out += [{"id": f"need:{k}", "label": d.needs[k]["label"], "need": True} for k in c.get("needs") or [] if k in d.needs]
     if c.get("brand"):
         out.append({"id": "brand", "label": c["brand"]})
     lo, hi = c.get("min_price"), c.get("max_price")

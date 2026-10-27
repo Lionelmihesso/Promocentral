@@ -59,6 +59,7 @@ class Read(unittest.TestCase):
         self.assertEqual(read("matelas dès 300 €"), {"category": "matelas", "min_price": 300})
         self.assertEqual(read("lave-linge de 7 à 9 kg"), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})   # pas un prix
         self.assertEqual(read("aspirateur autonomie 40 min"), {"domain": "aspirateurs", "attrs": {"autonomy_min": 40}})   # la durée dite suffit
+        self.assertEqual(read("aspirateur balai 70 dB"), {"domain": "aspirateurs", "sub": "balai"})   # le bruit n'est pas lu pour eux
         self.assertEqual(read("matelas 140 × 190"), {"category": "matelas", "attrs": {"bed_size": "140x190"}})
         self.assertEqual(read("matelas entre 500 et 300 €"), {"category": "matelas"})          # à l'envers : pas de budget inventé
         self.assertEqual(read("commodes 300 €"), {"category": "commode", "max_price": 300})     # « des » dans « commodes » : pas « dès »
@@ -71,10 +72,9 @@ class Read(unittest.TestCase):
                          ["Aspirateurs balais", "Sans fil", "Zephyr", "200 à 400 €", "En promo", "Prix croissant", "« v8 »"])
         self.assertEqual([x["id"] for x in query.chips(c)],
                          ["sub", "prop:cordless", "brand", "price", "off", "sort", "word:v8"])
-        c = query.read("aspirateur silencieux pour les escaliers et un chat, 2,5 kg max", BRANDS)
+        c = query.read("aspirateur traîneau avec sac filaire", BRANDS)
         self.assertEqual([(x["id"], x["label"]) for x in query.chips(c)],
-                         [("domain", "Aspirateurs"), ("attr:weight_kg", "2,5 kg au plus"), ("need:silence", "Silencieux"),
-                          ("need:escaliers", "Escaliers"), ("need:animaux", "Poils d'animaux")])
+                         [("sub", "Aspirateurs traîneaux"), ("prop:bagless", "Avec sac"), ("prop:cordless", "Avec fil")])
         self.assertEqual(query.chips({"category": "canape", "features": ["angle"]}), [{"id": "category", "label": "Canapés"},
                                                                                        {"id": "feature:angle", "label": "D'angle"}])
         self.assertEqual([x["label"] for x in query.chips({"attrs": {"capacity_kg": 9, "bed_size": "160x200"}, "max_price": 500, "off": 30,
@@ -83,14 +83,12 @@ class Read(unittest.TestCase):
 
     def test_chips_read_back_as_the_same_search(self):
         """Une recherche faite de puces se garde en mots (vos recherches récentes) : relue, elle redonne les mêmes critères."""
-        keys = ("category", "room", "brand", "features", "attrs", "min_price", "max_price", "off", "low", "sort", "domain", "sub", "needs", "props")
+        keys = ("category", "room", "brand", "features", "attrs", "min_price", "max_price", "off", "low", "sort", "domain", "sub", "props")
         more = ["aspirateur balai sans fil Zephyr entre 200 et 400 € en promo pas cher", "lave-linge 9 kg classe C moins de 600",
                 "matelas 160x200 dès 300 €", "canapé convertible -30 %", "lit au plus bas", "salon pas cher", "chambre sous 500 €",
                 "lave-vaisselle 60 cm 45 dB", "aspirateur autonomie 40 min", "table 6 places", "frigo 300 L en promo",
-                "canapé 1 299 à 1 599 €", "salon à partir de 2 000 €", "robot aspirateur laveur qui se vide tout seul",
-                "aspirateur pour appartement avec parquet et un chat, 300 € max", "aspirateur à main pour la voiture",
-                "aspirateur traîneau avec sac silencieux", "aspirateur balai 2 en 1 léger pour les escaliers sous 250 €",
-                "aspirateur filtre HEPA pour allergiques", "aspirateur sans fil pour 120 m2", "aspirateur de moins de 2,5 kg"]
+                "canapé 1 299 à 1 599 €", "salon à partir de 2 000 €", "robot aspirateur laveur", "aspirateur à main sous 80 €",
+                "aspirateur traîneau avec sac filaire", "aspi sans fil sans sac", "aspirateur laveur sans fil en promo"]
         for text in [t for t, want in PHRASES if want[0] != "refus"] + more:
             r = query.read(text, BRANDS)
             said = " · ".join(c["label"].strip("« »") for c in query.chips(r))
@@ -98,30 +96,20 @@ class Read(unittest.TestCase):
             self.assertEqual({k: back[k] for k in keys}, {k: r[k] for k in keys}, f"{text} → {said}")
             self.assertEqual(back["rest"], [], said)
 
-    def test_a_domain_with_its_ontology_is_read_as_type_needs_and_properties(self):
-        """Les aspirateurs (deals/ontology) : le domaine entier tant qu'aucun type n'est nommé ; un type, des
-        caractéristiques exigées, des besoins dits comme on les dit ; rien d'autre n'est demandé."""
-        self.assertEqual(read("aspirateur pour appartement avec parquet et un chat, 300 € max"),
-                         {"domain": "aspirateurs", "max_price": 300, "needs": ["petite_surface", "parquet", "animaux"],
-                          "said_needs": {"petite_surface": ["appartement"], "parquet": ["parquet"], "animaux": ["chat"]}})   # la virgule n'est pas un mot
-        self.assertEqual(read("robot aspirateur laveur"), {"domain": "aspirateurs", "sub": "robot", "needs": ["lavage"],
-                                                          "said_needs": {"lavage": ["aspirateur laveur"]}})   # un robot qui lave : pas un laveur
+    def test_a_domain_with_its_ontology_is_read_as_a_type_and_two_attributes(self):
+        """Les aspirateurs (deals/ontology) : le domaine entier tant qu'aucun type n'est nommé ; un type, sans fil, sans
+        sac ; rien d'autre n'est demandé (un besoin, « pour mon chat », reste un mot cherché)."""
+        self.assertEqual(read("aspirateur balai sans fil sous 300 €"),
+                         {"domain": "aspirateurs", "sub": "balai", "props": {"cordless": True}, "max_price": 300})
+        self.assertEqual(read("robot aspirateur laveur"), {"domain": "aspirateurs", "sub": "robot"})   # le plus précis des deux types
         self.assertEqual(read("aspirateur balai laveur")["sub"], "laveur")                     # un balai qui lave : un laveur
-        self.assertEqual(read("aspirateur balai qui aspire et lave")["sub"], "laveur")
-        self.assertEqual(read("balai pour chat"), {"domain": "aspirateurs", "sub": "balai", "needs": ["animaux"],
-                                                  "said_needs": {"animaux": ["chat"]}})       # sans le mot aspirateur
+        self.assertEqual(read("balai sans fil"), {"domain": "aspirateurs", "sub": "balai", "props": {"cordless": True}})   # sans le mot aspirateur
         self.assertEqual(read("aspirateur traîneau avec sac")["props"], {"bagless": False})
-        self.assertEqual(read("aspirateur balai 2 en 1")["props"], {"handheld": True})
-        self.assertEqual(read("aspirateur sans fil pour 120 m2")["needs"], ["grande_surface"])  # une surface : grande
-        self.assertEqual(read("aspirateur pour 40 m²")["needs"], ["petite_surface"])
-        self.assertEqual(read("robot aspirateur qui fait l'auto-vidage")["needs"], ["vidage"])  # pas la voiture
-        self.assertEqual(read("aspirateur pas bruyant pour l'escalier")["needs"], ["silence", "escaliers"])   # « l'escalier »
-        self.assertEqual(read("aspirateur de moins de 2,5 kg"), {"domain": "aspirateurs", "attrs": {"weight_kg": 2.5}})   # un poids, pas un prix
-        self.assertEqual(query.read("aspirateur grande autonomie 60 min", BRANDS)["needs"], [])   # la durée dite suffit
+        self.assertEqual(read("aspirateur pour mon chat"), {"domain": "aspirateurs", "rest": ["chat"]})
         self.assertEqual(read("Zephyr V15 Detect"), {"brand": "Zephyr", "rest": ["v15", "detect"]})   # une référence
-        self.assertEqual(read("un aspirateur pour la maison"), {"domain": "aspirateurs"})      # « maison » ne cherche rien
         self.assertNotIn("room", read("balai pour la cuisine"))                                # le domaine nommé : pas la pièce
         self.assertEqual(read("roomba pour chat")["sub"], "robot")                            # le rayon des robots est un type
+        self.assertNotIn("attrs", read("aspirateur silencieux 65 dB"))                        # le bruit : pas un attribut des aspirateurs
         self.assertNotIn("attrs", read("aspirateur 9 kg"))                                     # une capacité de lave-linge : pas ici
         self.assertNotIn("attrs", read("balai 9 kg"))
         self.assertEqual(read("lave-linge 9 kg"), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})   # hors domaine : comme avant

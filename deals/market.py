@@ -73,18 +73,19 @@ class Market:
 
     # ------------------------------------------------------------ produits
     def match_product(self, ex):
-        """Le produit de la page (retrouvé ou créé) ; ses caractéristiques relues du titre et de la fiche du jour, la fiche
-        gardée pour qu'une ontologie révisée s'applique sans relire la page (extract.product_attributes)."""
+        """Le produit de la page (retrouvé ou créé) ; ses caractéristiques relues de l'offre du jour (titre, catégorie
+        déclarée, caractéristiques), la catégorie déclarée gardée pour qu'une ontologie révisée s'applique sans relire
+        l'offre (extract.product_attributes)."""
         cat, _ = X.categorize(ex.get("title"), ex.get("category"))
         pid = self._find(ex)
         if pid:
             p = self.s.q("SELECT category, attributes FROM products WHERE id=?", (pid,), one=True)
-            merged = X.product_attributes(ex.get("title"), p["category"] or cat, json.loads(p["attributes"] or "{}"), ex.get("properties"),
-                                          self.clock())     # hors ontologie, ce qui est déjà connu prime
+            merged = X.product_attributes(ex.get("title"), p["category"] or cat, json.loads(p["attributes"] or "{}"),
+                                          ex.get("properties"), ex.get("category"))     # hors ontologie, ce qui est déjà connu prime
             self.s.x("UPDATE products SET category=COALESCE(category, ?), attributes=?, image=COALESCE(image, ?) WHERE id=?",
                      (cat, json.dumps(merged, ensure_ascii=False), ex.get("image"), pid))
             return pid
-        attrs = X.product_attributes(ex.get("title"), cat, None, ex.get("properties"), self.clock())
+        attrs = X.product_attributes(ex.get("title"), cat, None, ex.get("properties"), ex.get("category"))
         review = 0 if ex.get("gtin") or (ex.get("brand") and ex.get("mpn")) else 1
         return self.s.x("INSERT INTO products(gtin, brand, mpn, title, norm_title, category, attributes, image, needs_review, created_at) "
                         "VALUES (?,?,?,?,?,?,?,?,?,?)",

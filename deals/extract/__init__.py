@@ -2,8 +2,8 @@
 
   analyze(html, rules, url, merchant) → {page_kind, best, candidates, reasons}
   extract(html, rules, url, merchant) → offre | None
-  categorize(title, declared) → (catégorie | None, source) ; attributes(title, properties, category) → dict ;
-  product_attributes(title, category, stored, props, now) → les caractéristiques gardées d'un produit
+  categorize(title, declared) → (catégorie | None, source) ; attributes(title, properties, category, declared) → dict ;
+  product_attributes(title, category, stored, props, declared) → les caractéristiques gardées d'un produit
 
 Offre (dict) : price, list_price (prix barré validé), was_method, currency, currency_known, availability, title, brand,
 gtin, mpn, sku, seller, marketplace, category, image, properties, valid_until, lowest_30d, kind ("from" : à partir de),

@@ -12,15 +12,15 @@ from deals.missions import interpret, label
 
 BRANDS = ["Zephyr", "Kessler", "Dormea", "Nordvik", "Helio", "Lumen", "Brava", "Ostra"]
 SUIVI, RECONNU = ("refus", "pas encore suivis"), ("refus", "pas reconnu")
-# phrase → (catégorie, marque, fonctions, attributs, prix max[, domaine à ontologie : type, besoins, caractéristiques exigées])
-# Les aspirateurs (v57) : le domaine entier tant qu'aucun type n'est nommé ; « balai » est un type, « sans fil » une
-# caractéristique exigée, « laveur » après « robot » un besoin (laver le sol).
+# phrase → (catégorie, marque, fonctions, attributs, prix max[, domaine à ontologie : type, attributs exigés])
+# Les aspirateurs : le domaine entier tant qu'aucun type n'est nommé ; « balai » est un type, « sans fil » un attribut
+# exigé ; « robot laveur » : un robot (le plus précis des deux types nommés).
 PHRASES = [
     ("aspirateur balai sous 300 €", (None, None, [], {}, 300, {"domain": "aspirateurs", "sub": "balai"})),
     ("Je veux un aspirateur balai sans fil à moins de 300 euros", (None, None, [], {}, 300, {"domain": "aspirateurs", "sub": "balai",
                                                                                             "props": {"cordless": True}})),
     ("un aspirateur pas plus de 200 €", (None, None, [], {}, 200, {"domain": "aspirateurs"})),
-    ("robot aspirateur laveur jusqu'à 500 €", (None, None, [], {}, 500, {"domain": "aspirateurs", "sub": "robot", "needs": ["lavage"]})),
+    ("robot aspirateur laveur jusqu'à 500 €", (None, None, [], {}, 500, {"domain": "aspirateurs", "sub": "robot"})),
     ("lave-linge 9 kg moins de 500€", ("lave_linge", None, [], {"capacity_kg": 9}, 500)),
     ("lave linge 8kg max 450", ("lave_linge", None, [], {"capacity_kg": 8}, 450)),
     ("sèche-linge 8 kg sous 600 €", ("seche_linge", None, [], {"capacity_kg": 8}, 600)),
@@ -64,7 +64,7 @@ def run():
         try:
             m = interpret(text, BRANDS)
             got = (m["category"], m["brand"], sorted(m["features"]), m["attrs"], m["max_price"],
-                   {k: m[k] for k in ("domain", "sub", "needs", "props") if m.get(k)})
+                   {k: m[k] for k in ("domain", "sub", "props") if m.get(k)})
             shown = label(m)
         except BadRequest as e:
             shown = str(e)

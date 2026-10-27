@@ -5,9 +5,9 @@ Données synthétiques du volume mesuré sur l'ancien moteur (docs/AUDIT.md) : 3
 des lignes). Elles sont écrites directement en base : on mesure la publication et les lectures, pas la collecte.
 Missions : 2 000 personnes × 5 missions (catégorie, taille ou capacité, prix voulu), évaluées la nuit après la publication.
 
-Aspirateurs (--aspirateurs N, v57) : N aspirateurs de plus, aux fiches plus ou moins complètes (le catalogue à vérité
-connue de bench.needs, répété), lus comme la collecte ; les lectures du domaine à ontologie sont alors mesurées aussi (un
-besoin, la question d'une demande vague, Affiner par type, Explorer, une fiche et « L'essentiel »). Sans eux, les mêmes
+Aspirateurs (--aspirateurs N) : N aspirateurs de plus, offres comme un flux affilié (le catalogue à vérité connue de
+bench.aspirateurs, répété), lus comme la collecte ; les lectures du domaine à ontologie sont alors mesurées aussi (un type
+et un attribut, Affiner par type, une fiche). Sans eux, les mêmes
 données qu'avant : les temps se comparent d'une version à l'autre.
 
   python -m bench.scale                    base temporaire générée
@@ -116,7 +116,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--db", help="base existante, déjà remplie")
     ap.add_argument("-n", type=int, default=200, help="lectures par route")
-    ap.add_argument("--aspirateurs", type=int, default=0, help="des aspirateurs en plus (v57 : le domaine à ontologie)")
+    ap.add_argument("--aspirateurs", type=int, default=0, help="des aspirateurs en plus (le domaine à ontologie)")
     a = ap.parse_args(argv)
     path = Path(a.db) if a.db else Path(tempfile.mkdtemp(), "scale.sqlite")
     store = Store(path)
@@ -124,14 +124,14 @@ def main(argv=None):
         p, o, r = generate(store)
         print(f"données : {p} produits, {o} offres, {r} lignes de prix sur 90 jours")
         if a.aspirateurs:
-            from bench import needs
+            from bench import aspirateurs
             items, k = [], 0
             while len(items) < a.aspirateurs:
-                items += needs.catalog(seed=57 + k, start=1000 * k)
+                items += aspirateurs.catalog(seed=58 + k, start=1000 * k)
                 k += 1
             t = time.perf_counter()
-            needs.build(store, items[:a.aspirateurs], publish_after=False, first_gtin=60000)
-            print(f"  et {a.aspirateurs} aspirateurs lus comme la collecte (fiches et titres) : {time.perf_counter() - t:.1f} s")
+            aspirateurs.build(store, items[:a.aspirateurs], publish_after=False, first_gtin=60000)
+            print(f"  et {a.aspirateurs} aspirateurs lus comme la collecte (titres et catégories des offres) : {time.perf_counter() - t:.1f} s")
     today, now = NOW.date(), NOW.timestamp()
     pub = timed(lambda: publish(store, today, now), 3)
     stats = publish(store, today, now)
@@ -184,12 +184,10 @@ def main(argv=None):
         api.handle(Request("POST", "/api/r/missions", session=guest, body=body))
     if a.aspirateurs:                                      # le domaine à ontologie
         vac = store.q("SELECT product_id FROM catalog WHERE category='aspirateur' ORDER BY product_id LIMIT 1", one=True)["product_id"]
-        routes += [("search (un besoin, aspirateurs)", "/api/r/search", {"q": "aspirateur pour mon chat avec du parquet, 300 € max"}, ""),
-                   ("search (vague : la question)", "/api/r/search", {"q": "aspirateur"}, ""),
+        routes += [("search (aspirateur balai sans fil)", "/api/r/search", {"q": "aspirateur balai sans fil sous 300 €"}, ""),
                    ("search (Affiner : aspirateurs balais)", "/api/r/search", {"q": "aspirateur balai"}, ""),
-                   ("search (besoin éliminatoire)", "/api/r/search", {"q": "aspirateur qui lave le sol"}, ""),
-                   ("explore (aspirateurs)", "/api/r/explore", {}, ""),
-                   ("item (aspirateur, l'essentiel)", f"/api/r/item/{vac}", {}, "")]
+                   ("search (aspirateurs)", "/api/r/search", {"q": "aspirateur"}, ""),
+                   ("item (aspirateur)", f"/api/r/item/{vac}", {}, "")]
     routes = [(n, r, q, guest if s == "GUEST" else s) for n, r, q, s in routes]
     print(f"lectures de l'app ({a.n} par route, réponse JSON comprise) :")
     for name, route, query, sess in routes:
