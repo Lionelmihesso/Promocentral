@@ -251,8 +251,7 @@ des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des
 que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Trois onglets :
-Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection ; « Une envie précise ? » ouvre la
-Recherche), Recherche (une phrase comprise, l'entonnoir — une question à la fois, jusqu'à votre sélection —, Promo et
+Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise, l'entonnoir — une question à la fois, jusqu'à votre sélection —, Promo et
 Trier, Sauvegarder ; vos recherches sauvegardées et récentes ; un feed qui s'adapte ; le même entonnoir sur les pages
 d'une marque, d'une catégorie, d'une pièce), Profil, le centre de commande (vos recherches et alertes, favoris,
 marques, rayons — repliés, ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres

@@ -405,19 +405,6 @@ const CSS = `
 .d .brow b{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1}
 .d .brow span{flex:1;font-size:13.5px;font-weight:700;color:var(--mid)}
 .d .fchip.clear{border-color:transparent;background:none;color:var(--mid);padding:0 12px;gap:4px}
-/* la recherche en une phrase, depuis l'accueil */
-.d .mbox{margin:16px 16px 0;background:var(--terminal);color:#F2F0EC;border-radius:22px;padding:18px}
-.d .mbox.feed{margin-top:24px}
-.d .mbox .k{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:#FF9A70}
-.d .mbox .k i{width:7px;height:7px;border-radius:50%;background:#FF6A3D;box-shadow:0 0 0 3px rgba(255,106,61,.2)}
-.d .mbox h2{color:#fff;margin-top:8px}
-.d .mbox p{margin:6px 0 0;color:#BDBBB6;font-size:14px;line-height:1.45}
-.d .mform{display:flex;gap:8px;margin-top:14px}
-.d .mform input{flex:1;min-width:0;height:52px;border-radius:14px;border:1px solid #3A3C40;background:#1E2023;color:#fff;padding:0 14px;font-size:16px;outline:0}
-.d .mform input::placeholder{color:#9A9CA1}
-.d .mform input:focus{border-color:#FF9A70}
-.d .mform button{flex:0 0 auto;width:52px;height:52px;border-radius:14px;border:0;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center}
-.d .mform button:disabled{opacity:.6}
 .d .note{color:var(--mid);font-size:13.5px;margin:10px 0 0;line-height:1.45}
 .d .note{padding:0 16px}
 .d .sechead + .note{margin:-4px 0 12px}
@@ -447,35 +434,33 @@ const CSS = `
 .d .ctag em{font-style:normal;font-size:12.5px;font-weight:700;color:var(--mid)}
 .d .ctag.on em{color:#D9D7D2}
 .d .ctag em.new,.d .st em.new{font-style:normal;background:var(--accent);color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:2px 7px;line-height:1.3;letter-spacing:.02em}
-.d .tryit .saved{margin-bottom:22px}
 .d .sechead > div .n{display:block;margin-top:4px}
-/* v60 : Affiner en entonnoir — une question à la fois, chaque réponse avec son nombre de produits, une fin */
-.d .funnel{margin:14px 16px 0;background:var(--terminal);color:#F2F0EC;border-radius:22px;padding:16px 16px 10px}
-.d .funnel .k{display:flex;align-items:center;gap:8px;min-height:16px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:#FF9A70}
-.d .funnel .k i{width:7px;height:7px;border-radius:50%;background:#FF6A3D;box-shadow:0 0 0 3px rgba(255,106,61,.2)}
+/* v60 : Affiner en entonnoir — une question à la fois, chaque réponse avec son nombre de produits, une fin.
+   v61 : dans les teintes de la page (fond tint, pilules et options blanches à filet), pas de bloc sombre */
+.d .funnel{margin:14px 16px 0;background:var(--tint);color:var(--ink);border-radius:20px;padding:16px}
+.d .funnel .k{display:flex;align-items:center;gap:8px;min-height:16px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--mid)}
+.d .funnel .k i{width:7px;height:7px;border-radius:50%;background:var(--ink)}
 .d .funnel .prog{display:flex;gap:4px;margin-left:auto}
-.d .funnel .prog b{width:14px;height:4px;border-radius:2px;background:#3A3D42}
-.d .funnel .prog b.on{background:#FF9A70}.d .funnel .prog b.at{background:#F2F0EC}
+.d .funnel .prog b{width:14px;height:4px;border-radius:2px;background:var(--tint2)}
+.d .funnel .prog b.on{background:var(--ink)}.d .funnel .prog b.at{background:var(--accent)}
 .d .fpath{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.d .fstep{display:flex;align-items:center;gap:6px;border:0;background:#2A2C30;color:#F2F0EC;border-radius:999px;min-height:44px;padding:0 12px 0 15px;font-size:14px;font-weight:700;white-space:nowrap}
+.d .fstep{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;min-height:44px;padding:0 12px 0 15px;font-size:14px;font-weight:700;white-space:nowrap}
 .d .fstep .i{opacity:.7}
-.d .fstep.fixed{background:none;box-shadow:inset 0 0 0 1.5px #3A3D42;padding:0 15px}
+.d .fstep.fixed{background:none;border-style:dashed;border-color:#D9D6D0;color:var(--mid);padding:0 15px}
 .d .fq{animation:fin .22s ease-out}
-.d .funnel h3{margin:16px 0 0;font-family:var(--serif);font-weight:400;font-size:31px;line-height:1.05;letter-spacing:-.01em;color:#fff}
-.d .fopts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-.d .fopt{display:flex;align-items:center;gap:10px;border:0;background:#F2F0EC;color:var(--ink);border-radius:14px;min-height:48px;padding:0 14px 0 16px;font-size:15px;font-weight:800;text-align:left}
+.d .funnel h3{margin:14px 0 0;font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.1;letter-spacing:-.01em;color:var(--ink)}
+.d .fopts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.d .fopt{display:flex;align-items:center;gap:10px;border:1px solid #D9D6D0;background:var(--paper);color:var(--ink);border-radius:14px;min-height:48px;padding:0 14px 0 16px;font-size:15px;font-weight:800;text-align:left}
 .d .fopt em{font-style:normal;font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--mid)}
-.d .fskip{display:block;border:0;background:none;color:#BDBBB6;font-size:14px;font-weight:700;min-height:44px;padding:0 2px;margin-top:4px;text-decoration:underline;text-underline-offset:3px}
+.d .fskip{display:block;border:0;background:none;color:var(--mid);font-size:14px;font-weight:700;min-height:44px;padding:0 2px;margin-top:4px;text-decoration:underline;text-underline-offset:3px}
 .d .funnel .done{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:14px 0 6px}
 .d .funnel .done .ok{flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center}
-.d .funnel .done h2{flex:1;color:#fff;font-size:30px}
-.d .funnel .done .savebtn{background:#F2F0EC;border-color:#F2F0EC;color:var(--ink)}
-.d .funnel .done .savebtn.on{background:var(--good);border-color:var(--good);color:#fff}
+.d .funnel .done h2{flex:1;color:var(--ink);font-size:30px}
 .d .funnel .done .fskip{flex-basis:100%;margin-top:0}
-.d .funnel .fnone{margin:14px 0 8px;color:#BDBBB6;font-size:14px;font-weight:600}
+.d .funnel .fnone{margin:14px 0 8px;color:var(--mid);font-size:14px;font-weight:600}
 @keyframes fin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.d .fq{animation:none}}
-@media (hover:hover){.d .fopt:hover{background:#fff}.d button.fstep:hover{background:#34363B}}
+@media (hover:hover){.d .fopt:hover{border-color:var(--ink)}.d button.fstep:hover{background:var(--tint2)}}
 /* profil : le centre de commande */
 .d .idline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 14px;margin:14px 16px 0;padding:12px 16px;border-radius:16px;background:var(--tint);font-size:14px;color:var(--mid);font-weight:600}
 .d .idline b{color:var(--ink)}
@@ -525,9 +510,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .center{max-width:900px}
   .d .brow{margin-left:0;margin-right:0;width:100%;max-width:640px}
   .d .ctags.row{flex-wrap:wrap;margin:0;padding:0}
-  .d .mbox{margin-left:0;margin-right:0}
   .d .legal,.d .about{padding-left:0;padding-right:0}
-  .d .mbox{padding:26px 28px}.d .mbox .mform{max-width:640px}
   .d h1{font-size:64px}
   .d .room{width:228px;height:292px}
   .d .rooms{scroll-padding-inline:0}
@@ -988,7 +971,6 @@ export default function App() {
     if (isPage(b)) { setPc(b.crit || NO_CRIT); setPskip(b.skip || []); setOrder(b.order || "pct"); }
     setView(b);
   };
-  const search = text => { goTab("search"); setQ(text); };              // depuis l'accueil : la phrase va dans la Recherche
 
   // Ce que la phrase dit (said, lu par le serveur pour cette phrase-là), complété par ce qui a été choisi dans l'app, qui
   // l'emporte (même règle que catalog.search). Quand on touche une puce, la phrase devient des critères de l'app et le
@@ -1108,13 +1090,6 @@ export default function App() {
   const badge = { me: fresh + drops };
   const freshSaid = fresh > 1 ? `${fresh} recherches avec du nouveau` : fresh === 1 ? "1 recherche avec du nouveau" : "";
   const tabSaid = (k, l) => k === "me" && badge.me ? `${l}, ${[freshSaid, drops ? `${plural(drops, "baisse")} de prix sur vos favoris` : ""].filter(Boolean).join(", ")}` : undefined;
-  const entry = <form className="mbox feed" onSubmit={e => { e.preventDefault(); const t = e.currentTarget.querySelector("input").value; if (t.trim()) search(t); }}>
-    <div className="k"><i />RECHERCHE</div>
-    <h2>Une envie précise ?</h2><p>Dites-la comme vous la pensez, avec votre prix : on vous montre ce qui y répond, et on surveille pour vous.</p>
-    <div className="mform">
-      <input placeholder="aspirateur balai sous 300 €" aria-label="Votre envie en une phrase" enterKeyHint="search" />
-      <button aria-label="Chercher"><Icon d={UI.next} size={22} sw={2.4} /></button></div>
-  </form>;
   const nearRow = (p, label, mission) => <button className="near" onClick={() => open(p.id, "mission", mission)} aria-label={`${label} : ${said(p)}`}>
     <span className="th"><Vignette category={p.category} seed={p.id} ratio={1} /></span>
     <span className="tx"><small>{label}</small><span>{p.brand} {p.name || p.title}</span></span><b>{eur(p.price)}</b>
@@ -1304,8 +1279,7 @@ export default function App() {
       </>}
       <div className="sechead"><h2>Notre sélection</h2></div>
       {all && items.length === 0 && <div className="empty">Aucune remise aujourd'hui.</div>}
-      {grid(rest.slice(0, cols * 2), "home")}{/* la recherche en une phrase, après deux rangées de remises */}
-      {all && entry}
+      {grid(rest.slice(0, cols * 2), "home")}
       {rest.length > cols * 2 && <div style={{ height: 18 }} />}
       {grid(rest.slice(cols * 2), "home")}
     </>;
@@ -1347,15 +1321,10 @@ export default function App() {
         onBack={s => { edit(c => applyPatch(c, s.back)); if (s.level === "room" || s.level === "category") setSkip([]); }}
         onSkip={k => setSkip(x => [...x, k])} keep={shownRes ? saveBtn("Sauvegarder", shownRes) : null} />
       {!any && <div className="tryit">
-        {searches.length > 0 && <div className="saved">
-          <div className="th"><h3>Vos recherches sauvegardées</h3><button className="forget" onClick={() => goTab("me")}>Tout voir</button></div>
-          <div className="ctags row">{searches.map(m => <button key={m.id} className="ctag" onClick={() => openSaved(m)}
-            aria-label={`${m.title}${m.fresh ? `, ${m.fresh > 1 ? `${m.fresh} nouveaux` : "1 nouveau"}` : ""}`}>
-            <Icon d={UI.bookmark} size={15} sw={2.2} />{m.title}{m.fresh > 0 && <em className="new">{m.fresh}</em>}</button>)}</div></div>}
         {recent.length > 0
           ? <><div className="th"><h3>Vos recherches récentes</h3><button className="forget" onClick={forget} aria-label="Effacer vos recherches">Effacer</button></div>
             <div className="ctags row">{recent.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>
-          : searches.length === 0 && <><h3>Essayez</h3>
+          : <><h3>Essayez</h3>
             <div className="ctags row">{TRY.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>}
       </div>}
       {!any || !shownRes ? <>{feedHead}<div className={`flow ${any ? "dim" : ""}`}>{grid(feed?.products || [], "feed")}</div></>
