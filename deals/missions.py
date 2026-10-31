@@ -21,14 +21,14 @@ from email.message import EmailMessage
 from . import ontology, query
 from .catalog import cheap, enrich, matches as named_by, tokens
 from .errors import BadRequest, NotFound, Unavailable
-from .extract.categories import FAMILY_OF, plain
+from .extract.categories import FAMILY_OF, makes_sense, plain
 from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS
-from .query import AT_LEAST, AT_MOST, EXACT, FORM, NEAR, ONLY, WANTED, euros  # noqa: F401  (relus par les tests et les bancs)
+from .query import AT_LEAST, AT_MOST, EXACT, FORM, NEAR, ONLY, WANTED, euros, fr  # noqa: F401  (relus par les tests et les bancs)
 
 MAX_MISSIONS = 20
 MAX_PRICE = query.MAX_PRICE
 MAIL_PER_MISSION = 5                                       # les moins chers ; les autres sont dans l'app
-LIKE = ("bed_size", "width_cm", "capacity_kg", "place_settings", "zones", "seats")     # « comparable » : taille, capacité
+LIKE = ("bed_size", "width_cm", "capacity_kg", "place_settings", "zones", "seats", "screen_in", "storage_gb", "ram_gb")   # « comparable » : taille, capacité
 MAX_WORDS = 6
 
 
@@ -41,7 +41,7 @@ def interpret(text, brands=()):
     r = query.read(raw, brands)
     if r["unsupported"]:
         raise BadRequest(f"Les {CATEGORY_LABEL.get(r['unsupported'], r['unsupported']).lower()} ne sont pas encore suivis : "
-                         "électroménager, ameublement et literie seulement")
+                         "électroménager, électronique, ameublement et literie seulement")
     if not r["category"] and not r["brand"] and not r["domain"]:
         raise BadRequest("Je n'ai pas reconnu le produit : essayez « lave-linge 9 kg sous 500 € » ou « matelas 160x200 »")
     return {"category": r["category"], "brand": r["brand"], "features": r["features"], "attrs": r["attrs"], "max_price": r["max_price"],
@@ -49,9 +49,11 @@ def interpret(text, brands=()):
 
 
 def normalize(spec):
-    """Une recherche gardée par une version d'avant, relue comme la même phrase l'est aujourd'hui. v56 : « aspirateur »
-    et des fonctions (balai, sans fil, laveur) → le domaine (robots compris), le type, les attributs exigés ; v57 : des
-    besoins et des caractéristiques que l'ontologie ne lit plus → oubliés. Les autres recherches restent telles quelles."""
+    """Une recherche gardée par une version d'avant, relue comme la même phrase l'est aujourd'hui : un rayon et des
+    fonctions (v56 : « aspirateur balai sans fil », « canapé d'angle convertible », « frigo américain ») → son domaine, le
+    type (la fonction qui en est un : balai, angle, américain ; la plus précise d'abord), les attributs exigés (sans fil,
+    convertible) ; v57 : des besoins et des caractéristiques que l'ontologie ne lit plus → oubliés. Une alerte sur un
+    produit reste telle quelle."""
     if spec.get("product_id"):
         return spec
     cat = spec.get("category")
@@ -61,23 +63,30 @@ def normalize(spec):
     feats, props = list(spec.get("features") or []), dict(spec.get("props") or {})
     sub = spec.get("sub") or (next((x["key"] for x in d.subs if x["match"]["category"] == [cat] and not x["match"].get("any")), None)
                               if cat else None)
-    for f in ("laveur", "balai", "traineau"):              # « balai laveur » : un laveur ; un robot laveur : un robot
-        if f in feats and sub is None:
-            sub = f
-    if "sans_fil" in feats:
-        props["cordless"] = True
-    out = {**spec, "category": None, "domain": d.key, "sub": sub, "props": {k: v for k, v in props.items() if k in d.attrs},
-           "features": [f for f in feats if f not in query.DOMAIN_FEATURES]}
+    for s in d.subs:                                       # « balai laveur » : un laveur (l'ordre des types : le plus précis d'abord)
+        if s["key"] in feats and sub is None:
+            sub = s["key"]
+    for f in feats:
+        k = "cordless" if f == "sans_fil" else f
+        if d.attrs.get(k, {}).get("kind") == "bool":
+            props.setdefault(k, True)
+    attrs = {k: v for k, v in (spec.get("attrs") or {}).items() if makes_sense(k, cat or d.categories[0])}
+    # le rayon nommé avec son domaine (les comparables d'un aspirateur dont le type n'est pas dit) reste : pas les robots
+    keep = cat if spec.get("domain") and not sub and len(d.categories) > 1 else None
+    out = {**spec, "category": keep, "domain": d.key, "sub": sub, "attrs": attrs,
+           "props": {k: v for k, v in props.items() if k in d.bools}, "features": []}
     out.pop("needs", None)
     return out
 
 
 def like(p):
-    """Ce qui rend un produit comparable à p (category, attrs) : sa catégorie, ses fonctions, sa taille ou sa capacité ;
-    ni sa marque, ni sa classe énergie, ni son bruit."""
+    """Ce qui rend un produit comparable à p (category, attrs) : sa catégorie, son type et ce qu'il fait (sans fil, 4K…),
+    ses fonctions, sa taille ou sa capacité (écran, stockage compris) ; ni sa marque, ni sa classe énergie, ni son bruit."""
     a, cat = p["attrs"] or {}, p["category"]
-    return {"category": cat, "features": [f for f in a.get("features", []) if f in FEATURE_LABEL],
-            "attrs": {k: a[k] for k in LIKE if k in a and cat in ONLY.get(k, {cat})}}
+    d = ontology.domain_of(cat)
+    return {"category": cat, "features": [] if d else [f for f in a.get("features", []) if f in FEATURE_LABEL],
+            "attrs": {k: a[k] for k in LIKE if k in a and cat in ONLY.get(k, {cat})},
+            **({"domain": d.key, "sub": a.get("sub"), "props": {k: True for k in d.bools if a.get(k) is True}} if d else {})}
 
 
 def matches(m, p):
@@ -102,6 +111,12 @@ def matcher(m):
     return ok
 
 
+def said_lower(text):
+    """Un attribut dans une phrase : « sans fil », « étanche » ; un sigle ou un nom gardent leurs majuscules (« No Frost »,
+    « 4K ou plus », « GPS »)."""
+    return text if text[:1].isdigit() or any(c.isupper() for c in text[1:]) else text[:1].lower() + text[1:]
+
+
 def label(m, name=None):
     """« Aspirateur balai sans fil · 300 € max », « Lit 160 × 200 Nordvik · 700 € max », « Canapé « velours » · en promo »."""
     if m.get("product_id"):
@@ -113,10 +128,12 @@ def label(m, name=None):
             [d.sub[m["sub"]]["one"] if m.get("sub") in d.sub else d.one] if d else [ROOMS[m["room"]][0]] if m.get("room") in ROOMS else []
         bits += [FEATURE_LABEL[x].lower() for x in FORM if x in f] + [FEATURE_LABEL[x].lower() for x in FEATURE_LABEL if x in f and x not in FORM]
         if d:
-            bits += [d.attrs[k]["yes" if v else "no"].lower() for k, v in (m.get("props") or {}).items() if k in d.attrs]
-        fmt = {"bed_size": lambda v: v.replace("x", " × "), "width_cm": "{:g} cm".format, "capacity_kg": lambda v: f"{v:g} kg".replace(".", ","),
-               "place_settings": "{:g} couverts".format, "zones": "{:g} foyers".format, "volume_l": "{:g} L".format,
-               "autonomy_min": "{:g} min".format, "seats": "{:g} places".format, "energy_class": "classe {}".format, "noise_db": "{:g} dB".format}
+            bits += [said_lower(d.attrs[k]["yes" if v else "no"]) for k, v in (m.get("props") or {}).items() if k in d.attrs]
+        fmt = {"bed_size": lambda v: v.replace("x", " × "), "width_cm": lambda v: f"{fr(v)} cm", "capacity_kg": lambda v: f"{fr(v)} kg",
+               "place_settings": lambda v: f"{fr(v)} couverts", "zones": lambda v: f"{fr(v)} foyers", "volume_l": lambda v: f"{fr(v)} L",
+               "autonomy_min": lambda v: f"{fr(v)} min", "seats": lambda v: f"{fr(v)} places", "energy_class": "classe {}".format,
+               "noise_db": lambda v: f"{fr(v)} dB", "screen_in": lambda v: f"{fr(v)} pouces", "storage_gb": query.storage_label,
+               "ram_gb": lambda v: f"{fr(v)} Go de RAM", "refresh_hz": lambda v: f"{fr(v)} Hz", "drawers": lambda v: f"{fr(v)} tiroirs"}
         bits += [fmt[k](a[k]) for k in fmt if k in a]
         if m.get("brand"):
             bits.append(m["brand"])
@@ -288,7 +305,7 @@ class Missions:
             if sub is not None and sub not in d.sub:
                 raise BadRequest("Type inconnu")
             props = body.get("props") or {}
-            if not isinstance(props, dict) or any(k not in d.attrs for k in props):
+            if not isinstance(props, dict) or any(k not in d.bools for k in props):
                 raise BadRequest("Critère inconnu")
             out.update(domain=dom, sub=sub, props={k: bool(v) for k, v in props.items()})
         return normalize(out)                              # « aspirateur balai » d'avant : comme aujourd'hui

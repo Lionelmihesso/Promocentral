@@ -91,7 +91,7 @@ class Ops(unittest.TestCase):
         market, clock = demo.build(s, nights=20)
         api = Api(s, config.load({}), clock=clock)
         self.assertEqual(api.handle(Request("GET", "/api/r/categories")).status, 200)
-        self.assertEqual(s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"], len(sim.SHOWCASE) + len(sim.SHOWCASE_MORE))   # toute la vitrine
+        self.assertEqual(s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"], len(sim.SHOWCASE) + len(sim.SHOWCASE_MORE) + len(sim.SHOWCASE_TECH))   # toute la vitrine
         self.assertEqual(s.q("SELECT COUNT(*) n FROM runs", one=True)["n"], 21)                     # une nuit par jour
         v15 = s.q("SELECT product_id, price FROM catalog WHERE title LIKE '%V15%'", one=True)      # l'aspirateur haut de gamme
         item = api.handle(Request("GET", f"/api/r/item/{v15['product_id']}")).body

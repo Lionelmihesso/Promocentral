@@ -1,10 +1,10 @@
-# La Recherche de DEALS — trouver vite, garder sans e-mail (v56 à v58)
+# La Recherche de DEALS — trouver vite, garder sans e-mail (v56 à v59)
 
 DEALS n'est pas un fil de bons plans à faire défiler : on vient chercher quelque chose et on doit le trouver vite. Deux
 leviers : **on vous recommande** (l'accueil et le feed suivent vos goûts, `docs/PERSONNALISATION.md`) et **vous
 cherchez** — une phrase comme on la dit, comprise en critères qu'on modifie d'un geste, une recherche qu'on garde et que
-DEALS surveille ; dans un domaine qui a son ontologie (les aspirateurs), le **type** et deux **attributs** lus dans
-les offres (v58). Le tout sans IA (des règles écrites, testées) et sans e-mail.
+DEALS surveille ; dans chaque rayon et son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise), le
+**type** et un ou deux **attributs** lus dans les offres. Le tout sans IA (des règles écrites, testées) et sans e-mail.
 
 ## Une phrase, des critères
 
@@ -12,11 +12,11 @@ les offres (v58). Le tout sans IA (des règles écrites, testées) et sans e-mai
 
 | Ce qui est dit | Ce qui est compris |
 |---|---|
-| un rayon (« aspirateur », « frigo », « aspi », « canapés ») | la catégorie ; un rayon pas encore suivi est dit (« Les smartphones ne sont pas encore suivis »), sans résultat inventé |
+| un rayon (« aspirateur », « frigo », « aspi », « canapés », « télé », « smartphone ») | son domaine (le rayon et son ontologie) ; un rayon pas encore suivi est dit (« Les micro-ondes ne sont pas encore suivis »), sans résultat inventé |
 | une pièce (« pour le salon », « chambre ») | ses rayons (`labels.ROOMS`), seulement si aucun rayon n'est nommé |
 | une marque du catalogue | la marque |
-| « balai », « sans fil », « d'angle »… | les fonctions (toutes exigées) |
-| « 9 kg », « 160x200 », « 160 × 200 », « 60 cm », « classe C », « 40 min » | la capacité, la taille, la largeur (à 6 % près), la classe énergie (ou mieux), l'autonomie… (au moins, sauf la taille de literie, exacte) |
+| « balai », « OLED », « d'angle »… ; « sans fil », « 5G », « No Frost », « convertible »… | le type ; les attributs oui ou non (tous exigés), chacun dans la langue de son rayon (`deals/ontology`) |
+| « 9 kg », « 160x200 », « 60 cm », « classe C », « 40 min », « 55 pouces », « 55" », « 139 cm » (un téléviseur), « 256 Go », « 16 Go de RAM », « 144 Hz », « 6 tiroirs » | la capacité, la taille, la largeur (à 6 % près), la classe énergie (ou mieux), l'autonomie, la taille d'écran (à 5 % près), le stockage, la mémoire, la fréquence, les tiroirs… (au moins, sauf la taille de literie, exacte) |
 | « sous 300 € », « moins de 300 », « 300 € » | le budget maximum |
 | « entre 200 et 400 € », « de 200 à 400 € », « dès 300 € », « à partir de 300 € » | un budget de… à…, un minimum |
 | « en promo », « −30 % » | une remise (au moins), jusqu'à 90 % |
@@ -109,14 +109,15 @@ phrases sur les aspirateurs demandent le domaine (robots compris tant qu'aucun t
 type), et la démo compte 25 aspirateurs de plus. La v58 donne, phrase par phrase, les mêmes chiffres que la v57 (démo
 et 3 000 produits).
 
-| | v55 démo | v56 démo | v57 démo | v55 3 000 produits | v56 3 000 | v57 3 000 |
-|---|---|---|---|---|---|---|
-| Produits | 59 | 59 | 84 | 3 000 | 3 000 | 3 000 |
-| Phrases dont le catalogue a la réponse | 24 | 24 | 25 | 19 | 19 | 19 |
-| Impasses (« Rien pour … » alors que des produits répondent) | 15 | **0** | **0** | 15 | **0** | **0** |
-| Première carte juste | 9 | **24** | **25** | 4 | **19** | **19** |
-| Pertinence (les n premières cartes) · rappel | 36 % · 36 % | **100 % · 100 %** | **100 % · 100 %** | 21 % · 21 % | **100 % · 100 %** | **100 % · 100 %** |
-| Phrases sans réponse au catalogue : réponse vide | 17 | **0** (les plus proches) | **0** | 22 | 20 | 20 |
+| | v55 démo | v56 démo | v57 démo | v59 démo | v55 3 000 produits | v56 3 000 | v57 3 000 | v59 3 000 |
+|---|---|---|---|---|---|---|---|---|
+| Produits | 59 | 59 | 84 | 127 | 3 000 | 3 000 | 3 000 | 3 000 |
+| Phrases | 41 | 41 | 41 | 62 | 41 | 41 | 41 | 62 |
+| Phrases dont le catalogue a la réponse | 24 | 24 | 25 | 43 | 19 | 19 | 19 | 19 |
+| Impasses (« Rien pour … » alors que des produits répondent) | 15 | **0** | **0** | **0** | 15 | **0** | **0** | **0** |
+| Première carte juste | 9 | **24** | **25** | **43** | 4 | **19** | **19** | **19** |
+| Pertinence (les n premières cartes) · rappel | 36 % · 36 % | **100 % · 100 %** | **100 % · 100 %** | **100 % · 100 %** | 21 % · 21 % | **100 % · 100 %** | **100 % · 100 %** | **100 % · 100 %** |
+| Phrases sans réponse au catalogue : réponse vide | 17 | **0** (les plus proches) | **0** | **0** | 22 | 20 | 20 | 41 |
 
 Lecture honnête : la pertinence à 100 % vient en partie de la construction (la Recherche et la vérité du banc suivent
 les mêmes règles que les missions) ; ce que le banc mesure vraiment, c'est que la phrase est comprise et que plus aucune
@@ -125,7 +126,11 @@ lave-vaisselle, fours, canapés, lits, matelas, tables), aucun aspirateur, et de
 aucun produit qui réponde, même au-dessus du budget ; l'écran le dit, propose de sauvegarder et garde le feed. Ce que
 la plateforme lit des aspirateurs (le type, sans fil, sans sac) se mesure sur un autre banc, à vérité connue
 (`python -m bench.aspirateurs`, `docs/ONTOLOGIE.md`) : type lu juste 149 fois sur 149 quand l'offre le dit, rien de
-deviné.
+deviné. v59 : 21 phrases de plus (13 d'électronique, 8 recherches courtes) ; les phrases d'un rayon demandent son
+domaine (« frigo américain » : le type américain, « canapé convertible » : l'attribut convertible). Le catalogue de
+3 000 produits n'a toujours ni électronique ni aspirateurs : 41 phrases n'y trouvent rien, et l'écran le dit. Ce que la
+plateforme lit de chaque rayon se mesure sur `python -m bench.ontologie` (146 produits et 41 pièges, et 64 offres
+inédites).
 
 ## Vérifier
 
@@ -133,10 +138,10 @@ deviné.
   `tests/test_catalog.py` (Affiner et ses nombres, `said`, les aspirateurs : type, attributs, Affiner),
   `tests/test_ontology.py` (le fichier relu, ce qui se lit d'une offre, rien de deviné, la v57 relue),
   `tests/test_missions.py`, `tests/test_accounts.py` (comptes invités, adresse rattachée ou versée, clé renouvelée,
-  effacement), `tests/test_autonomy.py` (invités expirés la nuit). 91 mutations des règles v58 (ontologie, code et
-  données ; lecture des offres ; Recherche et Affiner ; phrase ; missions ; API ; marché ; publication) : toutes
-  détectées (dix ne l'étaient pas au premier passage : neuf ont reçu un test, une visait du code redondant, retiré).
-- Navigateur (Chromium, 76 étapes, deux passages) et audit d'accessibilité (83 écrans : contrastes, zones à toucher,
+  effacement), `tests/test_autonomy.py` (invités expirés la nuit). 91 mutations des règles v58, puis 54 des règles v59
+  (l'ontologie de chaque rayon, code et données ; l'électronique ; les alternatives ; la phrase ; Affiner ; missions ;
+  API) : toutes détectées (sept ne l'étaient pas au premier passage de la v59 : elles ont reçu un test).
+- Navigateur (Chromium, 81 étapes, deux passages) et audit d'accessibilité (99 écrans : contrastes, zones à toucher,
   noms accessibles, feuilles modales titrées) : sans défaut.
 - Temps, 3 000 produits (`python -m bench.scale`) : une phrase comprise ~2,2 ms, critères choisis ~6 à 8 ms, une
   pièce ~15 ms, les recherches d'un invité ~7 ms ; avec 640 aspirateurs de plus (`--aspirateurs 640`) : « aspirateur

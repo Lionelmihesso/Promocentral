@@ -30,40 +30,41 @@ class Read(unittest.TestCase):
                              (m["category"], m["brand"], m["features"], m["attrs"], m["max_price"]), text)
 
     def test_what_remains_is_searched_and_filler_is_dropped(self):
-        self.assertEqual(read("Je cherche un canapé velours pas cher"), {"category": "canape", "sort": "price", "rest": ["velours"]})
-        self.assertEqual(read("canapé convertible Lina"), {"category": "canape", "features": ["convertible"], "rest": ["lina"]})
+        self.assertEqual(read("Je cherche un canapé velours pas cher"), {"domain": "canape", "sort": "price", "rest": ["velours"]})
+        self.assertEqual(read("canapé convertible Lina"), {"domain": "canape", "props": {"convertible": True}, "rest": ["lina"]})
         self.assertEqual(read("aspirateur Dyson V15 sous 500 €"), {"domain": "aspirateurs", "max_price": 500, "rest": ["dyson", "v15"]})   # une référence reste un mot
-        self.assertEqual(read("lave-linge 1400 tours 9 kg moins de 600"), {"category": "lave_linge", "attrs": {"capacity_kg": 9},
+        self.assertEqual(read("lave-linge 1400 tours 9 kg moins de 600"), {"domain": "lave_linge", "attrs": {"capacity_kg": 9},
                                                                           "max_price": 600})
-        self.assertEqual(read("lave-vaisselle 60 cm classe C"), {"category": "lave_vaisselle", "attrs": {"width_cm": 60, "energy_class": "C"}})
-        self.assertEqual(read("lave-linge capacité 9 kg"), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})   # le mot d'une taille dite
-        self.assertEqual(read("lave-vaisselle silencieux 44 dB"), {"category": "lave_vaisselle", "attrs": {"noise_db": 44}})
-        self.assertEqual(read("canapé d’angle gris"), {"category": "canape", "features": ["angle"], "rest": ["gris"]})   # ’ du téléphone
-        self.assertEqual(read("canape d angle"), {"category": "canape", "features": ["angle"]})
+        self.assertEqual(read("lave-vaisselle 60 cm classe C"), {"domain": "lave_vaisselle", "attrs": {"width_cm": 60, "energy_class": "C"}})
+        self.assertEqual(read("lave-linge capacité 9 kg"), {"domain": "lave_linge", "attrs": {"capacity_kg": 9}})   # le mot d'une taille dite
+        self.assertEqual(read("lave-vaisselle silencieux 44 dB"), {"domain": "lave_vaisselle", "attrs": {"noise_db": 44}})
+        self.assertEqual(read("canapé d’angle gris"), {"domain": "canape", "sub": "angle", "rest": ["gris"]})   # ’ du téléphone
+        self.assertEqual(read("canape d angle"), {"domain": "canape", "sub": "angle"})
         self.assertEqual(read("oslo"), {"rest": ["oslo"]})                          # rien de compris : mot à mot
         self.assertEqual(read("je cherche"), {})
 
     def test_budget_promo_and_low_prices(self):
-        self.assertEqual(read("matelas entre 300 et 500 €"), {"category": "matelas", "min_price": 300, "max_price": 500})
-        self.assertEqual(read("canapé à partir de 800 €"), {"category": "canape", "min_price": 800})
+        self.assertEqual(read("matelas entre 300 et 500 €"), {"domain": "matelas", "min_price": 300, "max_price": 500})
+        self.assertEqual(read("canapé à partir de 800 €"), {"domain": "canape", "min_price": 800})
         self.assertEqual(read("aspirateur pas plus de 200 €"), {"domain": "aspirateurs", "max_price": 200})   # pas un minimum
-        self.assertEqual(read("lave-linge -30 %"), {"category": "lave_linge", "off": 30})
-        self.assertEqual(read("lave-linge -95 %"), {"category": "lave_linge"})       # au-delà de 90 % : pas une remise crédible
-        self.assertEqual(read("frigo en promo"), {"category": "refrigerateur", "off": 1})
-        self.assertEqual(read("lit au plus bas"), {"category": "lit", "low": True})
-        self.assertEqual(read("table 6 places petit prix"), {"category": "table", "attrs": {"seats": 6}, "sort": "price"})
+        self.assertEqual(read("lave-linge -30 %"), {"domain": "lave_linge", "off": 30})
+        self.assertEqual(read("lave-linge -95 %"), {"domain": "lave_linge"})       # au-delà de 90 % : pas une remise crédible
+        self.assertEqual(read("frigo en promo"), {"domain": "refrigerateur", "off": 1})
+        self.assertEqual(read("lit au plus bas"), {"domain": "lit", "low": True})
+        self.assertEqual(read("table 6 places petit prix"), {"domain": "table", "attrs": {"seats": 6}, "sort": "price"})
         self.assertEqual(read("coton 100%"), {"rest": ["coton"]})                   # 100 % n'est pas une remise
-        self.assertEqual(read("smartphone sous 300 €"), {"max_price": 300, "unsupported": "smartphone"})
-        self.assertEqual(read("matelas de 300 à 500 €"), {"category": "matelas", "min_price": 300, "max_price": 500})
-        self.assertEqual(read("canapé 1 299 à 1 599 €"), {"category": "canape", "min_price": 1299, "max_price": 1599})
-        self.assertEqual(read("matelas dès 300 €"), {"category": "matelas", "min_price": 300})
-        self.assertEqual(read("lave-linge de 7 à 9 kg"), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})   # pas un prix
+        self.assertEqual(read("smartphone sous 300 €"), {"domain": "smartphone", "max_price": 300})   # v59 : l'électronique est suivie
+        self.assertEqual(read("micro-ondes sous 150 €"), {"max_price": 150, "unsupported": "micro_ondes"})
+        self.assertEqual(read("matelas de 300 à 500 €"), {"domain": "matelas", "min_price": 300, "max_price": 500})
+        self.assertEqual(read("canapé 1 299 à 1 599 €"), {"domain": "canape", "min_price": 1299, "max_price": 1599})
+        self.assertEqual(read("matelas dès 300 €"), {"domain": "matelas", "min_price": 300})
+        self.assertEqual(read("lave-linge de 7 à 9 kg"), {"domain": "lave_linge", "attrs": {"capacity_kg": 9}})   # pas un prix
         self.assertEqual(read("aspirateur autonomie 40 min"), {"domain": "aspirateurs", "attrs": {"autonomy_min": 40}})   # la durée dite suffit
         self.assertEqual(read("aspirateur balai 70 dB"), {"domain": "aspirateurs", "sub": "balai"})   # le bruit n'est pas lu pour eux
-        self.assertEqual(read("matelas 140 × 190"), {"category": "matelas", "attrs": {"bed_size": "140x190"}})
-        self.assertEqual(read("matelas entre 500 et 300 €"), {"category": "matelas"})          # à l'envers : pas de budget inventé
-        self.assertEqual(read("commodes 300 €"), {"category": "commode", "max_price": 300})     # « des » dans « commodes » : pas « dès »
-        self.assertEqual(read("canapé pour le salon"), {"category": "canape"})                 # le rayon nommé suffit
+        self.assertEqual(read("matelas 140 × 190"), {"domain": "matelas", "attrs": {"bed_size": "140x190"}})
+        self.assertEqual(read("matelas entre 500 et 300 €"), {"domain": "matelas"})          # à l'envers : pas de budget inventé
+        self.assertEqual(read("commodes 300 €"), {"domain": "commode", "max_price": 300})     # « des » dans « commodes » : pas « dès »
+        self.assertEqual(read("canapé pour le salon"), {"domain": "canape"})                 # le rayon nommé suffit
         self.assertEqual(read("pour le salon"), {"room": "salon"})
 
     def test_chips_say_the_criteria_in_words(self):
@@ -112,7 +113,11 @@ class Read(unittest.TestCase):
         self.assertNotIn("attrs", read("aspirateur silencieux 65 dB"))                        # le bruit : pas un attribut des aspirateurs
         self.assertNotIn("attrs", read("aspirateur 9 kg"))                                     # une capacité de lave-linge : pas ici
         self.assertNotIn("attrs", read("balai 9 kg"))
-        self.assertEqual(read("lave-linge 9 kg"), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})   # hors domaine : comme avant
+        self.assertEqual(read("lave-linge 9 kg"), {"domain": "lave_linge", "attrs": {"capacity_kg": 9}})   # v59 : chaque rayon a la sienne
+        self.assertEqual(read('tv 65"'), {"domain": "televiseur", "attrs": {"screen_in": 65}})        # 65" : des pouces
+        self.assertEqual(read("télé 139 cm"), {"domain": "televiseur", "attrs": {"screen_in": 55}})    # la diagonale en centimètres
+        self.assertEqual(read("smartphone 6,7 pouces 256 Go"), {"domain": "smartphone", "attrs": {"storage_gb": 256}})   # l'écran d'un téléphone : pas un critère
+        self.assertEqual(read("ordinateur portable 1 To")["attrs"], {"storage_gb": 1000})
         self.assertIsNone(query.read("lave-linge moins de 2,5 kg", BRANDS)["max_price"])          # une unité après le nombre : pas un prix
 
     def test_fits_requires_what_is_said(self):

@@ -31,6 +31,10 @@
    deux attributs (sans fil, sans sac), lus dans l'offre de l'enseigne ; Affiner les propose. Le Profil est aéré : des
    titres seuls, vos rayons repliés.
 
+   v59 : chaque rayon a son ontologie, et l'électronique arrive (téléviseurs, smartphones, ordinateurs portables, tablettes,
+   casques, enceintes, montres, consoles, écrans PC) : une pièce « High-tech » à l'accueil, ses exemples dans la Recherche,
+   ses illustrations.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -76,9 +80,9 @@ const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month:
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const spanOf = days => days >= 30 ? `${Math.floor(days / 30)} mois` : `${days} jours`;      // « depuis 2 mois » : arrondi en dessous
-const FAMILY = { electromenager: "Électroménager", ameublement: "Ameublement", literie: "Literie" };
+const FAMILY = { electromenager: "Électroménager", electronique: "Électronique", ameublement: "Ameublement", literie: "Literie" };
 // Recherche : des exemples pour démarrer, les filtres (budget maximum, remise minimale) et les tris.
-const TRY = ["aspirateur balai sans fil", "lave-linge 9 kg", "matelas 160x200", "canapé d'angle", "réfrigérateur"];
+const TRY = ["aspirateur balai sans fil", "TV OLED 55 pouces", "smartphone 5G", "lave-linge 9 kg", "canapé d'angle"];
 const BUDGETS = [["", "Tous les budgets"], ["200", "Moins de 200 €"], ["500", "Moins de 500 €"], ["1000", "Moins de 1 000 €"], ["2000", "Moins de 2 000 €"]];
 // Promo : un palier de remise, ou un prix parmi les plus bas depuis longtemps (catalog.cheap) ; seuls les choix qui
 // donnent quelque chose sont proposés, avec leur nombre de produits.
@@ -86,7 +90,7 @@ const OFFS = [["", "Toutes"], ["1", "En promo"], ["10", "−10 % et plus"], ["2
   ["40", "−40 % et plus"], ["50", "−50 % et plus"], ["low", "Prix parmi les plus bas"]];
 const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Plus forte promo"]];
 // Les critères choisis dans l'app (puces, Affiner) ; la phrase tapée dit le reste (deals/query.py).
-// Dans un domaine à ontologie (les aspirateurs) : domain, sub (le type), props (sans fil, sans sac : exigés).
+// Dans un rayon et son ontologie (v59 : tous) : domain, sub (le type), props (sans fil, 5G, No Frost… : exigés).
 const NO_CRIT = { category: null, room: null, brand: null, features: [], attrs: {}, min: null, max: null, off: null, low: false, sort: null,
   domain: null, sub: null, props: {} };
 const hasCrit = c => !!(c.category || c.room || c.brand || c.features.length || Object.keys(c.attrs).length || c.min != null || c.max != null
@@ -134,8 +138,10 @@ function tasteLine(t, picks = []) {
   if (!list.length) return t?.brands?.length ? `Vos marques : ${t.brands.slice(0, 2).map(b => b.name).join(", ")}` : "";
   return `${say} : ${list.slice(0, 2).map(c => c.label).join(", ")}${list.length > 2 ? "…" : ""}`;
 }
-// L'inspiration par pièce : des catégories regroupées comme on pense son intérieur.
+// L'inspiration par pièce : des catégories regroupées comme on pense son intérieur ; le high-tech en premier (v59).
 const ROOMS = [
+  { key: "high_tech", label: "High-tech", art: "televiseur",
+    cats: ["televiseur", "smartphone", "ordinateur_portable", "tablette", "casque_audio", "enceinte", "montre_connectee", "console", "ecran_pc"] },
   { key: "chambre", label: "Chambre", art: "lit", cats: ["lit", "matelas", "sommier", "armoire", "commode"] },
   { key: "salon", label: "Salon", art: "canape", cats: ["canape", "fauteuil", "table", "buffet", "meuble_tv", "luminaire"] },
   { key: "cuisine", label: "Cuisine", art: "refrigerateur",
@@ -429,7 +435,7 @@ const CSS = `
 .d .fchip.refine{gap:7px;padding:0 14px}
 .d .fchip.refine.on{background:var(--tint);border-color:var(--tint);color:var(--ink)}
 .d .crit{flex:0 0 auto;display:flex;align-items:center;background:var(--ink);color:#fff;border-radius:999px;min-height:44px}
-.d .crit .cl{border:0;background:none;color:inherit;min-height:44px;padding:0 2px 0 15px;font-size:14.5px;font-weight:700;white-space:nowrap}
+.d .crit .cl{border:0;background:none;color:inherit;min-height:44px;min-width:44px;padding:0 2px 0 15px;font-size:14.5px;font-weight:700;white-space:nowrap}
 .d .crit .cx{border:0;background:none;color:inherit;width:44px;height:44px;display:grid;place-items:center;border-radius:999px;opacity:.85}
 .d .savebtn{flex:0 0 auto;display:flex;align-items:center;gap:7px;border:1.5px solid var(--ink);background:var(--paper);border-radius:999px;min-height:44px;padding:0 15px;font-size:14px;font-weight:800}
 .d .savebtn.on{background:var(--ink);color:#fff}
@@ -580,9 +586,12 @@ function RefineSheet({ results, base, cats, brands, onEdit, onClose }) {
     if (moved.current && box) (wide ? box.querySelector(".ctag.on") || box.querySelector(".ctag") : box.querySelector(".ctag.more"))?.focus();
   }, [wide]);
   const none = x => ({ ...x, category: null, room: null, features: [], attrs: {}, domain: null, sub: null, props: {} });
-  const pickCat = key => { const was = c.category === key; onEdit(x => was ? none(x) : { ...none(x), category: key }); moved.current = true; setWide(was); };
+  const pickCat = key => { const was = c.category === key || (inDomain.length === 1 && inDomain[0] === key);
+    onEdit(x => was ? none(x) : { ...none(x), category: key }); moved.current = true; setWide(was); };
   const unpick = () => { onEdit(none); moved.current = true; setWide(true); };
-  const picked = cats.find(k => k.key === c.category);
+  const inDomain = !c.category && c.domain ? results?.domain?.categories || [] : [];   // un rayon dit par la phrase (son domaine)
+  const isOn = key => c.category === key || inDomain.includes(key);
+  const picked = cats.find(k => k.key === c.category) || (inDomain.length === 1 ? cats.find(k => k.key === inDomain[0]) : null);
   const promos = OFFS.filter(([k]) => k && (offs[k] > 0 || (k === "low" ? c.low : String(c.off || "") === k)));
   const chosenLabel = picked?.label || (c.domain && results?.domain?.label) || results?.chips?.find(x => ["category", "room", "domain", "sub"].includes(x.id))?.label
     || "Rayon choisi";
@@ -592,7 +601,7 @@ function RefineSheet({ results, base, cats, brands, onEdit, onClose }) {
       <h2 id="refine-h">Affiner</h2>
       <h3>Rayon</h3>
       <div className="ctags" ref={rayons}>{wide ? <>{chip("all", "Tous", !c.category && !c.room && !c.domain, unpick)}
-        {cats.map(k => chip(k.key, k.label, c.category === k.key, () => pickCat(k.key), k.products))}</>
+        {cats.map(k => chip(k.key, k.label, isOn(k.key), () => pickCat(k.key), k.products))}</>
         : <>{chip("chosen", chosenLabel, true, unpick, picked?.products)}
           <button className="ctag more" aria-expanded="false" onClick={() => { moved.current = true; setWide(true); }}>Changer de rayon
             <Icon d={UI.down} size={15} sw={2.4} /></button></>}</div>
@@ -1186,7 +1195,7 @@ export default function App() {
     body = <div className="about">
       {back}
       <h1>Comment ça marche</h1>
-      <p className="lead">Deals repère chaque jour les bonnes affaires d'électroménager, d'ameublement et de literie, et vous dit si
+      <p className="lead">Deals repère chaque jour les bonnes affaires d'électroménager, d'électronique, d'ameublement et de literie, et vous dit si
         c'est le bon moment d'acheter.</p>
       <h2>Quelles offres ?</h2>
       <p>Uniquement celles de nos enseignes partenaires. Leurs prix sont relus chaque nuit ; un prix qui n'a pas été relu depuis
@@ -1206,9 +1215,13 @@ export default function App() {
           budget), chaque critère se modifie ; d'abord les produits que vos mots nomment, puis les remises, puis le prix ; ou le
           tri que vous choisissez. Rien sous votre budget : les plus proches au-dessus. Avant toute recherche : vos recherches
           récentes, puis vos rayons, puis une catégorie à tour de rôle.</li>
-        <li><b>Les aspirateurs</b> : le type (balai, robot, traîneau, laveur, à main) et deux attributs (sans fil, sans sac) se
-          lisent dans ce que l'enseigne donne de son offre, son titre et sa catégorie ; ce qu'elle ne dit pas reste inconnu,
-          jamais deviné (un robot, lui, est toujours sans fil et sans sac). Affiner les propose.</li>
+        <li><b>Chaque rayon</b> : le type (OLED ou QLED, balai ou robot, d'angle…) et un ou deux attributs (sans fil, 5G, No Frost ;
+          une taille d'écran, une capacité) se lisent dans ce que l'enseigne donne de son offre, son titre et sa catégorie ; ce
+          qu'elle ne dit pas reste inconnu, jamais deviné (un robot aspirateur, lui, est toujours sans fil). Affiner les
+          propose.</li>
+        <li><b>Moins cher, comparable</b> : sur la fiche, des produits du même type, de la même taille (un téléviseur 55 pouces,
+          un autre 55 pouces), qui ont au moins ce que le produit a (4K, 5G, réduction de bruit, autant de stockage) et coûtent au
+          moins 10 % de moins.</li>
         <li><b>Marque, catégorie</b> : les remises d'abord, ou le tri que vous choisissez.</li>
         <li><b>Fiche</b> : l'offre la moins chère parmi nos partenaires.</li>
       </ul>
@@ -1384,7 +1397,7 @@ export default function App() {
       {!any || !shownRes ? <>{feedHead}<div className={`flow ${any ? "dim" : ""}`}>{grid(feed?.products || [], "feed")}</div></>
         : shownRes.unsupported ? <>
           <div className="sechead"><h2>Les {shownRes.unsupported.toLowerCase()} ne sont pas encore suivis</h2></div>
-          <p className="note">Électroménager, ameublement et literie seulement, pour l'instant.</p>
+          <p className="note">Électroménager, électronique, ameublement et literie seulement, pour l'instant.</p>
           {feedHead}{grid(feed?.products || [], "feed")}
         </> : shownRes.total === 0 ? <>{/* rien trouvé : on le dit, on propose de sauvegarder, et le feed reste là */}
           <div className="sechead"><h2>{term && chips.every(c => c.id.startsWith("word:")) ? `Rien pour « ${term} »` : "Rien pour cette recherche"}</h2></div>

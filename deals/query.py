@@ -3,10 +3,10 @@ une taille ou une capacité, une marque, un budget, une envie de promo ou de pet
 (« velours », « Lina »). Pur : même phrase, même lecture ; rien n'est deviné, ce qui n'est pas dit n'est pas demandé.
 La Recherche (catalog.search) et les missions (missions.interpret) comprennent ainsi les mêmes phrases.
 
-Dans un domaine qui a son ontologie (deals/ontology : les aspirateurs), la phrase dit aussi un type (sous-catégorie :
-robot, balai, traîneau, laveur, à main) et des attributs exigés (« sans fil », « sans sac », « 2 en 1 ») ; le rayon est
-alors le domaine entier (robots compris) tant qu'aucun type n'est nommé. Une référence (« S109 », « V15 ») reste un mot
-cherché, pas une quantité.
+Chaque rayon suivi a son ontologie (deals/ontology) : la phrase dit aussi un type (sous-catégorie : hublot, OLED, balai…)
+et des attributs exigés (« sans fil », « No Frost », « 5G ») ; le rayon est alors son domaine (les aspirateurs : robots
+compris tant qu'aucun type n'est nommé). Les mesures (« 9 kg », « 55 pouces », « 128 Go ») sont lues là où elles ont un
+sens (extract.categories.ONLY). Une référence (« S109 », « V15 ») reste un mot cherché, pas une quantité.
 
   read(texte, marques)      → {category, room, brand, features, attrs, min_price, max_price, off, low, sort, rest, unsupported,
                                domain, sub, props}
@@ -20,25 +20,21 @@ import re
 from . import ontology
 from .alternatives import energy_rank
 from .extract import attributes, categorize
-from .extract.categories import CATEGORIES, FAMILY_OF, plain
+from .extract.categories import CATEGORIES, FAMILY_OF, ONLY, plain, tv_inches  # noqa: F401  (ONLY : relu par les missions)
 from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS
 
 MAX_PRICE = 100_000
-AT_LEAST = {"capacity_kg", "place_settings", "zones", "volume_l", "autonomy_min", "seats"}   # au moins ce qui est demandé
+AT_LEAST = {"capacity_kg", "place_settings", "zones", "volume_l", "autonomy_min", "seats", "storage_gb", "ram_gb", "refresh_hz",
+            "drawers"}                                     # au moins ce qui est demandé
 EXACT = {"bed_size"}
-NEAR = {"width_cm": 0.06}                                  # un appareil s'encastre au centimètre près
+NEAR = {"width_cm": 0.06, "screen_in": 0.05}               # un appareil s'encastre au centimètre près ; un écran de 15 pouces : 15,6
 AT_MOST = {"noise_db"}
 WANTED = AT_LEAST | EXACT | set(NEAR) | AT_MOST | {"energy_class"}
 FORM = ("balai", "traineau", "angle", "americain", "encastrable")          # dans un libellé, la forme vient d'abord
-# Une caractéristique qui n'a de sens que pour certaines catégories (« lit 2 places » n'est pas un nombre de places
-# assises) : ailleurs, elle n'est pas retenue — sinon rien n'y répondrait jamais.
-ONLY = {"seats": {"canape", "fauteuil", "table"}, "bed_size": {"lit", "matelas", "sommier"},
-        "capacity_kg": {"lave_linge", "seche_linge", "lave_linge_sechant"}, "place_settings": {"lave_vaisselle"},
-        "zones": {"plaque_cuisson", "cuisiniere"}, "autonomy_min": {"aspirateur", "robot_aspirateur"}}
-DOMAIN_FEATURES = {"balai", "traineau", "laveur", "sans_fil"}  # dans un domaine à ontologie : un type ou une caractéristique
 REF_RE = re.compile(r"^(?=.*[a-z])(?=.*\d)[a-z0-9]+$")       # « s109 », « v15 », « x5 » : une référence, pas une quantité
-QTY_RE = re.compile(r"^\d+(?:[.,]\d+)?(?:kg|cm|mm|m2|m|l|w|db|min|mn|h|pa|aw|go|gb|po|tr|x\d+)?$|^\d+x\d+(?:x\d+)?$|^[a-g]\+*$")
-UNIT_AFTER = r"(?![\d.,]*\s*(?:kg|cm|mm|m2|m\b|l\b|litres?|min|minutes|db|w\b|watts?|pa\b|aw\b|places?|couverts?|foyers?|pouces|go\b|x\d))"
+QTY_RE = re.compile(r"^\d+(?:[.,]\d+)?(?:kg|cm|mm|m2|m|l|w|db|min|mn|h|pa|aw|go|gb|to|tb|hz|po|tr|x\d+)?$|^\d+x\d+(?:x\d+)?$|^[a-g]\+*$")
+UNIT_AFTER = (r"(?![\d.,]*\s*(?:kg|cm|mm|m2|m\b|l\b|litres?|min|minutes|db|w\b|watts?|pa\b|aw\b|places?|couverts?|foyers?|pouces|go\b|"
+              r"to\b|hz|tiroirs?|personnes|x\d))")
 AMOUNT = r"(\d[\d\s.]*\d|\d)"
 CURRENCY = r"\s*(?:€|euros?\b|eur\b|balles\b)"
 OFF_RE = re.compile(r"(?<!\d)(\d{1,2})\s*%(?:\s*(?:de remise|de reduction|minimum|au moins|et plus))?")   # « -30 % » : une remise
@@ -48,7 +44,8 @@ MIN_RE = re.compile(rf"(?<!pas )\b(?:plus de|a partir de|des|minimum|au moins)\s
 PRICE_RE = [re.compile(rf"(?:sous|moins de|max(?:imum)?|jusqu'?a|en dessous de|pas plus de|budget|<|≤)\s*:?\s*{AMOUNT}{UNIT_AFTER}"),
             re.compile(rf"{AMOUNT}{CURRENCY}")]
 SIZE_RE = re.compile(r"\b(\d{2,3})\s*(?:sur|par|x|×)\s*(\d{3})\b")   # « 160 sur 200 », « 160 × 200 » → 160x200
-PROMO_RE = re.compile(r"\b(?:en )?(?:promos?|promotions?|soldes?|soldees?|remises?|reductions?|bons? plans?|deals?|bonnes? affaires?)\b")
+PROMO_RE = re.compile(r"\b(?:en )?(?:promos?|promotions?|soldes?|soldees?|remises?|reductions?(?! (?:active )?(?:de |du )?bruit)|bons? plans?|"
+                      r"deals?|bonnes? affaires?)\b")
 LOW_RE = re.compile(r"\b(?:au )?prix (?:le )?plus bas\b|\bau plus bas\b|\bprix bas\b")
 CHEAP_RE = re.compile(r"\b(?:pas|moins) chere?s?\b|\bpetits? prix\b|\bbon marche\b|\bpremiers? prix\b|\beconomiques?\b"
                       r"|\bprix croissants?\b")
@@ -57,7 +54,11 @@ CHEAP_RE = re.compile(r"\b(?:pas|moins) chere?s?\b|\bpetits? prix\b|\bbon marche
 # pas encore. Les plus longs d'abord.
 SLANG = {"aspi": "aspirateur", "aspis": "aspirateur", "meuble tele": "meuble_tv", "tele": "televiseur", "tv": "televiseur",
          "sofa": "canape", "clic clac": "canape", "frigo": "refrigerateur", "congelo": "congelateur", "lampe": "luminaire",
-         "lampadaire": "luminaire", "ordi": "ordinateur_portable", "pc portable": "ordinateur_portable", "ecouteurs": "casque_audio"}
+         "lampadaire": "luminaire", "ordi": "ordinateur_portable", "pc portable": "ordinateur_portable", "ecouteurs": "casque_audio",
+         "ecouteur": "casque_audio", "casque": "casque_audio", "telephone": "smartphone", "portable senior": "smartphone",
+         "console": "console", "ps5": "console", "playstation": "console", "xbox": "console", "moniteur": "ecran_pc",
+         "ecran pc": "ecran_pc", "montre": "montre_connectee", "bracelet connecte": "montre_connectee", "barre de son": "enceinte",
+         "soundbar": "enceinte", "chromebook": "ordinateur_portable", "television": "televiseur"}
 WORDS = sorted({**{w: k for k in CATEGORY_LABEL for w in {plain(CATEGORY_LABEL[k]).replace("-", " "),
                                                           plain(CATEGORY_ONE.get(k, k)).replace("-", " "), k.replace("_", " ")}},
                 **SLANG}.items(), key=lambda kv: -len(kv[0]))
@@ -66,9 +67,12 @@ FEATURE_WORDS = {"sans_fil": {"sans", "fil"}, "angle": {"d", "angle"}}
 # Les mots qui disent une taille comprise (« autonomie 40 min ») : expliqués, pas cherchés en plus.
 ATTR_WORDS = {"autonomy_min": {"autonomie"}, "capacity_kg": {"capacite", "charge"}, "width_cm": {"largeur", "large"},
               "noise_db": {"bruit", "silencieux", "silencieuse"}, "volume_l": {"volume", "contenance"}, "seats": {"assises"},
-              "bed_size": {"taille", "dimensions"}, "energy_class": {"energie", "energetique"}}
+              "bed_size": {"taille", "dimensions"}, "energy_class": {"energie", "energetique"}, "screen_in": {"ecran", "taille", "diagonale"},
+              "storage_gb": {"stockage", "memoire", "capacite"}, "ram_gb": {"ram", "memoire", "vive"},
+              "refresh_hz": {"frequence", "rafraichissement"}, "drawers": {"tiroirs", "tiroir"}}
 UNITS = {"kg", "cm", "l", "litre", "litres", "couverts", "couvert", "places", "place", "foyers", "foyer", "db", "min", "minutes",
-         "pouces", "po", "tours", "tour", "tr", "rpm", "w", "watts", "x", "classe", "energie", "energetique", "m2", "mm", "pa", "aw", "m"}
+         "pouces", "pouce", "po", "tours", "tour", "tr", "rpm", "w", "watts", "x", "classe", "energie", "energetique", "m2", "mm", "pa",
+         "aw", "m", "go", "gb", "to", "tb", "hz", "tiroirs", "tiroir", "personnes", "feux", "bruleurs"}
 # Les mots qui ne disent rien du produit (« je cherche un… pas cher ») ; ceux qui restent sont cherchés tels quels.
 STOP = {"je", "j", "cherche", "recherche", "cherchons", "veux", "voudrais", "aimerais", "souhaite", "besoin", "faut", "il", "me",
         "moi", "mon", "ma", "mes", "un", "une", "des", "de", "du", "d", "le", "la", "les", "l", "pour", "avec", "a", "au", "aux",
@@ -96,6 +100,7 @@ def read(text, brands=()):
     raw = (text or "").strip()[:200]
     if not raw:
         return out
+    raw = re.sub(r"(\d)\s*(?:\"|''|″|”)", r"\1 pouces ", raw)                      # 55" : des pouces
     t = re.sub(r"(?<!\d)[,.](?!\d)|[!?;:()\"«»…/]", " ", plain(raw).replace("-", " ").replace("−", " "))   # la ponctuation, pas les décimales
     t = SIZE_RE.sub(r"\1x\2", " ".join(t.split()))
     cut = lambda m: t[:m.start()] + " " + t[m.end():]
@@ -132,17 +137,19 @@ def read(text, brands=()):
     d = ontology.domain_of(category) if category else None if out["unsupported"] else ontology.detect(ontology.text(t))
     u = d.understand(ontology.text(t)) if d else None
     if not category and not out["unsupported"] and not d:  # « pour le salon » : les rayons de la pièce
-        out["room"] = next((k for k in ROOMS if re.search(rf"(?<!\w){k}s?(?!\w)", t)), None)
+        out["room"] = next((k for k in ROOMS if re.search(rf"(?<!\w){k.replace('_', ' ')}s?(?!\w)", t)), None)
     out["brand"] = next((b for b in sorted(brands, key=len, reverse=True)
                          if b and re.search(rf"(?<!\w){re.escape(plain(b))}(?!\w)", t)), None)
     a = attributes(t)
     named = category or out["unsupported"] or (d.categories[0] if d else None)
+    if named == "televiseur" and "screen_in" not in a and tv_inches(t):     # « télé 139 cm » : 55 pouces
+        a["screen_in"] = tv_inches(t)
     if d:                                                  # le domaine entier tant qu'aucun type n'est nommé
         sub = u["sub"] or next((x["key"] for x in d.subs if x["match"]["category"] == [category] and not x["match"].get("any")), None)
         out.update(domain=d.key, sub=sub, props=dict(u["props"]))
         category = None
     out["category"] = category
-    out["features"] = [f for f in a.get("features", []) if f in FEATURE_LABEL and not (d and f in DOMAIN_FEATURES)]
+    out["features"] = [] if d else [f for f in a.get("features", []) if f in FEATURE_LABEL]   # un rayon suivi : son type, ses attributs
     out["attrs"] = {k: v for k, v in a.items() if k in WANTED and (not named or named in ONLY.get(k, {named})) and not (d and k in d.drops)}
     said = set(u["said"]) if d else set()                  # les mots expliqués par ce qui a été compris
     if named:
@@ -150,7 +157,8 @@ def read(text, brands=()):
         said |= set(named.split("_")) | {w for s, k in SLANG.items() if k == named for w in s.split()}
     if out["brand"]:
         said |= set(plain(out["brand"]).split())
-    said |= set(ROOMS) if named else {out["room"]} if out["room"] else set()   # « canapé pour le salon » : le canapé suffit
+    rooms = {w for k in ROOMS for w in k.split("_")}
+    said |= rooms if named else set(out["room"].split("_")) if out["room"] else set()   # « canapé pour le salon » : le canapé suffit
     for f in out["features"]:
         said |= FEATURE_WORDS.get(f, {f})
     for k in out["attrs"]:
@@ -223,10 +231,23 @@ def euros(v):
     return f"{v:,.0f}".replace(",", " ") + " €"
 
 
-ATTR_CHIP = {"capacity_kg": lambda v: f"{v:g} kg et plus".replace(".", ","), "place_settings": "{:g} couverts et plus".format,
-             "zones": "{:g} foyers et plus".format, "seats": "{:g} places et plus".format, "volume_l": "{:g} L et plus".format,
-             "autonomy_min": "{:g} min et plus".format, "bed_size": lambda v: v.replace("x", " × "), "width_cm": "{:g} cm".format,
-             "noise_db": "{:g} dB au plus".format, "energy_class": "Classe {} ou mieux".format}
+def fr(v):
+    """Un nombre à la française : 6,5 ; 9."""
+    return f"{v:g}".replace(".", ",")
+
+
+ATTR_CHIP = {"capacity_kg": lambda v: f"{fr(v)} kg et plus", "place_settings": lambda v: f"{fr(v)} couverts et plus",
+             "zones": lambda v: f"{fr(v)} foyers et plus", "seats": lambda v: f"{fr(v)} places et plus",
+             "volume_l": lambda v: f"{fr(v)} L et plus", "autonomy_min": lambda v: f"{fr(v)} min et plus",
+             "bed_size": lambda v: v.replace("x", " × "), "width_cm": lambda v: f"{fr(v)} cm", "noise_db": lambda v: f"{fr(v)} dB au plus",
+             "energy_class": "Classe {} ou mieux".format, "screen_in": lambda v: f"{fr(v)} pouces",
+             "storage_gb": lambda v: f"{storage_label(v)} et plus", "ram_gb": lambda v: f"{fr(v)} Go de RAM et plus",
+             "refresh_hz": lambda v: f"{fr(v)} Hz et plus", "drawers": lambda v: f"{fr(v)} tiroirs et plus"}
+
+
+def storage_label(v):
+    """128 → « 128 Go » ; 1000 → « 1 To »."""
+    return f"{fr(v / 1000)} To" if v >= 1000 and v % 1000 == 0 else f"{fr(v)} Go"
 
 
 def chips(c):

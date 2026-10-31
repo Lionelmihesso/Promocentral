@@ -151,7 +151,8 @@ class Flow(unittest.TestCase):
         by_price = [p["price"] for p in self.get("search?q=site&sort=price")[1]["products"]]
         self.assertEqual(by_price, sorted(by_price))
         st, only, _ = self.get("search?q=site&category=matelas")
-        self.assertEqual(([p["category"] for p in only["products"]], len(only["categories"])), (["matelas"], 5))   # facette entière
+        self.assertEqual(([p["category"] for p in only["products"]], len(only["categories"])), (["matelas"], 1))   # v59 : un rayon choisi, ses catégories
+        self.assertEqual(len(self.get("search?q=site")[1]["categories"]), 5)                                      # sans rayon : la facette entière
         self.assertEqual(self.get("search?q=site&sort=hasard")[0], 400)
         self.assertEqual(self.get("search?q=site&max=beaucoup")[0], 400)
         self.assertEqual(item["alternatives"], [])                                       # rien de comparable ici

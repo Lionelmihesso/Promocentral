@@ -164,7 +164,7 @@ class Api:
                 props[k] = v != "0"
         if (sub or props) and d is None:
             raise BadRequest("Ces critères demandent un domaine")
-        if d and (sub and sub not in d.sub or any(k not in d.attrs for k in props)):
+        if d and (sub and sub not in d.sub or any(k not in d.bools for k in props)):
             raise BadRequest("Critère inconnu")
         if d:
             out.update(domain=domain, sub=sub, props=props)

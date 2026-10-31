@@ -26,7 +26,7 @@ D = WARM_END + timedelta(days=1)                 # première nuit de chaque scé
 OPERATOR = "ops@exemple.test"
 WARM = None
 
-SHOWN = len(sim.SHOWCASE) + len(sim.SHOWCASE_MORE)          # la vitrine de la démo : 84 produits, trois enseignes chacun
+SHOWN = len(sim.SHOWCASE) + len(sim.SHOWCASE_MORE) + len(sim.SHOWCASE_TECH)   # la vitrine de la démo : 127 produits, trois enseignes chacun
 
 
 def setUpModule():
@@ -47,7 +47,8 @@ def clone(src):
 
 class Faults:
     """Le marché simulé, avec des pannes prévues par hôte ou par adresse : blocked (anti-robot), error (les `first`
-    premières pages du jour), layout (plus de prix), price_error (prix ÷ 10)."""
+    premières pages du jour), layout (plus de prix), price_error (prix ÷ 10 : le prix lu le premier jour de la panne,
+    affiché tel quel ensuite, comme une erreur de saisie de l'enseigne)."""
 
     def __init__(self, base, clock):
         self.base, self.clock, self.plan, self.hits = base, clock, [], Counter()
@@ -74,7 +75,8 @@ class Faults:
                 ld = r["html"]
                 start = ld.index('"price": "') + len('"price": "')
                 end = ld.index('"', start)
-                return {**r, "html": ld[:start] + f"{float(ld[start:end]) / f['factor']:.2f}" + ld[end:]}
+                f.setdefault("price", float(ld[start:end]) / f["factor"])
+                return {**r, "html": ld[:start] + f"{f['price']:.2f}" + ld[end:]}
             return r
         return self.base.get(url)
 

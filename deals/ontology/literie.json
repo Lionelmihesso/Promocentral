@@ -1,0 +1,30 @@
+{
+ "schema": 3, "family": "literie", "label": "Literie", "version": "3.0.0", "updated": "2026-10-31",
+ "domains": [
+  {"domain": "matelas", "label": "Matelas", "one": "Matelas", "categories": ["matelas"],
+   "words": ["matelas"],
+   "subcategories": [
+    {"key": "hybride", "label": "Hybride", "plural": "Matelas hybrides", "one": "Matelas hybride", "words": ["hybride", "hybrides", "matelas hybrides", "matelas hybride"], "match": {"category": ["matelas"], "any": [{"text": "\\bhybrides?\\b"}]}},
+    {"key": "ressorts", "label": "Ressorts", "plural": "Matelas à ressorts", "one": "Matelas à ressorts", "words": ["ressorts", "a ressorts", "ressorts ensaches", "ensaches", "matelas a ressorts"], "match": {"category": ["matelas"], "any": [{"text": "ressorts?\\b|ensache"}]}},
+    {"key": "memoire", "label": "Mémoire de forme", "plural": "Matelas à mémoire de forme", "one": "Matelas à mémoire de forme", "words": ["memoire de forme", "a memoire de forme", "visco", "viscoelastique", "matelas a memoire de forme"], "match": {"category": ["matelas"], "any": [{"text": "memoire de forme|visco"}]}},
+    {"key": "latex", "label": "Latex", "plural": "Matelas en latex", "one": "Matelas en latex", "words": ["latex", "en latex", "matelas en latex"], "match": {"category": ["matelas"], "any": [{"text": "latex"}]}},
+    {"key": "mousse", "label": "Mousse", "plural": "Matelas en mousse", "one": "Matelas en mousse", "words": ["mousse", "en mousse", "matelas en mousse"], "match": {"category": ["matelas"], "any": [{"text": "mousse|polyurethane"}]}}
+   ],
+   "attributes": [
+    {"key": "bed_size", "label": "Taille", "kind": "measure"}
+   ]
+  },
+  {"domain": "sommier", "label": "Sommiers", "one": "Sommier", "categories": ["sommier"],
+   "words": ["sommier", "sommiers"],
+   "subcategories": [
+    {"key": "electrique", "label": "Électrique", "plural": "Sommiers électriques", "one": "Sommier électrique", "words": ["electrique", "electriques", "relaxation", "motorise", "sommiers electriques", "sommier electrique"], "match": {"category": ["sommier"], "any": [{"text": "electrique|relaxation|motorise"}]}},
+    {"key": "coffre", "label": "Coffre", "plural": "Sommiers coffres", "one": "Sommier coffre", "words": ["coffre", "coffres", "sommiers coffres", "sommier coffre"], "match": {"category": ["sommier"], "any": [{"text": "\\bcoffres?\\b"}]}},
+    {"key": "tapissier", "label": "Tapissier", "plural": "Sommiers tapissiers", "one": "Sommier tapissier", "words": ["tapissier", "tapissiers", "sommiers tapissiers", "sommier tapissier"], "match": {"category": ["sommier"], "any": [{"text": "tapissier"}]}},
+    {"key": "lattes", "label": "À lattes", "plural": "Sommiers à lattes", "one": "Sommier à lattes", "words": ["a lattes", "lattes", "sommiers a lattes", "sommier a lattes"], "match": {"category": ["sommier"], "any": [{"text": "lattes"}]}}
+   ],
+   "attributes": [
+    {"key": "bed_size", "label": "Taille", "kind": "measure"}
+   ]
+  }
+ ]
+}

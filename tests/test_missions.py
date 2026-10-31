@@ -35,10 +35,17 @@ class Interpret(unittest.TestCase):
         self.assertEqual(label(m), "Aspirateur balai sans fil · 300 € max")
         self.assertEqual(label(interpret("aspirateur traîneau avec sac", BRANDS)), "Aspirateur traîneau avec sac")
         m = interpret("lave-linge 9 kg moins de 500 €", BRANDS)
-        self.assertEqual((m["category"], m["attrs"], m["max_price"]), ("lave_linge", {"capacity_kg": 9}, 500))
+        self.assertEqual((m["domain"], m["attrs"], m["max_price"]), ("lave_linge", {"capacity_kg": 9}, 500))   # v59 : chaque rayon
         m = interpret("un lit 160x200 jusqu'à 1 200€", BRANDS)
-        self.assertEqual((m["category"], m["attrs"], m["max_price"]), ("lit", {"bed_size": "160x200"}, 1200))
-        self.assertEqual(interpret("un lit sous 500", BRANDS)["category"], "lit")                     # le mot courant suffit
+        self.assertEqual((m["domain"], m["attrs"], m["max_price"]), ("lit", {"bed_size": "160x200"}, 1200))
+        self.assertEqual(interpret("un lit sous 500", BRANDS)["domain"], "lit")                       # le mot courant suffit
+        m = interpret("TV OLED 55 pouces sous 1 200 €", BRANDS)                                       # v59 : l'électronique
+        self.assertEqual((m["domain"], m["sub"], m["attrs"], m["max_price"]), ("televiseur", "oled", {"screen_in": 55}, 1200))
+        self.assertEqual(label(m), "Téléviseur OLED 55 pouces · 1 200 € max")
+        self.assertEqual(label(interpret("smartphone 5G 256 Go", BRANDS)), "Smartphone 5G 256 Go")
+        self.assertEqual(label(interpret("frigo no frost 300 L", BRANDS)), "Réfrigérateur No Frost 300 L")   # un nom garde ses majuscules
+        self.assertEqual(label(interpret("écouteurs sans réduction de bruit", BRANDS)), "Écouteurs sans réduction de bruit")
+        self.assertEqual(label(interpret("console de salon édition numérique 1 To", BRANDS)), "Console de salon édition numérique 1 To")
         m = interpret("matelas Dormea 160x200", BRANDS)
         self.assertEqual((m["brand"], m["max_price"]), ("Dormea", None))                               # le prix se demande après
         self.assertEqual(label(interpret("Zephyr sous 400 €", BRANDS)), "Zephyr · 400 € max")
@@ -49,15 +56,16 @@ class Interpret(unittest.TestCase):
         self.assertEqual(interpret("matelas 160 sur 200", BRANDS)["attrs"], {"bed_size": "160x200"})
         self.assertEqual(interpret("lit 2 places sous 400", BRANDS)["attrs"], {})                      # pas des places assises
         self.assertEqual(interpret("canapé 3 places", BRANDS)["attrs"], {"seats": 3})
-        self.assertEqual(interpret("meuble télé sous 200 €", BRANDS)["category"], "meuble_tv")
+        self.assertEqual(interpret("meuble télé sous 200 €", BRANDS)["domain"], "meuble_tv")
         self.assertIsNone(interpret("réfrigérateur sous 0 €", BRANDS)["max_price"])                   # impossible : demandé
         self.assertIsNone(interpret("aspirateur sous 300 000 €", BRANDS)["max_price"])
+        self.assertEqual(interpret("télé 139 cm sous 500", BRANDS)["attrs"], {"screen_in": 55})       # la diagonale en centimètres
         with self.assertRaisesRegex(BadRequest, "pas encore suivis"):
-            interpret("TV 55 pouces sous 500", BRANDS)
+            interpret("micro-ondes sous 150 €", BRANDS)
 
     def test_refused(self):
         with self.assertRaises(BadRequest):
-            interpret("smartphone sous 300 €", BRANDS)            # pas suivi : on le dit, plutôt qu'une mission vaine
+            interpret("machine à café sous 300 €", BRANDS)        # pas suivi : on le dit, plutôt qu'une mission vaine
         with self.assertRaises(BadRequest):
             interpret("quelque chose de joli", BRANDS)
 
@@ -94,9 +102,17 @@ class Matches(unittest.TestCase):
 
     def test_comparable_keeps_kind_functions_and_size(self):
         self.assertEqual(like(product("Aspirateur balai sans fil Flex 45 min", 279)),
-                         {"category": "aspirateur", "features": ["balai", "sans_fil"], "attrs": {}})    # l'autonomie n'en est pas
+                         {"category": "aspirateur", "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "balai",
+                          "props": {"cordless": True}})                                               # l'autonomie n'en est pas
         self.assertEqual(like(product("Lave-linge hublot 9 kg classe A 1400 tr/min", 499)),
-                         {"category": "lave_linge", "features": [], "attrs": {"capacity_kg": 9}})      # ni la classe énergie
+                         {"category": "lave_linge", "features": [], "attrs": {"capacity_kg": 9}, "domain": "lave_linge", "sub": "hublot",
+                          "props": {}})                                                               # ni la classe énergie
+        tv = {**like(product("TV OLED 55\" 4K 120 Hz", 1290)), "max_price": 1100}                     # v59 : même type, même écran
+        self.assertTrue(matches(tv, product("TV OLED 139 cm 4K Ultra HD", 1090)))
+        self.assertFalse(matches(tv, product("TV QLED 55 pouces 4K", 549)))
+        self.assertFalse(matches(tv, product("TV OLED 65 pouces 4K", 1090)))
+        hand = normalize(like(product("Aspirateur Brava X5", 199)))                                   # type non dit : son rayon, pas les robots
+        self.assertEqual((hand["category"], hand["domain"], hand["sub"]), ("aspirateur", "aspirateurs", None))
         self.assertEqual(like(product("Lit coffre 2 places 140x190 chêne", 499))["attrs"], {"bed_size": "140x190"})
         m = {**like(product("Lit coffre 160x200 chêne", 699)), "max_price": 600}
         self.assertTrue(matches(m, product("Lit coffre 160x200 noyer", 549)))
@@ -176,11 +192,16 @@ class Night(unittest.TestCase):
         self.assertEqual(normalize({"category": "aspirateur", "features": ["balai", "sans_fil"], "attrs": {}}),
                          {"category": None, "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "balai", "props": {"cordless": True}})
         self.assertEqual(normalize({"category": "robot_aspirateur", "features": ["laveur"]}),                      # un robot qui lave : un robot
-                         {"category": None, "features": [], "domain": "aspirateurs", "sub": "robot", "props": {}})
+                         {"category": None, "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "robot", "props": {}})
         self.assertEqual(normalize({"domain": "aspirateurs", "sub": "robot", "needs": ["lavage"], "props": {"auto_empty": True, "cordless": True}}),
-                         {"category": None, "features": [], "domain": "aspirateurs", "sub": "robot", "props": {"cordless": True}})   # la v57 : oubliés
+                         {"category": None, "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "robot", "props": {"cordless": True}})   # la v57 : oubliés
         self.assertEqual(normalize({"category": "aspirateur", "features": ["balai", "laveur"]})["sub"], "laveur")    # un balai laveur
-        self.assertEqual(normalize({"category": "lave_linge", "attrs": {"capacity_kg": 9}}), {"category": "lave_linge", "attrs": {"capacity_kg": 9}})
+        self.assertEqual(normalize({"category": "lave_linge", "attrs": {"capacity_kg": 9}}),                     # v59 : chaque rayon
+                         {"category": None, "features": [], "attrs": {"capacity_kg": 9}, "domain": "lave_linge", "sub": None, "props": {}})
+        self.assertEqual(normalize({"category": "canape", "features": ["angle", "convertible"], "attrs": {"seats": 3}}),
+                         {"category": None, "features": [], "attrs": {"seats": 3}, "domain": "canape", "sub": "angle",
+                          "props": {"convertible": True}})                                          # v56 : « canapé d'angle convertible »
+        self.assertEqual(normalize({"category": "refrigerateur", "features": ["americain"]})["sub"], "americain")
         self.assertEqual(normalize({"product_id": 3, "category": "aspirateur"}), {"product_id": 3, "category": "aspirateur"})   # un produit précis
         with self.s.tx() as c:
             c.execute("INSERT INTO missions(user_id, category, want, max_price, label, created_at) VALUES (?,?,?,?,?,?)",
@@ -204,7 +225,8 @@ class Night(unittest.TestCase):
         self.assertEqual((a["label"], a["total"], a["nearest"]["price"]), ("Zephyr Aspirateur balai sans fil V8 40 min · 350 € max", 0, 399))
         b = self.m.create(self.uid, {"category": "aspirateur"})                                       # sans prix : une recherche gardée
         self.assertEqual((b["label"], b["total"], b["reached"], b["fresh"], b["nearest"]), ("Aspirateur", 3, False, 0, None))
-        for bad in ({}, {"category": "smartphone", "max_price": 300}, {"category": "aspirateur", "off": 95}, {"words": "x"}):
+        for bad in ({}, {"category": "micro_ondes", "max_price": 300}, {"category": "aspirateur", "off": 95}, {"words": "x"},
+                    {"domain": "televiseur", "props": {"screen_in": True}}):                          # une mesure n'est pas un oui/non
             with self.assertRaises(BadRequest):
                 self.m.create(self.uid, bad)
         listed = self.m.list(self.uid)

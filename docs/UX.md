@@ -1,4 +1,4 @@
-# L'interface de DEALS — un flux vivant de remises, une recherche qui comprend, vos goûts (v58)
+# L'interface de DEALS — un flux vivant de remises, une recherche qui comprend, vos goûts (v59)
 
 ## Principe
 
@@ -10,6 +10,13 @@ jamais devinés ; Affiner les propose avec ce que chacun donnerait. Pas d'encadr
 les cartes, rien d'ajouté sur la fiche. Le **Profil** est aéré : des titres seuls, beaucoup d'air entre les sections,
 une section vide le dit d'un mot sur la ligne du titre (« Aucune »), **vos rayons repliés** (« Vos rayons · 2 choisis »,
 ouverts d'un geste). Règles : `docs/ONTOLOGIE.md`.
+
+**Chaque rayon, et l'électronique (v59).** Le type et les attributs se lisent dans tous les rayons (« TV OLED 55
+pouces » : « Téléviseurs OLED », « 55 pouces »), et l'électronique arrive sans écran de plus : une pièce **High-tech**
+ouvre les inspirations de l'accueil, deux exemples de la Recherche sur cinq en sont (« TV OLED 55 pouces »,
+« smartphone 5G »), chaque rayon d'électronique a son illustration originale (téléviseur, smartphone, ordinateur,
+tablette, casque, enceinte, montre, console, écran ; un écran montre une image abstraite, jamais une interface ou un
+logo réels), et « Moins cher, comparable » ne propose qu'un téléviseur du même type et de la même taille.
 
 **Pinterest × Bloomberg.** Pinterest pour donner envie : des visuels, une mosaïque, l'inspiration par pièce. Bloomberg
 pour la vie et la décision : un bandeau où défilent les remises du jour avec l'heure de mise à jour, et dans chaque fiche
@@ -99,7 +106,7 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 | Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère, la seule montrée), et dessous « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir (alerte de prix) | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » : posée tout de suite, sans e-mail (« Alerte à 550 € » sur la fiche, l'alerte dans le Profil) ; « Arrêter l'alerte à 550 € » |
 | Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque (« Suivre », « Suivie ») ; une catégorie rejoint vos rayons (« Mes rayons », « Dans vos rayons ») |
-| Affiner | une feuille : le **rayon** (celui choisi, « Changer de rayon » déplie la liste), ses **fonctions** et ses **tailles** (celles du rayon : « Autonomie : 40 min et plus », « Capacité : 9 kg et plus »…), la **marque**, le **budget** (de… à…, ou moins de 200, 500, 1 000, 2 000 €), la **promo**, le **tri** ; chaque choix avec ce qu'il donnerait (« Balai 5 »), ceux qui ne donneraient rien ou ne changeraient rien ne sont pas proposés ; « Voir 5 produits », « Tout effacer » ; dans un domaine qui a son ontologie : le **type** (« Balai 13 », « Robot 8 », « Traîneau 6 »… : les plus fournis d'abord) et les **caractéristiques** (« Sans fil 26 · Avec fil 1 » ; pour un traîneau, « Sans sac 4 · Avec sac 2 ») |
+| Affiner | une feuille : le **rayon** (celui choisi ou dit par la phrase, « Changer de rayon » déplie la liste), son **type**, ses **caractéristiques** (oui ou non) et ses **tailles** (celles du rayon : « Taille d'écran : 55 pouces », « Capacité : 9 kg et plus »…), la **marque**, le **budget** (de… à…, ou moins de 200, 500, 1 000, 2 000 €), la **promo**, le **tri** ; chaque choix avec ce qu'il donnerait (« Balai 5 »), ceux qui ne donneraient rien ou ne changeraient rien ne sont pas proposés ; « Voir 5 produits », « Tout effacer » ; dans un domaine qui a son ontologie : le **type** (« Balai 13 », « Robot 8 », « Traîneau 6 »… : les plus fournis d'abord) et les **caractéristiques** (« Sans fil 26 · Avec fil 1 » ; pour un traîneau, « Sans sac 4 · Avec sac 2 ») |
 | Ajouter son e-mail | facultatif : « Pour recevoir vos alertes par e-mail et retrouver vos favoris, vos marques et vos recherches sur un autre appareil » ; un lien, aucun mot de passe ; « Ouvrez le lien reçu » ; le lien rattache l'adresse à ce qui est gardé ici (rien n'est perdu), ou verse ce qui est gardé ici dans le compte qui a déjà cette adresse |
 | Recherche | le champ, qui comprend une phrase (« aspirateur balai sans fil sous 300 € ») ; **Affiner** et les **puces** des critères compris ou choisis (« Aspirateurs », « Balai », « Sans fil », « Moins de 300 € » : toucher ouvre Affiner, la croix retire) et « Tout effacer » ; sans critère, **Catégorie**, **Budget**, **Promo** en accès direct ; avant toute saisie, **vos recherches sauvegardées** (une ligne, « 5 » sur celles qui ont du nouveau, « Tout voir » mène au Profil), **vos recherches récentes** (en mots lisibles : « Matelas · Moins de 500 € », « Effacer ») ou « Essayez » et cinq exemples, puis le **feed** (« À découvrir » ou « Pour vous ») ; dès qu'on tape ou choisit : la marque tapée en raccourci, « 3 produits » et **« Sauvegarder »** (« Sauvegardée » : un geste la retire), la mosaïque ; des mots sans produit : « « velours gris » : aucun produit ; voici le reste de votre recherche » ; rien sous le budget : « Rien à moins de 50 € · Les plus proches, dès 414 € » et « Me prévenir » ; rien du tout : « Rien pour « xyzzy » », « Pas encore là ? On surveille pour vous » et « Sauvegarder », puis le feed ; un rayon non suivi : « Les smartphones ne sont pas encore suivis » ; l'onglet touché à nouveau remonte en haut ; dans un domaine qui a son ontologie : les puces d'un type et de ses attributs (« Aspirateurs traîneaux », « Sans sac ») ; un mot qui n'en est pas un est dit comme ailleurs (« « chat parquet » : aucun produit ; voici le reste de votre recherche ») |
 | Comment ça marche | quelles offres (enseignes partenaires seulement, prix relus chaque nuit, remises réelles seulement), dans quel ordre (chaque écran), comment Deals est rémunéré (une commission, sans effet sur le prix ni sur le classement), vos données ; joignable depuis le pied de chaque écran et depuis l'offre |
@@ -543,3 +550,29 @@ fiche sans section ajoutée ; une recherche d'aspirateurs sauvegardée, qui ne p
 d'un nouveau venu (des titres seuls, « Aucune », « Aucun », vos rayons repliés puis ouverts et repliés d'un geste, sans
 compte créé) ; vos rayons choisis depuis le Profil et depuis une catégorie ; et les étapes des versions précédentes.
 Planche : `docs/ux/17-v58.png`.
+
+## Mesures v58 → v59 : chaque rayon, et l'électronique
+
+Démo du 14 décembre (127 produits, dont 43 d'électronique), téléphone 390 × 844 et ordinateur 1 280 × 860.
+
+| | v58 | v59 |
+|---|---|---|
+| Accueil, inspirations | Chambre, Salon, Cuisine, Buanderie, Entretien | **High-tech** d'abord (un visiteur sans goûts), puis les mêmes |
+| Recherche, exemples | 5, aucun d'électronique | 5, dont « TV OLED 55 pouces » et « smartphone 5G » |
+| « TV OLED 55 pouces » | « Les téléviseurs ne sont pas encore suivis » | « Téléviseurs OLED », « 55 pouces » : 2 produits, tous OLED de 55 pouces (vérifié dans le catalogue publié) |
+| Affiner, « téléviseur » | — | Rayon (« Téléviseurs 11 », coché), Type (LED 4, OLED 3, QLED 3, Mini LED 1), Caractéristiques (4K 10, HD ou Full HD 1), Taille d'écran (43, 55, 65 pouces), Marque |
+| Fiche d'un téléviseur OLED 55 pouces (1 360 €) | — | « Moins cher, comparable » : un OLED de 55 pouces, « 435 € de moins » ; jamais un QLED, jamais un 65 pouces |
+| Puce « 5G » (un mot court) | — | 44 px de large au moins (37 px au premier audit, corrigé) |
+| Textes sous le contraste minimal · zones à toucher sous 44 px · éléments sans nom | 0 · 0 · 0 (83 écrans) | 0 · 0 · 0 (99 écrans) |
+
+En chemin : le rayon qu'une phrase avait dit (« canapé convertible… ») n'était pas coché quand Affiner dépliait la liste
+des rayons (le focus partait sur « Tous ») ; corrigé (la réponse de la Recherche donne les rayons du domaine). Une
+taille choisie que n'a aucun produit (« 144 Hz et plus ») disait « 0 » alors qu'elle en donnait deux ; corrigé.
+
+Parcours vérifié dans un vrai navigateur (Chromium), 81 étapes, deux passages : la pièce High-tech (un premier
+visiteur : elle ouvre les inspirations ; ses remises, chacune avec son dessin, aucune image extérieure) ; « TV OLED 55
+pouces » et cinq autres phrases d'électronique en puces ; Affiner par type et par taille d'écran ; la fiche d'un
+téléviseur et ses comparables (même type, même taille, vérifiés dans le catalogue) ; une console sans lecteur jamais
+proposée à la place d'une console qui en a un, un smartphone jamais remplacé par moins de stockage ; « canapé
+convertible » lu comme un attribut du rayon ; et les étapes des versions précédentes.
+Planche : `docs/ux/18-v59.png`.

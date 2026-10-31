@@ -1,0 +1,108 @@
+{
+ "schema": 3, "family": "electronique", "label": "Électronique", "version": "3.0.0", "updated": "2026-10-31",
+ "domains": [
+  {"domain": "televiseur", "label": "Téléviseurs", "one": "Téléviseur", "categories": ["televiseur"],
+   "words": ["televiseur", "televiseurs", "tv", "tele", "television", "televisions", "smart tv"],
+   "subcategories": [
+    {"key": "oled", "label": "OLED", "plural": "Téléviseurs OLED", "one": "Téléviseur OLED", "words": ["oled", "tv oled", "televiseurs oled", "televiseur oled"], "match": {"category": ["televiseur"], "any": [{"text": "\\boled\\b"}]}},
+    {"key": "mini_led", "label": "Mini LED", "plural": "Téléviseurs Mini LED", "one": "Téléviseur Mini LED", "words": ["mini led", "tv mini led", "televiseurs mini led", "televiseur mini led"], "match": {"category": ["televiseur"], "any": [{"text": "mini ?led"}]}},
+    {"key": "qled", "label": "QLED", "plural": "Téléviseurs QLED", "one": "Téléviseur QLED", "words": ["qled", "tv qled", "neo qled", "televiseurs qled", "televiseur qled"], "match": {"category": ["televiseur"], "any": [{"text": "\\bqled\\b"}]}},
+    {"key": "led", "label": "LED", "plural": "Téléviseurs LED", "one": "Téléviseur LED", "words": ["led", "tv led", "lcd", "televiseurs led", "televiseur led"], "match": {"category": ["televiseur"], "any": [{"text": "\\bled\\b|\\blcd\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "screen_in", "label": "Taille d'écran", "kind": "measure"},
+    {"key": "uhd", "label": "Définition", "kind": "bool", "yes": "4K", "no": "HD ou Full HD", "words": {"4k": true, "8k": true, "uhd": true, "ultra hd": true, "full hd": false, "hd": false, "hd ou full hd": false}, "text": [{"re": "\\b[48]k\\b|\\buhd\\b|ultra hd|2160p", "value": true}, {"re": "full hd|hd ready|\\bhd\\b|1080p|720p", "value": false}]}
+   ]
+  },
+  {"domain": "smartphone", "label": "Smartphones", "one": "Smartphone", "categories": ["smartphone"],
+   "words": ["smartphone", "smartphones", "telephone", "telephones", "telephone portable", "telephones portables"],
+   "subcategories": [
+    {"key": "pliable", "label": "Pliable", "plural": "Smartphones pliables", "one": "Smartphone pliable", "words": ["pliable", "pliables", "fold", "flip", "smartphones pliables", "smartphone pliable"], "match": {"category": ["smartphone"], "any": [{"text": "pliable|\\bfold\\b|\\bflip\\b"}]}},
+    {"key": "simple", "label": "Téléphone simple", "plural": "Téléphones simples", "one": "Téléphone simple", "words": ["senior", "a clapet", "clapet", "mobile senior", "telephones simples", "telephone simple"], "match": {"category": ["smartphone"], "any": [{"text": "senior|clapet|telephone (?:basique|simple)"}]}}
+   ],
+   "attributes": [
+    {"key": "storage_gb", "label": "Stockage", "kind": "measure"},
+    {"key": "network_5g", "label": "Réseau", "kind": "bool", "yes": "5G", "no": "4G", "words": {"5g": true, "4g": false}, "text": [{"re": "\\b5g\\b", "value": true}, {"re": "\\b4g\\b", "value": false}]}
+   ]
+  },
+  {"domain": "ordinateur_portable", "label": "Ordinateurs portables", "one": "Ordinateur portable", "categories": ["ordinateur_portable"],
+   "words": ["ordinateur portable", "ordinateurs portables", "pc portable", "pc portables", "laptop", "ordi", "ordi portable"],
+   "subcategories": [
+    {"key": "gamer", "label": "Gamer", "plural": "PC portables gamer", "one": "PC portable gamer", "words": ["gamer", "gaming", "pc portables gamer", "pc portable gamer"], "match": {"category": ["ordinateur_portable"], "any": [{"text": "\\bgamer\\b|gaming"}]}},
+    {"key": "deux_en_un", "label": "2 en 1", "plural": "PC portables 2 en 1", "one": "PC portable 2 en 1", "words": ["2 en 1", "convertible", "detachable", "pc portables 2 en 1", "pc portable 2 en 1"], "match": {"category": ["ordinateur_portable"], "any": [{"text": "\\b2 en 1\\b|convertible|detachable"}]}},
+    {"key": "chromebook", "label": "Chromebook", "plural": "Chromebooks", "one": "Chromebook", "words": ["chromebook", "chromebooks"], "match": {"category": ["ordinateur_portable"], "any": [{"text": "chromebook"}]}},
+    {"key": "ultraportable", "label": "Ultraportable", "plural": "Ultraportables", "one": "Ultraportable", "words": ["ultraportable", "ultraportables", "ultrabook", "ultra fin"], "match": {"category": ["ordinateur_portable"], "any": [{"text": "ultra ?portable|ultrabook|ultra fin"}]}}
+   ],
+   "attributes": [
+    {"key": "screen_in", "label": "Taille d'écran", "kind": "measure"},
+    {"key": "ram_gb", "label": "Mémoire vive", "kind": "measure"}
+   ]
+  },
+  {"domain": "tablette", "label": "Tablettes", "one": "Tablette", "categories": ["tablette"],
+   "words": ["tablette", "tablettes", "tablette tactile", "tablettes tactiles"],
+   "subcategories": [
+    {"key": "enfant", "label": "Enfant", "plural": "Tablettes enfant", "one": "Tablette enfant", "words": ["enfant", "enfants", "kids", "junior", "tablettes enfant", "tablette enfant"], "match": {"category": ["tablette"], "any": [{"text": "\\benfants?\\b|\\bkids?\\b|junior"}]}}
+   ],
+   "attributes": [
+    {"key": "screen_in", "label": "Taille d'écran", "kind": "measure"},
+    {"key": "storage_gb", "label": "Stockage", "kind": "measure"}
+   ]
+  },
+  {"domain": "casque_audio", "label": "Casques et écouteurs", "one": "Casque audio", "categories": ["casque_audio"],
+   "words": ["casque audio", "casques audio"],
+   "subcategories": [
+    {"key": "ecouteurs", "label": "Écouteurs", "plural": "Écouteurs", "one": "Écouteurs", "words": ["ecouteurs", "ecouteur", "intra", "intra auriculaires", "true wireless", "tws", "earbuds"], "match": {"category": ["casque_audio"], "any": [{"text": "ecouteur|\\bintra\\b|true wireless|\\btws\\b|earbuds|in ear"}]}},
+    {"key": "casque", "label": "Casque", "plural": "Casques", "one": "Casque", "words": ["casque", "casques", "arceau", "circum auriculaire", "supra auriculaire"], "match": {"category": ["casque_audio"], "any": [{"text": "\\bcasques?\\b|arceau|circum|supra|over ear"}]}}
+   ],
+   "attributes": [
+    {"key": "anc", "label": "Réduction de bruit", "kind": "bool", "yes": "Réduction de bruit", "no": "Sans réduction de bruit", "words": {"reduction de bruit": true, "anc": true, "antibruit": true, "anti bruit": true, "sans reduction de bruit": false}, "text": [{"re": "sans reduction de bruit", "value": false}, {"re": "reduction (?:active )?(?:de |du )?bruit|\\banc\\b|noise cancel|antibruit|anti bruit", "value": true}]},
+    {"key": "cordless", "label": "Connexion", "kind": "bool", "yes": "Sans fil", "no": "Filaire", "words": {"sans fil": true, "bluetooth": true, "filaire": false, "filaires": false, "avec fil": false}, "text": [{"re": "sans fil|bluetooth|true wireless|\\btws\\b|wireless", "value": true}, {"re": "filaire|avec fil|\\bjack\\b", "value": false}]}
+   ]
+  },
+  {"domain": "enceinte", "label": "Enceintes", "one": "Enceinte", "categories": ["enceinte"],
+   "words": ["enceinte", "enceintes", "haut parleur"],
+   "subcategories": [
+    {"key": "barre_de_son", "label": "Barre de son", "plural": "Barres de son", "one": "Barre de son", "words": ["barre de son", "barres de son", "soundbar"], "match": {"category": ["enceinte"], "any": [{"text": "barres? de son|soundbar"}]}, "attributes": ["dolby_atmos"]},
+    {"key": "connectee", "label": "Connectée", "plural": "Enceintes connectées", "one": "Enceinte connectée", "words": ["connectee", "connectees", "assistant vocal", "wifi", "wi fi", "multiroom", "enceintes connectees", "enceinte connectee"], "match": {"category": ["enceinte"], "any": [{"text": "connectee|assistant vocal|\\bwi ?fi\\b|multi ?room"}]}, "attributes": ["waterproof"]},
+    {"key": "portable", "label": "Portable", "plural": "Enceintes portables", "one": "Enceinte portable", "words": ["portable", "portables", "nomade", "bluetooth", "enceintes portables", "enceinte portable"], "match": {"category": ["enceinte"], "any": [{"text": "portable|nomade|bluetooth|outdoor"}]}, "attributes": ["waterproof"]}
+   ],
+   "attributes": [
+    {"key": "waterproof", "label": "Étanchéité", "kind": "bool", "yes": "Étanche", "no": "Non étanche", "words": {"etanche": true, "waterproof": true, "non etanche": false}, "text": [{"re": "non etanche", "value": false}, {"re": "etanche|\\bip ?6[5-8]\\b|\\bipx ?[4-8]\\b|waterproof", "value": true}]},
+    {"key": "dolby_atmos", "label": "Son", "kind": "bool", "yes": "Dolby Atmos", "no": "Sans Dolby Atmos", "words": {"dolby atmos": true, "atmos": true, "sans dolby atmos": false}, "text": [{"re": "dolby atmos|\\batmos\\b", "value": true}]}
+   ]
+  },
+  {"domain": "montre_connectee", "label": "Montres connectées", "one": "Montre connectée", "categories": ["montre_connectee"],
+   "words": ["montre connectee", "montres connectees", "montre", "montres", "smartwatch"],
+   "subcategories": [
+    {"key": "bracelet", "label": "Bracelet", "plural": "Bracelets connectés", "one": "Bracelet connecté", "words": ["bracelet", "bracelets", "bracelet connecte", "tracker", "bracelets connectes"], "match": {"category": ["montre_connectee"], "any": [{"text": "bracelet|tracker|traqueur"}]}},
+    {"key": "sport", "label": "Sport", "plural": "Montres de sport", "one": "Montre de sport", "words": ["montre sport", "montre de sport", "running", "multisport", "montres de sport"], "match": {"category": ["montre_connectee"], "any": [{"text": "running|multisport|outdoor|\\btrail\\b|triathlon|montre (?:de )?sport"}]}}
+   ],
+   "attributes": [
+    {"key": "gps", "label": "GPS", "kind": "bool", "yes": "GPS", "no": "Sans GPS", "words": {"gps": true, "sans gps": false}, "text": [{"re": "sans gps", "value": false}, {"re": "\\bgps\\b", "value": true}]},
+    {"key": "cellular", "label": "Réseau mobile", "kind": "bool", "yes": "4G / eSIM", "no": "Sans réseau mobile", "words": {"4g": true, "esim": true, "lte": true, "cellular": true, "4g esim": true, "sans reseau mobile": false}, "text": [{"re": "\\blte\\b|\\b[45]g\\b|cellular|cellulaire|\\besim\\b|\\be sim\\b", "value": true}]}
+   ]
+  },
+  {"domain": "console", "label": "Consoles de jeux", "one": "Console de jeux", "categories": ["console"],
+   "words": ["console", "consoles", "console de jeux", "console de jeu", "consoles de jeux"],
+   "subcategories": [
+    {"key": "portable", "label": "Portable", "plural": "Consoles portables", "one": "Console portable", "words": ["portable", "portables", "hybride", "consoles portables", "console portable"], "match": {"category": ["console"], "any": [{"text": "portable|hybride|handheld"}]}},
+    {"key": "salon", "label": "De salon", "plural": "Consoles de salon", "one": "Console de salon", "words": ["console de salon", "consoles de salon"], "match": {"category": ["console"], "any": [{"text": "\\bsalon\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "digital", "label": "Lecteur", "kind": "bool", "yes": "Édition numérique", "no": "Avec lecteur", "words": {"numerique": true, "digital": true, "digitale": true, "edition numerique": true, "edition digitale": true, "avec lecteur": false}, "text": [{"re": "digital|edition numerique|version numerique|sans lecteur", "value": true}, {"re": "avec lecteur|lecteur (?:blu ?ray|de disques?)|edition standard", "value": false}], "compare": "less"},
+    {"key": "storage_gb", "label": "Stockage", "kind": "measure"}
+   ]
+  },
+  {"domain": "ecran_pc", "label": "Écrans PC", "one": "Écran PC", "categories": ["ecran_pc"],
+   "words": ["ecran pc", "ecrans pc", "ecran", "ecrans", "moniteur", "moniteurs", "ecran ordinateur"],
+   "subcategories": [
+    {"key": "gaming", "label": "Gaming", "plural": "Écrans gaming", "one": "Écran gaming", "words": ["gaming", "gamer", "ecrans gaming", "ecran gaming"], "match": {"category": ["ecran_pc"], "any": [{"text": "gaming|\\bgamer\\b"}]}},
+    {"key": "incurve", "label": "Incurvé", "plural": "Écrans incurvés", "one": "Écran incurvé", "words": ["incurve", "incurves", "curved", "ecrans incurves", "ecran incurve"], "match": {"category": ["ecran_pc"], "any": [{"text": "incurve|curved"}]}}
+   ],
+   "attributes": [
+    {"key": "screen_in", "label": "Taille d'écran", "kind": "measure"},
+    {"key": "refresh_hz", "label": "Fréquence", "kind": "measure"}
+   ]
+  }
+ ]
+}

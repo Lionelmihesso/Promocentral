@@ -37,14 +37,22 @@ from deals.store import Store  # noqa: E402
 K, SHOWN = 12, 60
 # les exemples proposés par la Recherche (web/src/App.jsx, TRY) et quelques recherches courtes
 EXTRA = [
-    ("aspirateur balai", ("aspirateur", None, ["balai"], {}, None)),
-    ("lave-linge 9 kg", ("lave_linge", None, [], {"capacity_kg": 9}, None)),
-    ("matelas 160x200", ("matelas", None, [], {"bed_size": "160x200"}, None)),
-    ("canapé d'angle", ("canape", None, ["angle"], {}, None)),
-    ("réfrigérateur", ("refrigerateur", None, [], {}, None)),
-    ("canapés", ("canape", None, [], {}, None)),
+    ("aspirateur balai", (None, None, [], {}, None, {"domain": "aspirateurs", "sub": "balai"})),
+    ("lave-linge 9 kg", (None, None, [], {"capacity_kg": 9}, None, {"domain": "lave_linge"})),
+    ("matelas 160x200", (None, None, [], {"bed_size": "160x200"}, None, {"domain": "matelas"})),
+    ("canapé d'angle", (None, None, [], {}, None, {"domain": "canape", "sub": "angle"})),
+    ("réfrigérateur", (None, None, [], {}, None, {"domain": "refrigerateur"})),
+    ("canapés", (None, None, [], {}, None, {"domain": "canape"})),
     ("Nordvik", (None, "Nordvik", [], {}, None)),
-    ("lave vaisselle encastrable", ("lave_vaisselle", None, ["encastrable"], {}, None)),
+    ("lave vaisselle encastrable", (None, None, [], {}, None, {"domain": "lave_vaisselle", "sub": "encastrable"})),
+    # v59 : l'électronique (les exemples de la Recherche, des recherches courtes)
+    ("TV 55 pouces", (None, None, [], {"screen_in": 55}, None, {"domain": "televiseur"})),
+    ("TV OLED", (None, None, [], {}, None, {"domain": "televiseur", "sub": "oled"})),
+    ("smartphone 5G", (None, None, [], {}, None, {"domain": "smartphone", "props": {"network_5g": True}})),
+    ("casque sans fil", (None, None, [], {}, None, {"domain": "casque_audio", "sub": "casque", "props": {"cordless": True}})),
+    ("PC portable", (None, None, [], {}, None, {"domain": "ordinateur_portable"})),
+    ("console", (None, None, [], {}, None, {"domain": "console"})),
+    ("high-tech", (None, None, [], {}, None, {"room": "high_tech"})),
 ]
 
 

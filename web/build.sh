@@ -21,7 +21,7 @@ OUT="$(mktemp -d)"
   printf '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
   printf '<meta name="theme-color" content="#FFFFFF"><title>Deals — de bonnes affaires, pour vos envies</title>\n'
   printf '%s\n' "<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M9 8h5.5a8 8 0 0 1 0 16H9z' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Ccircle cx='25' cy='23.5' r='2.6' fill='%23FF6A3D'/%3E%3C/svg%3E\">"
-  printf '<meta name="description" content="Les vraies remises du jour sur l\x27électroménager, l\x27ameublement et la literie, avec le prix des 90 derniers jours, ce qui coûte moins cher et une alerte quand votre prix est atteint.">\n'
+  printf '<meta name="description" content="Les vraies remises du jour sur l\x27électroménager, l\x27électronique, l\x27ameublement et la literie, avec le prix des 90 derniers jours, ce qui coûte moins cher et une alerte quand votre prix est atteint.">\n'
   printf '<style>'
   face Manrope "200 800" manrope-latin.woff
   face '"Instrument Serif"' 400 instrumentserif-regular-latin.woff

@@ -8,8 +8,9 @@ critères qu'on modifie d'un geste, et une recherche se **sauvegarde** — DEALS
 (une **mission**, avec un e-mail la nuit si on le souhaite). Tout se garde **sans e-mail** (favoris, marques, rayons,
 recherches, alertes de prix) ; l'e-mail, facultatif, sert aux alertes et à retrouver ses choix sur un autre appareil.
 
-Trois familles chères, où une remise compte : **électroménager (aspirateurs compris), ameublement, literie**. Une collecte par nuit,
-aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
+Quatre familles chères, où une remise compte : **électroménager (aspirateurs compris), électronique (téléviseurs,
+smartphones, ordinateurs, tablettes, casques, enceintes, montres, consoles, écrans), ameublement, literie**. Une collecte
+par nuit, aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
 
 **Modèle d'affiliation** : seules les offres d'enseignes partenaires sont montrées ; chaque clic part par leur lien
 affilié avec son identifiant, qui revient dans les rapports du réseau (la vente se rattache à l'écran, à la mission, à
@@ -32,14 +33,15 @@ dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 41 phra
 impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). Règles et mesures :
 [`docs/RECHERCHE.md`](docs/RECHERCHE.md).
 
-**Une ontologie simple, bâtie sur ce que donnent les flux (v58)** : pour les aspirateurs, domaine pilote, trois niveaux
-seulement — la catégorie, le type (balai, traîneau, robot, laveur, à main) et deux attributs (sans fil, sans sac) —, lus
-dans ce que l'enseigne donne de son offre par son flux affilié ou son API : le titre et sa catégorie (« Électroménager >
-Aspirateur > Aspirateur balai »). Rien n'est rédigé ni deviné : ce que l'offre ne dit pas reste inconnu (un robot, lui,
-est toujours sans fil et sans sac). « aspirateur balai sans fil » devient deux puces ; Affiner propose le type puis sans
-fil, sans sac, chacun avec ce qu'il donnerait. Sur 160 aspirateurs écrits comme un flux, le type est lu juste 149 fois
-sur 149 quand l'offre le dit (137 en v57), jamais deviné ; les accessoires (sacs, batteries, station de vidage) restent
-hors du rayon. Ontologie et mesures : [`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
+**Une ontologie pour chaque rayon, bâtie sur ce que donnent les flux (v58, v59)** : trois niveaux seulement — la
+catégorie, le type (OLED ou QLED, hublot ou top, balai ou robot, d'angle…) et un ou deux attributs (4K, 5G, sans fil,
+No Frost ; une taille d'écran, une capacité) —, lus dans ce que l'enseigne donne de son offre par son flux affilié ou son
+API : le titre et sa catégorie (« TV - Vidéo > Téléviseurs > TV QLED »). Rien n'est rédigé ni deviné : ce que l'offre
+ne dit pas reste inconnu. « TV OLED 55 pouces » devient deux puces ; Affiner propose le type, les attributs et les
+tailles, chacun avec ce qu'il donnerait ; « Moins cher, comparable » ne remplace un téléviseur OLED de 55 pouces que par
+un OLED de 55 pouces. Sur 146 produits et 41 pièges écrits comme des flux, tout est rangé et lu juste, rien de deviné
+(v58 : 98 rangés, l'électronique pas du tout) ; sur 52 offres inédites, 49 rangées à la première lecture, 52 après
+correction. Ontologie et mesures : [`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
@@ -53,7 +55,7 @@ injectées : [`docs/AUTONOMIE.md`](docs/AUTONOMIE.md) ; que faire pour chaque in
 
 ## Commandes
 ```
-python deals.py demo                         app sur http://127.0.0.1:8000/ : 75 nuits de marché simulé, 84 produits
+python deals.py demo                         app sur http://127.0.0.1:8000/ : 75 nuits de marché simulé, 127 produits
 python deals.py serve                        l'app et /api/r/ (en production derrière Caddy, voir deploy/)
 python deals.py nightly                      la nuit : collecte → agent → publication → e-mails des missions → contrôles →
                                              rapport du matin → e-mail au responsable s'il y a lieu
@@ -89,9 +91,10 @@ avec ce qu'on retire en la fermant), `words` (les mots qui filtrent), `ignored` 
 `unsupported` (un rayon pas encore suivi), `relaxed` (rien sous le budget : les plus proches au-dessus, dès quel prix),
 `options` (Affiner : fonctions, tailles et marques du rayon ou de la pièce, avec ce que chacune donnerait), `categories`
 (les catégories trouvées et leur nombre), `offs` (les produits de chaque palier de promo) ; sans mot ni filtre, le feed,
-orienté par `recent` : les dernières recherches gardées par le navigateur, séparées par `|` ; v58, dans un domaine
-qui a son ontologie : `domain=aspirateurs&sub=balai&prop=cordless:1` — le type, les attributs exigés `clé:1` ou
-`clé:0` — et la réponse dit `domain`, et dans `options` (Affiner) `subs` (les types, nom court, les plus fournis
+orienté par `recent` : les dernières recherches gardées par le navigateur, séparées par `|` ; dans un rayon et son
+ontologie (v58 : les aspirateurs ; v59 : tous) : `domain=aspirateurs&sub=balai&prop=cordless:1` — le type, les
+attributs oui/non exigés `clé:1` ou `clé:0`, les mesures en `attr` (`screen_in:55`, `storage_gb:256`) — et la réponse
+dit `domain` (avec ses rayons), et dans `options` (Affiner) `subs` (les types, nom court, les plus fournis
 d'abord) et `props` (sans fil, sans sac : oui ou non, avec ce que chacun donnerait)),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
 leurs produits, remises d'abord), `item/<id>`,
@@ -175,16 +178,17 @@ ouvert).
   croissant ou par remise ; insensible aux accents, à la casse et aux tirets, synonymes courants (frigo, sofa, aspi…).
   Jamais vide : sans mot ni filtre, un feed (les produits des quatre dernières recherches d'abord, puis ceux de vos
   rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue, une catégorie à tour de rôle).
-- **Aspirateurs (v58, domaine à ontologie)** : le type et deux attributs (sans fil, sans sac) lus dans le titre de
-  l'offre et la catégorie déclarée par l'enseigne, le plus précis des types d'abord (un « balai laveur » est un laveur) ;
-  un attribut que l'offre ne dit pas reste inconnu, et une recherche ne le promet pas ; ce qu'un type est par définition
-  (un robot est sans fil et sans sac) ne remplace jamais ce que l'offre dit. La catégorie déclarée est gardée et relue à
-  chaque publication : une ontologie révisée s'applique sans relire les offres (`deals/ontology/aspirateurs.json`,
-  `docs/ONTOLOGIE.md`).
+- **Chaque rayon a son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise)** : le type et un ou deux
+  attributs lus dans le titre de l'offre et la catégorie déclarée par l'enseigne, le plus précis des types d'abord (un
+  « balai laveur » est un laveur) ; un niveau de catégorie qui en nomme plusieurs (« Casques et écouteurs ») n'en dit
+  aucun ; un attribut que l'offre ne dit pas reste inconnu, et une recherche ne le promet pas ; ce qu'un type est par
+  définition (un robot est sans fil) ne remplace jamais ce que l'offre dit. La catégorie déclarée est gardée et relue à
+  chaque publication : une ontologie révisée s'applique sans relire les offres (`deals/ontology/*.json`, un fichier par
+  famille ; `docs/ONTOLOGIE.md`).
 - **Marque et catégorie** (fiche) : deux étiquettes sur le visuel, qui mènent à tous les produits de la marque ou de la
   catégorie, les remises d'abord, même sans remise aujourd'hui.
 - **Recherches sauvegardées et alertes de prix (missions)** : une recherche sauvegardée (prix maximum facultatif), ou
-  une alerte sur un produit ou ses comparables (même catégorie, mêmes fonctions, même taille ou capacité). Chacune dit ce
+  une alerte sur un produit ou ses comparables (même rayon, même type, ses attributs, même taille d'écran ou capacité). Chacune dit ce
   qui y répond et ce qui est nouveau depuis qu'on l'a ouverte (un produit arrivé, ou moins cher d'au moins 0,50 €) ; la
   rouvrir l'oublie. Ce qui est dit est exigé, ce qui ne l'est pas ne l'est pas : catégorie,
   marque, fonctions (balai, sans fil…), capacité, couverts, foyers, places, volume, autonomie au moins ; taille de
@@ -239,7 +243,7 @@ Recherche), Recherche (une phrase comprise en puces, Affiner, Sauvegarder ; vos 
 un feed qui s'adapte), Profil, le centre de commande (vos recherches et alertes, favoris, marques, rayons — repliés,
 ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres seuls, beaucoup d'air) ;
 « Comment ça marche » au pied de chaque écran ; espaces insécables du français dans les textes.
-Principe, écrans et mesures v41 à v58 : [`docs/UX.md`](docs/UX.md).
+Principe, écrans et mesures v41 à v59 : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 
@@ -330,12 +334,12 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
   exactement ce qui a été compris. Pas de correction des fautes de frappe (« aspirateru ») ni de synonymes appris : une
   liste écrite (`SLANG`, `deals/query.py`). Un produit dont le titre ne dit pas une fonction (« balai ») n'y répond pas :
   pas de promesse sur ce qui n'est pas lu.
-- Aspirateurs (v58) : un seul domaine a son ontologie ; ailleurs, la Recherche de la v56. Seulement ce que le titre et
-  la catégorie déclarée disent : une offre qui ne dit ni le type ni « sans fil » n'est trouvée que par « aspirateur ».
-  Des règles écrites à la main, en français (« cordless » n'est pas lu). Le banc a une vérité et des offres écrites par
-  le même auteur que les règles, et ses 31 offres « comme dans les flux » ont servi à corriger trois écarts : la lecture
-  sur de vrais flux reste à mesurer, sur un échantillon réel (`sample`). Pas de besoin compris (« pour mon chat ») :
-  le mot est dit sans résultat, rien n'est supposé.
+- Ontologie (v59) : seulement ce que le titre et la catégorie déclarée disent : une offre qui ne dit ni le type ni ses
+  attributs n'est trouvée que par son rayon. Des règles écrites à la main, en français (« cordless » n'est pas lu). Les
+  bancs ont une vérité et des offres écrites par le même auteur que les règles (les 64 offres inédites aussi, écrites
+  après) : la lecture sur de vrais flux reste à mesurer, sur un échantillon réel de chaque enseigne (`sample`). Pas de
+  besoin compris (« pour mon chat ») : le mot est dit sans résultat, rien n'est supposé.
 - Alternatives : jugées sur ce que disent le titre et les caractéristiques déclarées par l'enseigne ; un critère absent
   des deux (puissance d'aspiration, matériaux, finition) n'est pas comparé. Un produit sans comparable dans le
-  catalogue n'a pas de section (sur la démo de 84 produits, 26 fiches ; sur 3 000 produits, aucune).
+  catalogue n'a pas de section (sur la démo de 127 produits, 46 fiches ; sur 3 000 produits, aucune) ; un produit dont le
+  type n'est pas dit n'est comparé qu'à ceux qui ne le disent pas non plus.

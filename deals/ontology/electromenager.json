@@ -1,0 +1,140 @@
+{
+ "schema": 3, "family": "electromenager", "label": "Électroménager", "version": "3.0.0", "updated": "2026-10-31",
+ "domains": [
+  {"domain": "lave_linge", "label": "Lave-linge", "one": "Lave-linge", "categories": ["lave_linge"],
+   "words": ["lave linge", "machine a laver", "machines a laver"],
+   "subcategories": [
+    {"key": "hublot", "label": "Hublot", "plural": "Lave-linge hublot", "one": "Lave-linge hublot", "words": ["hublot", "chargement frontal", "frontal", "lave linge hublot"], "match": {"category": ["lave_linge"], "any": [{"text": "\\bhublot\\b|chargement frontal|\\bfrontal\\b"}]}},
+    {"key": "top", "label": "Top", "plural": "Lave-linge top", "one": "Lave-linge top", "words": ["lave linge top", "chargement par le dessus", "ouverture par le dessus"], "match": {"category": ["lave_linge"], "any": [{"text": "\\btop\\b|chargement par le dessus|ouverture (?:par le )?dessus"}]}}
+   ],
+   "attributes": [
+    {"key": "capacity_kg", "label": "Capacité", "kind": "measure"},
+    {"key": "energy_class", "label": "Classe énergie", "kind": "measure"}
+   ]
+  },
+  {"domain": "lave_linge_sechant", "label": "Lave-linge séchants", "one": "Lave-linge séchant", "categories": ["lave_linge_sechant"],
+   "words": ["lave linge sechant", "lave linge sechants", "lavante sechante", "lavantes sechantes"],
+   "subcategories": [],
+   "attributes": [
+    {"key": "capacity_kg", "label": "Capacité", "kind": "measure"},
+    {"key": "energy_class", "label": "Classe énergie", "kind": "measure"}
+   ]
+  },
+  {"domain": "seche_linge", "label": "Sèche-linge", "one": "Sèche-linge", "categories": ["seche_linge"],
+   "words": ["seche linge"],
+   "subcategories": [
+    {"key": "pompe_chaleur", "label": "Pompe à chaleur", "plural": "Sèche-linge pompe à chaleur", "one": "Sèche-linge pompe à chaleur", "words": ["pompe a chaleur", "pac", "seche linge pompe a chaleur"], "match": {"category": ["seche_linge"], "any": [{"text": "pompe a chaleur|\\bpac\\b"}]}},
+    {"key": "condensation", "label": "Condensation", "plural": "Sèche-linge à condensation", "one": "Sèche-linge à condensation", "words": ["condensation", "a condensation", "seche linge a condensation"], "match": {"category": ["seche_linge"], "any": [{"text": "condensation"}]}},
+    {"key": "evacuation", "label": "Évacuation", "plural": "Sèche-linge à évacuation", "one": "Sèche-linge à évacuation", "words": ["evacuation", "a evacuation", "seche linge a evacuation"], "match": {"category": ["seche_linge"], "any": [{"text": "evacuation"}]}}
+   ],
+   "attributes": [
+    {"key": "capacity_kg", "label": "Capacité", "kind": "measure"},
+    {"key": "energy_class", "label": "Classe énergie", "kind": "measure"}
+   ]
+  },
+  {"domain": "lave_vaisselle", "label": "Lave-vaisselle", "one": "Lave-vaisselle", "categories": ["lave_vaisselle"],
+   "words": ["lave vaisselle"],
+   "subcategories": [
+    {"key": "encastrable", "label": "Encastrable", "plural": "Lave-vaisselle encastrables", "one": "Lave-vaisselle encastrable", "words": ["encastrable", "encastrables", "integrable", "tout integrable", "semi integrable", "lave vaisselle encastrables", "lave vaisselle encastrable"], "match": {"category": ["lave_vaisselle"], "any": [{"text": "encastrable|integrable|\\bintegre\\b"}]}},
+    {"key": "compact", "label": "Compact", "plural": "Lave-vaisselle compacts", "one": "Lave-vaisselle compact", "words": ["compact", "compacts", "mini lave vaisselle", "lave vaisselle compacts", "lave vaisselle compact"], "match": {"category": ["lave_vaisselle"], "any": [{"text": "\\bcompacts?\\b|\\bmini\\b|table top"}]}},
+    {"key": "pose_libre", "label": "Pose libre", "plural": "Lave-vaisselle pose libre", "one": "Lave-vaisselle pose libre", "words": ["pose libre", "posable", "posables", "lave vaisselle pose libre"], "match": {"category": ["lave_vaisselle"], "any": [{"text": "pose libre|posable|free ?standing"}]}}
+   ],
+   "attributes": [
+    {"key": "place_settings", "label": "Couverts", "kind": "measure"},
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"}
+   ]
+  },
+  {"domain": "refrigerateur", "label": "Réfrigérateurs", "one": "Réfrigérateur", "categories": ["refrigerateur"],
+   "words": ["refrigerateur", "refrigerateurs", "frigo", "frigos"],
+   "subcategories": [
+    {"key": "americain", "label": "Américain", "plural": "Réfrigérateurs américains", "one": "Réfrigérateur américain", "words": ["americain", "americains", "side by side", "refrigerateurs americains", "refrigerateur americain"], "match": {"category": ["refrigerateur"], "any": [{"text": "\\bamericains?\\b|side by side"}]}},
+    {"key": "multi_portes", "label": "Multi-portes", "plural": "Réfrigérateurs multi-portes", "one": "Réfrigérateur multi-portes", "words": ["multi portes", "multiportes", "french door", "refrigerateurs multi portes", "refrigerateur multi portes"], "match": {"category": ["refrigerateur"], "any": [{"text": "multi ?portes?|french door|\\b[34] portes\\b"}]}},
+    {"key": "combine", "label": "Combiné", "plural": "Réfrigérateurs combinés", "one": "Réfrigérateur combiné", "words": ["combine", "combines", "refrigerateurs combines", "refrigerateur combine"], "match": {"category": ["refrigerateur"], "any": [{"text": "\\bcombines?\\b|congelateur en bas"}]}},
+    {"key": "deux_portes", "label": "2 portes", "plural": "Réfrigérateurs 2 portes", "one": "Réfrigérateur 2 portes", "words": ["2 portes", "deux portes", "double porte", "refrigerateurs 2 portes", "refrigerateur 2 portes"], "match": {"category": ["refrigerateur"], "any": [{"text": "\\b2 portes\\b|deux portes|double porte|congelateur en haut"}]}},
+    {"key": "une_porte", "label": "1 porte", "plural": "Réfrigérateurs 1 porte", "one": "Réfrigérateur 1 porte", "words": ["1 porte", "une porte", "table top", "refrigerateurs 1 porte", "refrigerateur 1 porte"], "match": {"category": ["refrigerateur"], "any": [{"text": "\\b1 porte\\b|une porte|table top|\\btop\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "volume_l", "label": "Volume", "kind": "measure"},
+    {"key": "no_frost", "label": "Froid", "kind": "bool", "yes": "No Frost", "no": "Froid statique", "words": {"no frost": true, "froid ventile": true, "froid statique": false}, "text": [{"re": "\\bno ?frost\\b|froid ventile", "value": true}, {"re": "froid statique|low frost", "value": false}]}
+   ]
+  },
+  {"domain": "congelateur", "label": "Congélateurs", "one": "Congélateur", "categories": ["congelateur"],
+   "words": ["congelateur", "congelateurs", "congelo"],
+   "subcategories": [
+    {"key": "armoire", "label": "Armoire", "plural": "Congélateurs armoire", "one": "Congélateur armoire", "words": ["armoire", "vertical", "congelateurs armoire", "congelateur armoire"], "match": {"category": ["congelateur"], "any": [{"text": "\\barmoire\\b|vertical"}]}},
+    {"key": "coffre", "label": "Coffre", "plural": "Congélateurs coffre", "one": "Congélateur coffre", "words": ["coffre", "horizontal", "congelateurs coffre", "congelateur coffre"], "match": {"category": ["congelateur"], "any": [{"text": "\\bcoffre\\b|horizontal"}]}},
+    {"key": "table_top", "label": "Table top", "plural": "Congélateurs table top", "one": "Congélateur table top", "words": ["table top", "congelateur top", "congelateurs table top", "congelateur table top"], "match": {"category": ["congelateur"], "any": [{"text": "table top|\\btop\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "volume_l", "label": "Volume", "kind": "measure"},
+    {"key": "no_frost", "label": "Froid", "kind": "bool", "yes": "No Frost", "no": "Froid statique", "words": {"no frost": true, "froid ventile": true, "froid statique": false}, "text": [{"re": "\\bno ?frost\\b|froid ventile", "value": true}, {"re": "froid statique|low frost", "value": false}]}
+   ]
+  },
+  {"domain": "four", "label": "Fours", "one": "Four", "categories": ["four"],
+   "words": ["four", "fours"],
+   "subcategories": [
+    {"key": "encastrable", "label": "Encastrable", "plural": "Fours encastrables", "one": "Four encastrable", "words": ["encastrable", "encastrables", "fours encastrables", "four encastrable"], "match": {"category": ["four"], "any": [{"text": "encastrable"}]}},
+    {"key": "pose_libre", "label": "Posable", "plural": "Fours posables", "one": "Four posable", "words": ["posable", "posables", "pose libre", "fours posables", "four posable"], "match": {"category": ["four"], "any": [{"text": "posable|pose libre"}]}}
+   ],
+   "attributes": [
+    {"key": "pyrolyse", "label": "Nettoyage", "kind": "bool", "yes": "Pyrolyse", "no": "Sans pyrolyse", "words": {"pyrolyse": true, "pyrolytique": true, "catalyse": false, "sans pyrolyse": false}, "text": [{"re": "pyroly(?:s|tique)", "value": true}, {"re": "catalys|hydrolys|email lisse", "value": false}]},
+    {"key": "volume_l", "label": "Volume", "kind": "measure"}
+   ]
+  },
+  {"domain": "plaque_cuisson", "label": "Plaques de cuisson", "one": "Plaque de cuisson", "categories": ["plaque_cuisson"],
+   "words": ["plaque de cuisson", "plaques de cuisson", "table de cuisson", "tables de cuisson", "plaque", "plaques"],
+   "subcategories": [
+    {"key": "mixte", "label": "Mixte", "plural": "Plaques mixtes", "one": "Plaque mixte", "words": ["mixte", "mixtes", "plaques mixtes", "plaque mixte"], "match": {"category": ["plaque_cuisson"], "any": [{"text": "\\bmixtes?\\b|induction et gaz|gaz et induction|gaz induction|induction gaz"}]}},
+    {"key": "induction", "label": "Induction", "plural": "Plaques induction", "one": "Plaque induction", "words": ["induction", "a induction", "plaques induction", "plaque induction"], "match": {"category": ["plaque_cuisson"], "any": [{"text": "induction"}]}},
+    {"key": "vitroceramique", "label": "Vitrocéramique", "plural": "Plaques vitrocéramiques", "one": "Plaque vitrocéramique", "words": ["vitroceramique", "vitro", "radiant", "plaques vitroceramiques", "plaque vitroceramique"], "match": {"category": ["plaque_cuisson"], "any": [{"text": "vitroceramique|\\bvitro\\b|radiant"}]}},
+    {"key": "gaz", "label": "Gaz", "plural": "Plaques gaz", "one": "Plaque gaz", "words": ["gaz", "au gaz", "plaques gaz", "plaque gaz"], "match": {"category": ["plaque_cuisson"], "any": [{"text": "\\bgaz\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "zones", "label": "Foyers", "kind": "measure"},
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"}
+   ]
+  },
+  {"domain": "hotte", "label": "Hottes", "one": "Hotte", "categories": ["hotte"],
+   "words": ["hotte", "hottes"],
+   "subcategories": [
+    {"key": "ilot", "label": "Îlot", "plural": "Hottes îlot", "one": "Hotte îlot", "words": ["ilot", "hottes ilot", "hotte ilot"], "match": {"category": ["hotte"], "any": [{"text": "\\bilot\\b"}]}},
+    {"key": "plan_travail", "label": "Plan de travail", "plural": "Hottes plan de travail", "one": "Hotte plan de travail", "words": ["plan de travail", "hottes plan de travail", "hotte plan de travail"], "match": {"category": ["hotte"], "any": [{"text": "plan de travail"}]}},
+    {"key": "plafond", "label": "Plafond", "plural": "Hottes plafond", "one": "Hotte plafond", "words": ["plafond", "plafonniere", "hottes plafond", "hotte plafond"], "match": {"category": ["hotte"], "any": [{"text": "plafon"}]}},
+    {"key": "tiroir", "label": "Tiroir", "plural": "Hottes tiroir", "one": "Hotte tiroir", "words": ["tiroir", "telescopique", "escamotable", "groupe filtrant", "hottes tiroir", "hotte tiroir"], "match": {"category": ["hotte"], "any": [{"text": "tiroir|telescopique|escamotable|integrable|groupe filtrant"}]}},
+    {"key": "casquette", "label": "Casquette", "plural": "Hottes casquette", "one": "Hotte casquette", "words": ["casquette", "visiere", "hottes casquette", "hotte casquette"], "match": {"category": ["hotte"], "any": [{"text": "casquette|visiere"}]}},
+    {"key": "murale", "label": "Murale", "plural": "Hottes murales", "one": "Hotte murale", "words": ["murale", "murales", "decorative", "pyramidale", "hottes murales", "hotte murale"], "match": {"category": ["hotte"], "any": [{"text": "murale|decorative|pyramid|inclinee|\\bbox\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"}
+   ]
+  },
+  {"domain": "cuisiniere", "label": "Cuisinières", "one": "Cuisinière", "categories": ["cuisiniere"],
+   "words": ["cuisiniere", "cuisinieres"],
+   "subcategories": [
+    {"key": "mixte", "label": "Mixte", "plural": "Cuisinières mixtes", "one": "Cuisinière mixte", "words": ["mixte", "mixtes", "cuisinieres mixtes", "cuisiniere mixte"], "match": {"category": ["cuisiniere"], "any": [{"text": "\\bmixtes?\\b|induction et gaz|gaz et induction|gaz induction|induction gaz"}]}},
+    {"key": "induction", "label": "Induction", "plural": "Cuisinières induction", "one": "Cuisinière induction", "words": ["induction", "a induction", "cuisinieres induction", "cuisiniere induction"], "match": {"category": ["cuisiniere"], "any": [{"text": "induction"}]}},
+    {"key": "vitroceramique", "label": "Vitrocéramique", "plural": "Cuisinières vitrocéramiques", "one": "Cuisinière vitrocéramique", "words": ["vitroceramique", "vitro", "radiant", "cuisinieres vitroceramiques", "cuisiniere vitroceramique"], "match": {"category": ["cuisiniere"], "any": [{"text": "vitroceramique|\\bvitro\\b|radiant"}]}},
+    {"key": "gaz", "label": "Gaz", "plural": "Cuisinières gaz", "one": "Cuisinière gaz", "words": ["gaz", "au gaz", "cuisinieres gaz", "cuisiniere gaz"], "match": {"category": ["cuisiniere"], "any": [{"text": "\\bgaz\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"},
+    {"key": "pyrolyse", "label": "Nettoyage", "kind": "bool", "yes": "Pyrolyse", "no": "Sans pyrolyse", "words": {"pyrolyse": true, "pyrolytique": true, "catalyse": false, "sans pyrolyse": false}, "text": [{"re": "pyroly(?:s|tique)", "value": true}, {"re": "catalys|hydrolys|email lisse", "value": false}]}
+   ]
+  },
+  {"domain": "aspirateurs", "label": "Aspirateurs", "one": "Aspirateur", "categories": ["aspirateur", "robot_aspirateur"],
+   "words": ["aspirateur", "aspirateurs", "aspi", "aspis"],
+   "drops": ["capacity_kg", "place_settings", "seats", "bed_size", "bed_width_cm", "zones", "volume_l", "width_cm", "screen_in", "storage_gb", "noise_db", "weight_kg", "hepa", "motor_brush", "pet_tool", "soft_roller", "handheld", "removable_battery", "dust_l", "reach_m", "power_w", "suction_pa", "suction_aw", "navigation", "mapping", "auto_empty", "mop", "climb_mm", "self_clean", "quiet"],
+   "subcategories": [
+    {"key": "robot", "label": "Robot", "plural": "Robots aspirateurs", "one": "Robot aspirateur", "words": ["robot", "robots", "robot aspirateur", "robots aspirateurs", "aspirateur robot", "aspirateurs robots"], "match": {"category": ["robot_aspirateur"]}, "implies": {"cordless": true, "bagless": true}, "attributes": []},
+    {"key": "laveur", "label": "Laveur", "plural": "Aspirateurs laveurs", "one": "Aspirateur laveur", "words": ["laveur", "laveurs", "aspirateur laveur", "aspirateurs laveurs", "balai laveur", "nettoyeur de sol", "nettoyeur de sols"], "match": {"category": ["aspirateur"], "any": [{"text": "\\blaveur\\b|\\blaveuse\\b|nettoyeurs? de sols?|laveur de sols?"}]}, "implies": {"bagless": true}, "attributes": ["cordless"]},
+    {"key": "main", "label": "À main", "plural": "Aspirateurs à main", "one": "Aspirateur à main", "words": ["aspirateur a main", "aspirateurs a main", "a main", "aspirateur de table", "aspirateur portatif", "aspirette"], "match": {"category": ["aspirateur"], "any": [{"text": "^aspirateurs? a main\\b|^aspirateur de table|^aspirateur portatif|^aspirette"}]}, "implies": {"cordless": true, "bagless": true}, "attributes": []},
+    {"key": "balai", "label": "Balai", "plural": "Aspirateurs balais", "one": "Aspirateur balai", "words": ["balai", "balais", "aspirateur balai", "aspirateurs balais", "aspirateur balais"], "match": {"category": ["aspirateur"], "any": [{"text": "\\bbalais?\\b"}]}, "implies": {"bagless": true}, "attributes": ["cordless"]},
+    {"key": "traineau", "label": "Traîneau", "plural": "Aspirateurs traîneaux", "one": "Aspirateur traîneau", "words": ["traineau", "traineaux", "aspirateur traineau", "aspirateurs traineaux"], "match": {"category": ["aspirateur"], "any": [{"text": "\\btraineaux?\\b"}]}, "implies": {}, "attributes": ["bagless", "cordless"]}
+   ],
+   "attributes": [
+    {"key": "cordless", "label": "Alimentation", "kind": "bool", "yes": "Sans fil", "no": "Avec fil", "words": {"sans fil": true, "filaire": false, "avec fil": false}, "text": [{"re": "\\bsans fil\\b", "value": true}, {"re": "\\bfilaire\\b|\\bavec fil\\b|\\bsur secteur\\b", "value": false}]},
+    {"key": "bagless", "label": "Sac", "kind": "bool", "yes": "Sans sac", "no": "Avec sac", "words": {"sans sac": true, "avec sac": false, "a sac": false}, "text": [{"re": "\\bsans sac\\b", "value": true}, {"re": "\\bavec sac\\b|\\ba sac\\b", "value": false}], "compare": "same"}
+   ]
+  }
+ ]
+}

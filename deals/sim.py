@@ -99,6 +99,55 @@ SHOWCASE = [
     ("canape", "Canapé d'angle convertible {brand} Nordic 5 places", 899, "Lumen"),
 ]
 SHOWCASE_MERCHANTS = ["Électro Plus", "Maison & Co", "Rapido", "Grand Bazar"]
+# v59 : l'électronique — téléviseurs, smartphones, ordinateurs portables, tablettes, casques, enceintes, montres, consoles,
+# écrans ; des titres comme ceux des enseignes (pouces ou centimètres, « 16 Go RAM » à côté du stockage), de quoi comparer
+# (un même type, une même taille d'écran ailleurs moins cher) et ce qui ne se compare pas (une édition numérique, un
+# téléviseur Full HD). Simulés à part (leur propre tirage) : les produits d'avant gardent exactement leurs prix.
+SHOWCASE_TECH = [
+    ("televiseur", "TV OLED {brand} 55OL8 55\" 4K UHD 120 Hz Smart TV", 1290, "Vistrel"),
+    ("televiseur", "TV OLED {brand} A55 139 cm 4K Ultra HD", 1090, "Kanzo"),
+    ("televiseur", "TV OLED {brand} 65\" 4K 120 Hz Dolby Vision", 1790, "Kanzo"),
+    ("televiseur", "TV QLED {brand} Q60 55\" (139 cm) 4K UHD Smart TV", 649, "Vistrel"),
+    ("televiseur", "TV QLED {brand} Q55 55 pouces 4K", 549, "Orvia"),
+    ("televiseur", "TV QLED {brand} 65 pouces 4K UHD", 799, "Orvia"),
+    ("televiseur", "Téléviseur Mini LED {brand} 65\" 4K 144 Hz", 1190, "Vistrel", {"Taille de l'écran": "65 pouces"}),
+    ("televiseur", "TV LED {brand} 55U6 55 pouces 4K", 379, "Kanzo"),
+    ("televiseur", "TV LED {brand} 55\" 4K UHD Smart TV", 429, "Vistrel"),
+    ("televiseur", "TV LED {brand} 43UX7 108 cm 4K Ultra HD", 329, "Kanzo"),
+    ("televiseur", "TV LED {brand} 43\" Full HD", 249, "Orvia"),
+    ("smartphone", "Smartphone {brand} X3 Pro 5G 256 Go Noir", 1099, "Ombrion"),
+    ("smartphone", "Smartphone {brand} V12 5G 256 Go", 899, "Velto"),
+    ("smartphone", "Smartphone {brand} X3 5G 128 Go", 699, "Ombrion"),
+    ("smartphone", "Smartphone {brand} A5 5G 128 Go 6,6\"", 349, "Aphel"),
+    ("smartphone", "Smartphone {brand} A2 4G 64 Go", 149, "Aphel"),
+    ("smartphone", "Smartphone pliable {brand} Fold 2 5G 512 Go", 1599, "Ombrion"),
+    ("ordinateur_portable", "PC portable {brand} Vivo 15 15,6\" Intel Core i5 16 Go RAM 512 Go SSD", 749, "Calixo"),
+    ("ordinateur_portable", "Ordinateur portable {brand} Nova 15 15,6 pouces 16 Go RAM 512 Go SSD", 629, "Ternis"),
+    ("ordinateur_portable", "PC portable gamer {brand} Strix 16\" 32 Go RAM 1 To SSD", 1799, "Calixo"),
+    ("ordinateur_portable", "Ordinateur portable ultraportable {brand} Air 14\" 16 Go RAM 1 To", 1199, "Ternis"),
+    ("ordinateur_portable", "Chromebook {brand} C14 14\" 8 Go RAM 128 Go", 349, "Calixo"),
+    ("tablette", "Tablette tactile {brand} Tab 11 11\" 128 Go Wi-Fi", 449, "Tavelo"),
+    ("tablette", "Tablette tactile {brand} Pad 11 11 pouces 128 Go", 329, "Ombrion"),
+    ("tablette", "Tablette enfant {brand} Kids 8\" 32 Go", 119, "Tavelo"),
+    ("casque_audio", "Casque sans fil à réduction de bruit {brand} H700 Bluetooth", 379, "Sonoryn"),
+    ("casque_audio", "Casque Bluetooth à réduction de bruit {brand} Q35", 279, "Aurio"),
+    ("casque_audio", "Casque audio filaire {brand} Studio", 99, "Aurio"),
+    ("casque_audio", "Écouteurs sans fil {brand} Buds 3 réduction de bruit", 199, "Sonoryn"),
+    ("casque_audio", "Écouteurs true wireless {brand} Air ANC", 129, "Aurio"),
+    ("enceinte", "Barre de son {brand} 5.1.2 Dolby Atmos", 699, "Brisko"),
+    ("enceinte", "Barre de son Dolby Atmos {brand} Cine 3.1.2", 549, "Aurio"),
+    ("enceinte", "Enceinte Bluetooth portable {brand} Go 3 étanche IP67", 149, "Brisko"),
+    ("enceinte", "Enceinte portable étanche {brand} Wave", 99, "Aurio"),
+    ("montre_connectee", "Montre connectée {brand} Pace 3 GPS AMOLED", 349, "Chronia"),
+    ("montre_connectee", "Montre connectée GPS {brand} Run 5", 249, "Tempra"),
+    ("montre_connectee", "Bracelet connecté {brand} Fit 3", 59, "Chronia"),
+    ("console", "Console de salon {brand} One 1 To", 549, "Ludika"),
+    ("console", "Console de salon {brand} One Édition Numérique 1 To", 449, "Ludika"),
+    ("console", "Console portable {brand} Go OLED", 329, "Ludika"),
+    ("ecran_pc", "Écran PC gaming {brand} 27\" QHD 165 Hz", 299, "Calixo"),
+    ("ecran_pc", "Écran gaming {brand} G27 27 pouces 170 Hz", 249, "Ternis"),
+    ("ecran_pc", "Écran PC incurvé {brand} 34\" UWQHD 144 Hz", 449, "Calixo"),
+]
 # v57 : de quoi parcourir les aspirateurs par type et par besoin — chaque sous-famille, des fiches plus ou moins
 # complètes (caractéristiques déclarées comme le font les enseignes, avec leurs noms et leurs formats), marques fictives.
 # Simulés à part (leur propre tirage) : les produits d'avant gardent exactement leurs prix.
@@ -169,17 +218,17 @@ def slug(name):
 
 class Market:
     def __init__(self, start=date(2026, 1, 5), days=200, seed=4, catalog=CATALOG, merchants=MERCHANTS, extra=()):
-        """extra : des produits de plus (catégorie, titre, prix, marque, fiche déclarée), simulés avec leur propre tirage :
-        les produits du catalogue gardent exactement leurs prix."""
+        """extra : des groupes de produits de plus [(catégorie, titre, prix, marque, fiche déclarée)…], chacun simulé avec
+        son propre tirage : les produits d'avant gardent exactement leurs prix."""
         self.start, self.days = start, days
         rng = random.Random(seed)
         self.products, self.offers = [], []
         self._add(catalog, rng, merchants)
         self._simulate(rng)
-        if extra:
-            more = random.Random(seed * 1000 + 57)
+        for n, group in enumerate(extra):
+            more = random.Random(seed * 1000 + 57 + n)
             first = len(self.offers)
-            self._add(extra, more, merchants)
+            self._add(group, more, merchants)
             self._simulate(more, self.offers[first:])
 
     def _add(self, catalog, rng, merchants):

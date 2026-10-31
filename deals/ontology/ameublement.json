@@ -1,0 +1,98 @@
+{
+ "schema": 3, "family": "ameublement", "label": "Ameublement", "version": "3.0.0", "updated": "2026-10-31",
+ "domains": [
+  {"domain": "canape", "label": "Canapés", "one": "Canapé", "categories": ["canape"],
+   "words": ["canape", "canapes", "sofa"],
+   "subcategories": [
+    {"key": "angle", "label": "D'angle", "plural": "Canapés d'angle", "one": "Canapé d'angle", "words": ["d'angle", "angle", "en l", "en u", "panoramique", "canapes d'angle", "canape d'angle"], "match": {"category": ["canape"], "any": [{"text": "\\bangle\\b|\\ben (?:l|u)\\b|panoramique"}]}},
+    {"key": "modulable", "label": "Modulable", "plural": "Canapés modulables", "one": "Canapé modulable", "words": ["modulable", "modulables", "modulaire", "canapes modulables", "canape modulable"], "match": {"category": ["canape"], "any": [{"text": "modulable|modulaire"}]}},
+    {"key": "droit", "label": "Droit", "plural": "Canapés droits", "one": "Canapé droit", "words": ["canape droit", "canapes droits"], "match": {"category": ["canape"], "any": [{"text": "\\bdroits?\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "seats", "label": "Places", "kind": "measure"},
+    {"key": "convertible", "label": "Couchage", "kind": "bool", "yes": "Convertible", "no": "Fixe", "words": {"convertible": true, "convertibles": true, "clic clac": true, "bz": true, "fixe": false}, "text": [{"re": "non convertible|\\bfixes?\\b", "value": false}, {"re": "convertible|clic ?clac|\\bbz\\b|couchage|ouverture express|lit escamotable", "value": true}]}
+   ]
+  },
+  {"domain": "fauteuil", "label": "Fauteuils", "one": "Fauteuil", "categories": ["fauteuil"],
+   "words": ["fauteuil", "fauteuils"],
+   "subcategories": [
+    {"key": "relax", "label": "Relax", "plural": "Fauteuils relax", "one": "Fauteuil relax", "words": ["relax", "releveur", "inclinable", "relaxation", "fauteuils relax", "fauteuil relax"], "match": {"category": ["fauteuil"], "any": [{"text": "relax|releveur|inclinable"}]}},
+    {"key": "club", "label": "Club", "plural": "Fauteuils club", "one": "Fauteuil club", "words": ["club", "fauteuils club", "fauteuil club"], "match": {"category": ["fauteuil"], "any": [{"text": "\\bclub\\b"}]}},
+    {"key": "bascule", "label": "À bascule", "plural": "Fauteuils à bascule", "one": "Fauteuil à bascule", "words": ["a bascule", "bascule", "rocking chair", "fauteuils a bascule", "fauteuil a bascule"], "match": {"category": ["fauteuil"], "any": [{"text": "bascule|rocking"}]}},
+    {"key": "bureau", "label": "De bureau", "plural": "Fauteuils de bureau", "one": "Fauteuil de bureau", "words": ["de bureau", "fauteuil gamer", "fauteuil gaming", "fauteuils de bureau", "fauteuil de bureau"], "match": {"category": ["fauteuil"], "any": [{"text": "bureau|\\bgamer\\b|gaming"}]}}
+   ],
+   "attributes": [
+    {"key": "electrique", "label": "Commande", "kind": "bool", "yes": "Électrique", "no": "Manuel", "words": {"electrique": true, "motorise": true, "manuel": false}, "text": [{"re": "electrique|motorise", "value": true}, {"re": "\\bmanuel(?:le)?\\b", "value": false}]}
+   ]
+  },
+  {"domain": "lit", "label": "Lits", "one": "Lit", "categories": ["lit"],
+   "words": ["lit", "lits", "cadre de lit"],
+   "subcategories": [
+    {"key": "coffre", "label": "Coffre", "plural": "Lits coffre", "one": "Lit coffre", "words": ["coffre", "lit coffre", "lits coffre"], "match": {"category": ["lit"], "any": [{"text": "\\bcoffre\\b"}]}},
+    {"key": "mezzanine", "label": "Mezzanine", "plural": "Lits mezzanine", "one": "Lit mezzanine", "words": ["mezzanine", "lits mezzanine", "lit mezzanine"], "match": {"category": ["lit"], "any": [{"text": "mezzanine"}]}},
+    {"key": "superpose", "label": "Superposé", "plural": "Lits superposés", "one": "Lit superposé", "words": ["superpose", "superposes", "lits superposes", "lit superpose"], "match": {"category": ["lit"], "any": [{"text": "superpos"}]}},
+    {"key": "gigogne", "label": "Gigogne", "plural": "Lits gigognes", "one": "Lit gigogne", "words": ["gigogne", "gigognes", "lits gigognes", "lit gigogne"], "match": {"category": ["lit"], "any": [{"text": "gigogne"}]}},
+    {"key": "enfant", "label": "Enfant", "plural": "Lits enfant", "one": "Lit enfant", "words": ["enfant", "enfants", "junior", "lits enfant", "lit enfant"], "match": {"category": ["lit"], "any": [{"text": "\\benfants?\\b|junior"}]}}
+   ],
+   "attributes": [
+    {"key": "bed_size", "label": "Taille", "kind": "measure"}
+   ]
+  },
+  {"domain": "armoire", "label": "Armoires", "one": "Armoire", "categories": ["armoire"],
+   "words": ["armoire", "armoires"],
+   "subcategories": [
+    {"key": "dressing", "label": "Dressing", "plural": "Dressings", "one": "Dressing", "words": ["dressing", "dressings"], "match": {"category": ["armoire"], "any": [{"text": "dressing"}]}},
+    {"key": "penderie", "label": "Penderie", "plural": "Penderies", "one": "Penderie", "words": ["penderie", "penderies"], "match": {"category": ["armoire"], "any": [{"text": "penderie"}]}}
+   ],
+   "attributes": [
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"},
+    {"key": "sliding", "label": "Portes", "kind": "bool", "yes": "Portes coulissantes", "no": "Portes battantes", "words": {"coulissante": true, "coulissantes": true, "portes coulissantes": true, "battante": false, "battantes": false, "portes battantes": false}, "text": [{"re": "coulissant", "value": true}, {"re": "battant", "value": false}], "compare": "same"}
+   ]
+  },
+  {"domain": "table", "label": "Tables", "one": "Table", "categories": ["table"],
+   "words": ["table", "tables", "table a manger", "tables a manger"],
+   "subcategories": [
+    {"key": "ronde", "label": "Ronde", "plural": "Tables rondes", "one": "Table ronde", "words": ["ronde", "rondes", "tables rondes", "table ronde"], "match": {"category": ["table"], "any": [{"text": "\\brondes?\\b"}]}},
+    {"key": "carree", "label": "Carrée", "plural": "Tables carrées", "one": "Table carrée", "words": ["carree", "carrees", "tables carrees", "table carree"], "match": {"category": ["table"], "any": [{"text": "\\bcarrees?\\b"}]}},
+    {"key": "rectangulaire", "label": "Rectangulaire", "plural": "Tables rectangulaires", "one": "Table rectangulaire", "words": ["rectangulaire", "rectangulaires", "tables rectangulaires", "table rectangulaire"], "match": {"category": ["table"], "any": [{"text": "rectangulaire"}]}},
+    {"key": "ovale", "label": "Ovale", "plural": "Tables ovales", "one": "Table ovale", "words": ["ovale", "ovales", "tables ovales", "table ovale"], "match": {"category": ["table"], "any": [{"text": "\\bovales?\\b"}]}}
+   ],
+   "attributes": [
+    {"key": "seats", "label": "Places", "kind": "measure"},
+    {"key": "extensible", "label": "Allonges", "kind": "bool", "yes": "Extensible", "no": "Fixe", "words": {"extensible": true, "extensibles": true, "avec allonge": true, "fixe": false}, "text": [{"re": "non extensible", "value": false}, {"re": "extensible|allonge", "value": true}]}
+   ]
+  },
+  {"domain": "buffet", "label": "Buffets", "one": "Buffet", "categories": ["buffet"],
+   "words": ["buffet", "buffets"],
+   "subcategories": [
+    {"key": "haut", "label": "Haut", "plural": "Buffets hauts", "one": "Buffet haut", "words": ["buffet haut", "buffets hauts", "vaisselier"], "match": {"category": ["buffet"], "any": [{"text": "\\bhaut\\b|vaisselier"}]}},
+    {"key": "bas", "label": "Bas", "plural": "Buffets bas", "one": "Buffet bas", "words": ["buffet bas", "buffets bas", "enfilade", "bahut"], "match": {"category": ["buffet"], "any": [{"text": "\\bbas\\b|enfilade|bahut"}]}}
+   ],
+   "attributes": [
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"}
+   ]
+  },
+  {"domain": "meuble_tv", "label": "Meubles TV", "one": "Meuble TV", "categories": ["meuble_tv"],
+   "words": ["meuble tv", "meubles tv", "meuble tele"],
+   "subcategories": [
+    {"key": "suspendu", "label": "Suspendu", "plural": "Meubles TV suspendus", "one": "Meuble TV suspendu", "words": ["suspendu", "meuble tv mural", "meubles tv suspendus", "meuble tv suspendu"], "match": {"category": ["meuble_tv"], "any": [{"text": "suspendu|\\bmural\\b"}]}},
+    {"key": "bas", "label": "Bas", "plural": "Meubles TV bas", "one": "Meuble TV bas", "words": ["meuble tv bas", "banc tv", "meubles tv bas"], "match": {"category": ["meuble_tv"], "any": [{"text": "\\bbas\\b|banc tv"}]}}
+   ],
+   "attributes": [
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"}
+   ]
+  },
+  {"domain": "commode", "label": "Commodes", "one": "Commode", "categories": ["commode"],
+   "words": ["commode", "commodes"],
+   "subcategories": [
+    {"key": "chiffonnier", "label": "Chiffonnier", "plural": "Chiffonniers", "one": "Chiffonnier", "words": ["chiffonnier", "chiffonniers"], "match": {"category": ["commode"], "any": [{"text": "chiffonnier"}]}},
+    {"key": "semainier", "label": "Semainier", "plural": "Semainiers", "one": "Semainier", "words": ["semainier", "semainiers"], "match": {"category": ["commode"], "any": [{"text": "semainier"}]}},
+    {"key": "langer", "label": "À langer", "plural": "Commodes à langer", "one": "Commode à langer", "words": ["a langer", "commode a langer", "commodes a langer"], "match": {"category": ["commode"], "any": [{"text": "a langer"}]}}
+   ],
+   "attributes": [
+    {"key": "drawers", "label": "Tiroirs", "kind": "measure"},
+    {"key": "width_cm", "label": "Largeur", "kind": "measure"}
+   ]
+  }
+ ]
+}

@@ -1,6 +1,7 @@
 """Démo : la vraie nuit (night.py : collecte → agent → publication → contrôles) sur le marché simulé, nuit après nuit.
 
-84 produits des trois familles (dont 33 aspirateurs de tous types, fiches plus ou moins complètes : v57), quatre
+127 produits des quatre familles (dont 33 aspirateurs de tous types, fiches plus ou moins complètes : v57 ; et 43
+produits d'électronique : v59), quatre
 enseignes fictives (une source chacune, toutes partenaires : RULES), trois
 enseignes par produit, une nuit par jour du 1er octobre au 14 décembre 2025 (Black Friday compris) ; la dernière nuit est
 un jour ordinaire de décembre : des remises qui commencent, d'autres qui finissent, des fausses promos écartées.
@@ -22,7 +23,7 @@ HORIZON = 200                     # jours simulés : fixe, pour que le même dé
 def retailers(merchants=sim.SHOWCASE_MERCHANTS):
     """Une source par enseigne simulée ; sa clé est le nom de l'hôte de ses fiches (« Maison & Co » → maisonco.sim)."""
     return {sim.slug(m): {"name": m, "home": f"https://{sim.slug(m)}.sim", "enabled": True,
-                          "families": ["electromenager", "ameublement", "literie"], "product_url": ".", "sitemaps": []}
+                          "families": ["electromenager", "electronique", "ameublement", "literie"], "product_url": ".", "sitemaps": []}
             for m in merchants}
 
 
@@ -35,7 +36,7 @@ def world(store, start, seed=4, catalog=sim.SHOWCASE):
     market, clock, crawler, retailers (une source par enseigne simulée). Pour la démo, le banc et les tests."""
     merchants = sim.SHOWCASE_MERCHANTS if catalog is sim.SHOWCASE else sim.MERCHANTS
     m = sim.Market(start=start, days=HORIZON, seed=seed, catalog=catalog, merchants=merchants,
-                   extra=sim.SHOWCASE_MORE if catalog is sim.SHOWCASE else ())
+                   extra=(sim.SHOWCASE_MORE, sim.SHOWCASE_TECH) if catalog is sim.SHOWCASE else ())
     clock = sim.SimClock(start)
     market = Market(store, clock)
     known = retailers(merchants)

@@ -36,10 +36,12 @@ LOW_DAYS = 60                                              # « depuis longtemps
 LOW_DROP = 0.10                                            # et au moins 10 % sous le prix habituel
 PROMO_STEPS = (1, 10, 20, 30, 40, 50)                      # filtre Promo : en promo, puis −10 % et plus, −20 %…
 OPTION_ATTRS = {"capacity_kg": "Capacité", "place_settings": "Couverts", "zones": "Foyers", "seats": "Places", "bed_size": "Taille",
-                "width_cm": "Largeur", "volume_l": "Volume", "autonomy_min": "Autonomie", "energy_class": "Classe énergie"}   # Affiner
+                "width_cm": "Largeur", "volume_l": "Volume", "autonomy_min": "Autonomie", "energy_class": "Classe énergie",
+                "screen_in": "Taille d'écran", "storage_gb": "Stockage", "ram_gb": "Mémoire vive", "refresh_hz": "Fréquence",
+                "drawers": "Tiroirs"}                       # Affiner
 RECENT_SEARCHES = 4                                        # feed : les dernières recherches gardées par le navigateur
 RECENT_EACH = 6                                            # feed : produits au plus par recherche récente, en tête
-FAMILY_LABEL = {"electromenager": "Électroménager", "ameublement": "Ameublement", "literie": "Literie"}
+FAMILY_LABEL = {f: label for f, (label, _) in ontology.FAMILIES.items()}   # Électroménager, Électronique, Ameublement, Literie
 SYNONYMS = {
     "frigo": "refrigerateur", "refrigerateurs": "refrigerateur", "congelo": "congelateur", "congel": "congelateur",
     "lavevaisselle": "lave vaisselle", "lavelinge": "lave linge", "laver": "lave linge", "induction": "plaque", "plaques": "plaque",
@@ -160,6 +162,21 @@ def matches(search, toks):
     return all((t in search) if " " in t else (f" {t}" in search) for t in toks)
 
 
+
+def measure_values(k, pool, chosen):
+    """Affiner, une mesure : les valeurs qui existent dans pool (8 au plus), chacune avec ce qu'elle donnerait (la règle de
+    la mesure : « 9 kg et plus », « 55 pouces » à 5 % près) ; une valeur qui ne donne rien ou ne change rien n'est pas
+    proposée, sauf si elle est prise."""
+    have = Counter(p["attrs"][k] for p in pool if p["attrs"].get(k) is not None)
+    count = {v: sum(n for a, n in have.items() if query.satisfies(k, a, v)) for v in have}
+    keep = [v for v, n in count.items() if 0 < n < len(pool) or chosen.get(k) == v]
+    if chosen.get(k) is not None and chosen[k] not in keep:   # pris, même s'il n'est la valeur d'aucun produit (« 144 Hz »)
+        keep.append(chosen[k])
+        count[chosen[k]] = sum(n for a, n in have.items() if query.satisfies(k, a, chosen[k]))
+    order = sorted(keep, key=lambda v: (query.energy_rank(v) or 0) if k == "energy_class" else
+                   [int(x) for x in re.findall(r"\d+", v)] if k == "bed_size" else v)
+    return [{"value": v, "label": query.ATTR_CHIP[k](v), "count": count[v]} for v in order][:8]
+
 class Catalog:
     def __init__(self, store):
         self.s = store
@@ -259,7 +276,8 @@ class Catalog:
         une phrase dont rien n'est compris est cherchée mot à mot (chaque mot doit commencer un mot du produit). Rien sous
         le budget : les plus proches au-dessus, du moins cher au plus cher (relaxed). offs : combien de produits pour chaque
         palier de promo et pour « prix bas », avant le filtre de promo ; categories : combien par catégorie, avant le
-        filtre de catégorie (les filtres disent ce que chaque choix donnera).
+        filtre de catégorie (les filtres disent ce que chaque choix donnera) — un rayon choisi est un domaine : ses seules
+        catégories (v59 : chaque rayon suivi a son ontologie).
         Tri : pertinence (`relevance`), prix croissant (« pas cher »), ou remise. Sans mot ni filtre, le feed : les
         produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis, avec
         des goûts connus (prof), ceux de ses rayons et de ses marques, un sur quatre pris ailleurs (`profile.blend`), puis
@@ -349,7 +367,8 @@ class Catalog:
         out["options"] = self._options(crit, toks, promo, relaxed, rayons, d) if rayons else None
         out["said"] = {k: said[k] for k in ("category", "room", "brand", "features", "attrs", "min_price", "max_price", "off", "low", "sort",
                                             "domain", "sub", "props")}
-        out["domain"] = {"key": d.key, "label": d.label} if d else None
+        out["domain"] = {"key": d.key, "label": d.label,                 # ses rayons (son type choisi : le sien) : le rayon choisi dans Affiner
+                         "categories": [d.category_of(crit["sub"])] if crit["sub"] in d.sub else list(d.categories)} if d else None
         return out
 
     def _options(self, crit, toks, promo, relaxed, rayons, d=None):
@@ -382,15 +401,9 @@ class Catalog:
             if category not in query.ONLY.get(k, {category}):
                 continue
             pool = [p for p in rows if p["b"] and p["f"] and all(ok for x, ok in p["ok"].items() if x != k)]   # la recherche sans cette taille
-            have = Counter(p["attrs"][k] for p in pool if p["attrs"].get(k) is not None)                      # quelques valeurs distinctes
-            count = {v: sum(n for a, n in have.items() if query.satisfies(k, a, v)) for v in have}
-            keep = [v for v, n in count.items() if 0 < n < len(pool) or chosen.get(k) == v]
-            if chosen.get(k) is not None and chosen[k] not in keep:
-                keep.append(chosen[k]); count[chosen[k]] = 0
-            order = sorted(keep, key=lambda v: (query.energy_rank(v) or 0) if k == "energy_class" else
-                           [int(x) for x in re.findall(r"\d+", v)] if k == "bed_size" else v)
-            if order:
-                attrs[k] = {"title": OPTION_ATTRS[k], "values": [{"value": v, "label": query.ATTR_CHIP[k](v), "count": count[v]} for v in order][:8]}
+            values = measure_values(k, pool, chosen)
+            if values:
+                attrs[k] = {"title": OPTION_ATTRS[k], "values": values}
         bcount = Counter(p["brand"] for p in rows if p["f"] and p["a"] and p["brand"])
         if brand and not any(b.lower() == brand.lower() for b in bcount):
             bcount[brand] = 0
@@ -398,16 +411,14 @@ class Catalog:
         return {"features": features, "attrs": attrs, "brands": brands}
 
     def _domain_options(self, d, crit, rows):
-        """Affiner dans un domaine à ontologie : le type (chaque sous-catégorie, les autres critères gardés), puis ses
-        attributs (sans fil, sans sac : oui ou non), chacun avec ce qu'il donnerait, et les marques. Sans type : les
-        attributs communs à plusieurs types."""
-        sub, props = crit["sub"], crit["props"]
-        if sub in d.sub:
-            keys = list(d.sub[sub]["attributes"])
-        else:
-            seen = Counter(k for s in d.subs for k in s["attributes"])
-            keys = [k for k in dict.fromkeys(k for s in d.subs for k in s["attributes"]) if seen[k] >= 2]
-        keys += [k for k in props if k not in keys]        # un attribut exigé reste proposé, pour le retirer
+        """Affiner dans un rayon, par son ontologie : le type (chaque sous-catégorie, les autres critères gardés), puis les
+        attributs de ce type — oui ou non (sans fil, No Frost), ou une mesure (capacité, taille d'écran : les valeurs qui
+        existent) —, chacun avec ce qu'il donnerait, et les marques. Sans type : les attributs communs à plusieurs types.
+        Un attribut exigé reste proposé, pour pouvoir le retirer."""
+        sub, props, chosen = crit["sub"], crit["props"], crit["attrs"]
+        keys = d.attributes_of(sub)
+        bkeys = [k for k in keys if k in d.bools] + [k for k in props if k not in keys]
+        mkeys = [k for k in keys if k in d.measures] + [k for k in chosen if k not in keys and k in OPTION_ATTRS]
         info = []                                          # une fois par produit : ce qu'on sait, ce qu'il manque des exigences
         for p in rows:
             f = d.facts(p["attrs"])
@@ -419,19 +430,25 @@ class Catalog:
         subs = sorted(({"key": s["key"], "label": s["label"], "count": scount[s["key"]]} for s in d.subs if scount[s["key"]] or s["key"] == sub),
                       key=lambda x: (-x["count"], order.index(x["key"])))
         bools = []
-        for k in keys:
+        for k in bkeys:
             a = d.attrs[k]
             pool = [f for p, f, bad, same, ok in info if ok and same and (not bad or bad == [k])]
             for v in (True, False):
                 n = sum(f.get(k) == v for f in pool)
                 if 0 < n < len(pool) or props.get(k) == v:
                     bools.append({"key": k, "value": v, "label": a["yes" if v else "no"], "count": n})
+        attrs = {}
+        for k in mkeys:                                    # la recherche sans cette mesure, ses autres critères gardés
+            pool = [p for p, _, bad, same, _ in info if p["b"] and p["f"] and same and not bad and all(ok for x, ok in p["ok"].items() if x != k)]
+            values = measure_values(k, pool, chosen)
+            if values:
+                attrs[k] = {"title": d.attrs[k]["label"] if k in d.attrs else OPTION_ATTRS[k], "values": values}
         bcount = Counter(p["brand"] for p, _, bad, same, _ in info if p["f"] and p["a"] and not bad and same and p["brand"])
         brand = crit["brand"]
         if brand and not any(b.lower() == brand.lower() for b in bcount):
             bcount[brand] = 0
         brands = [{"name": b, "count": n} for b, n in sorted(bcount.items(), key=lambda x: (-x[1], x[0]))]
-        return {"features": [], "attrs": {}, "brands": brands, "subs": subs, "props": bools}
+        return {"features": [], "attrs": attrs, "brands": brands, "subs": subs, "props": bools}
 
     def foryou(self, uid=None, prof=None):
         """« Pour vous », sur l'accueil : les deals et les prix bas de vos rayons et de vos marques (affinité directe d'au

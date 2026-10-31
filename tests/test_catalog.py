@@ -90,8 +90,8 @@ class Search(unittest.TestCase):
         out = self.c.search(q="Je veux un lave-linge 9 kg à moins de 500 €")
         self.assertEqual([p["id"] for p in out["products"]], [2])        # le 8 kg à 549 € n'y répond pas
         self.assertEqual([c["label"] for c in out["chips"]], ["Lave-linge", "9 kg et plus", "Moins de 500 €"])
-        self.assertEqual((out["criteria"]["category"], out["criteria"]["attrs"], out["criteria"]["max_price"], out["words"]),
-                         ("lave_linge", {"capacity_kg": 9}, 500, []))
+        self.assertEqual((out["criteria"]["domain"], out["criteria"]["attrs"], out["criteria"]["max_price"], out["words"]),
+                         ("lave_linge", {"capacity_kg": 9}, 500, []))       # v59 : le rayon a son ontologie
         self.assertEqual(self.ids(q="lave-linge 9 kg", attrs={"capacity_kg": 8}), [4, 2])   # le critère choisi l'emporte sur la phrase
         self.assertEqual(self.ids(q="sèche-linge pas cher"), [5])
         self.assertEqual(self.ids(q="lave linge en promo"), [4])          # « en promo » : une remise
@@ -99,10 +99,12 @@ class Search(unittest.TestCase):
         self.assertEqual(([p["id"] for p in cheap["products"]], cheap["relaxed"]), ([2, 4], {"max_price": 400, "from": 449}))
         dyson = self.c.search(q="lave-linge dyson")                       # un mot qui ne trouve rien : signalé, le reste tient
         self.assertEqual(([p["id"] for p in dyson["products"]], dyson["ignored"]), ([4, 2], ["dyson"]))
-        hublot = self.c.search(q="lave-linge hublot 8 kg")                # un mot qui trouve : il filtre, et se dit
-        self.assertEqual(([p["id"] for p in hublot["products"]], hublot["words"]), ([4, 2], ["hublot"]))
-        phone = self.c.search(q="smartphone sous 300 €")                  # pas encore suivi : on le dit, rien d'autre
-        self.assertEqual((phone["products"], phone["unsupported"]), ([], "Smartphones"))
+        hublot = self.c.search(q="lave-linge hublot 8 kg")                # v59 : un type du rayon, plus un mot cherché
+        self.assertEqual(([p["id"] for p in hublot["products"]], hublot["words"], hublot["criteria"]["sub"]), ([4, 2], [], "hublot"))
+        phone = self.c.search(q="smartphone sous 300 €")                  # v59 : suivi, rien ici
+        self.assertEqual((phone["products"], phone["unsupported"]), ([], None))
+        oven = self.c.search(q="micro-ondes sous 150 €")                  # pas suivi : on le dit, rien d'autre
+        self.assertEqual((oven["products"], oven["unsupported"]), ([], "Micro-ondes"))
 
     def test_the_api_takes_criteria_chosen_in_the_app(self):
         api = Api(self.s, config.load({}))
@@ -117,7 +119,7 @@ class Search(unittest.TestCase):
         self.assertEqual([p["id"] for p in get(domain="aspirateurs", sub="robot", prop="cordless:1").body["products"]], [1])
         self.assertEqual(get(domain="aspirateurs", prop="bagless:0").body["criteria"]["props"], {"bagless": False})
         for bad in ({"sub": "robot"}, {"domain": "jardin"}, {"domain": "aspirateurs", "sub": "fusee"},
-                    {"domain": "aspirateurs", "prop": "weight_kg:1"}):
+                    {"domain": "aspirateurs", "prop": "weight_kg:1"}, {"domain": "televiseur", "prop": "screen_in:1"}):   # une mesure : pas un oui/non
             self.assertEqual(get(**bad).status, 400, bad)
         self.assertEqual(get(off="20").body["chips"], [{"id": "off", "label": "−20 % et plus"}])   # un palier de promo, dit en entier
         self.assertEqual(get(q="lave-linge", attr="energy_class:a").body["criteria"]["attrs"], {"energy_class": "A"})
@@ -128,8 +130,10 @@ class Search(unittest.TestCase):
         self.assertEqual(self.ids(hi=450), [5, 1, 3, 2])                  # budget seul : les remises d'abord, puis le prix
         self.assertEqual(self.ids(off=15), [5, 1, 4])                     # remise minimale
         self.assertEqual(self.ids(q="lave", category="lave_linge", lo=500), [4])
+        facet = {c["key"]: c["count"] for c in self.c.search(q="lave")["categories"]}
+        self.assertEqual(facet, {"lave_linge": 2, "lave_vaisselle": 1, "robot_aspirateur": 1})   # chaque catégorie, ce qu'elle donnerait
         facet = {c["key"]: c["count"] for c in self.c.search(q="lave", category="lave_linge")["categories"]}
-        self.assertEqual(facet, {"lave_linge": 2, "lave_vaisselle": 1, "robot_aspirateur": 1})   # avant le filtre de catégorie
+        self.assertEqual(facet, {"lave_linge": 2})                        # v59 : un rayon choisi est un domaine, ses seules catégories
 
     def test_feed_shows_the_breadth_of_the_catalog(self):
         out = self.c.search()                                             # ni mot ni filtre : le feed, jamais vide
@@ -173,34 +177,39 @@ class Refine(unittest.TestCase):
         self.s.close()
 
     def options(self, **kw):
+        """→ (types, attributs oui/non, mesures, marques) : v59, chaque rayon suivi a son ontologie (un canapé : d'angle,
+        modulable, droit ; convertible ; ses places)."""
         o = self.c.search(**kw)["options"]
-        return ([(f["label"], f["count"]) for f in o["features"]],
+        return ([(f["label"], f["count"]) for f in o.get("subs", [])] + [(f["label"], f["count"]) for f in o["features"]],
+                [(f["label"], f["count"]) for f in o.get("props", [])],
                 {k: [(v["label"], v["count"]) for v in a["values"]] for k, a in o["attrs"].items()},
                 [(b["name"], b["count"]) for b in o["brands"]])
 
     def test_each_choice_counts_what_it_would_give(self):
         self.assertEqual(self.options(q="canapé d'angle"),
-                         ([("D'angle", 3), ("Convertible", 2)],              # pris ; « Convertible » en donnerait 2
+                         ([("D'angle", 3)], [("Convertible", 2)],           # pris ; « Convertible » en donnerait 2
                           {"seats": [("4 places et plus", 2), ("5 places et plus", 1)]},   # « 3 places et plus » : les trois, rien ne change
                           [("Nordvik", 2), ("Varenne", 1)]))
         self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 4})[1:],
-                         ({"seats": [("4 places et plus", 2), ("5 places et plus", 1)]}, [("Nordvik", 2)]))
-        self.assertEqual(self.options(q="canapé", brand="Varenne")[0], [("D'angle", 1)])   # chez Varenne, tout est convertible : seul « D'angle » change
-        self.assertEqual(self.options(q="canapé sous 800 €")[0], [("Convertible", 2), ("D'angle", 1)])   # les plus courantes d'abord
+                         ([("Convertible", 1)], {"seats": [("4 places et plus", 2), ("5 places et plus", 1)]}, [("Nordvik", 2)]))
+        self.assertEqual(self.options(q="canapé", brand="Varenne")[:2], ([("D'angle", 1)], []))   # chez Varenne, tout est convertible : seul le type change
+        self.assertEqual(self.options(q="canapé sous 800 €")[:2], ([("D'angle", 1)], [("Convertible", 2)]))
         self.assertEqual(self.options(q="canapé d'angle sous 100 €"), self.options(q="canapé d'angle"))   # au-dessus du budget : ce qui est montré
-        self.assertEqual(self.options(q="pour la chambre"), ([], {}, [("Nordvik", 1)]))   # une pièce : ses marques
-        self.assertEqual(self.options(q="pour le salon"), ([], {}, [("Nordvik", 2), ("Varenne", 2), ("Lumen", 1)]))   # pas les fonctions de ses rayons
-        self.assertEqual(self.options(q="canapé en promo")[0], [])                     # la promo demandée compte : deux d'angle convertibles
-        self.assertEqual(self.options(q="canapé velours")[0::2], ([], [("Lumen", 1)]))     # les mots aussi
-        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 3})[1],         # pris, même s'il ne change rien
+        self.assertEqual(self.options(q="pour la chambre"), ([], [], {}, [("Nordvik", 1)]))   # une pièce : ses marques
+        self.assertEqual(self.options(q="pour le salon"), ([], [], {}, [("Nordvik", 2), ("Varenne", 2), ("Lumen", 1)]))   # pas les attributs de ses rayons
+        self.assertEqual(self.options(q="canapé en promo")[:2], ([("D'angle", 2)], []))  # la promo demandée compte : deux d'angle convertibles
+        self.assertEqual(self.options(q="canapé velours"), ([], [], {}, [("Lumen", 1)]))   # les mots aussi
+        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 3})[2],         # pris, même s'il ne change rien
                          {"seats": [("3 places et plus", 3), ("4 places et plus", 2), ("5 places et plus", 1)]})
-        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 8})[1],         # pris, même s'il ne donne rien
+        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 8})[2],         # pris, même s'il ne donne rien
                          {"seats": [("4 places et plus", 2), ("5 places et plus", 1), ("8 places et plus", 0)]})
-        self.assertIn(("Ostra", 0), self.options(q="canapé", brand="Ostra")[2])
+        self.assertIn(("Ostra", 0), self.options(q="canapé", brand="Ostra")[3])
+        self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 4.5})[2],       # pris, la valeur d'aucun produit : ce qu'il donne
+                         {"seats": [("4 places et plus", 2), ("4,5 places et plus", 1), ("5 places et plus", 1)]})
         with self.s.tx() as c:                                                   # la nuit suivante : une taille relue
-            c.execute("UPDATE catalog SET attrs=? WHERE product_id=3", (json.dumps({"features": ["angle", "convertible"], "seats": 4}),))
+            c.execute("UPDATE catalog SET attrs=? WHERE product_id=3", (json.dumps({"sub": "angle", "convertible": True, "seats": 4}),))
             c.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('published_at', '2')")
-        self.assertEqual(self.options(q="canapé d'angle")[1], {"seats": [("5 places et plus", 1)]})
+        self.assertEqual(self.options(q="canapé d'angle")[2], {"seats": [("5 places et plus", 1)]})
 
     def test_the_phrase_alone_is_given_back(self):
         """said : ce que la phrase seule demande, pour que l'app en fasse ses critères quand on touche une puce."""
@@ -282,7 +291,9 @@ class Domain(unittest.TestCase):
         self.assertEqual(self.c.search(q="aspirateur balai", brand="Zephyr")["options"]["props"], [])   # un choix qui ne change rien : pas proposé
         self.assertEqual(self.c.search(q="aspirateur balai", sub="traineau")["criteria"]["sub"], "traineau")   # le type choisi dans l'app l'emporte
         self.assertEqual((self.c.search(q="aspirateur")["domain"], self.c.search(q="lave-linge")["domain"]),
-                         ({"key": "aspirateurs", "label": "Aspirateurs"}, None))
+                         ({"key": "aspirateurs", "label": "Aspirateurs", "categories": ["aspirateur", "robot_aspirateur"]},
+                          {"key": "lave_linge", "label": "Lave-linge", "categories": ["lave_linge"]}))   # v59 : chaque rayon
+        self.assertEqual(self.c.search(q="robot aspirateur")["domain"]["categories"], ["robot_aspirateur"])   # son type : son rayon (Affiner)
         o = self.c.search(q="aspirateur traîneau", props={"bagless": True})["options"]
         self.assertEqual([(x["label"], x["count"]) for x in o["props"] if x["key"] == "bagless"], [("Sans sac", 1), ("Avec sac", 1)])
         o = self.c.search(q="aspirateur traîneau")["options"]                                       # un traîneau : sans sac, ou non

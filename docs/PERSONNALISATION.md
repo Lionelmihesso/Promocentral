@@ -28,7 +28,7 @@ qui garde quelque chose, le tient pour cet appareil (`docs/RECHERCHE.md`).
   vu vaut 0,8 × confiance × (ses points / ceux du rayon le plus regardé) : **0,8 au plus**, sous un rayon choisi.
 - Une **marque vue** pèse moitié moins (0,4 au plus) et ne compte qu'à partir d'un point (deux fiches, ou un clic) : on
   parcourt des rayons plus que des marques.
-- Un rayon donne **30 % de son affinité à sa famille** (électroménager, ameublement, literie) : la découverte reste
+- Un rayon donne **30 % de son affinité à sa famille** (électroménager, électronique, ameublement, literie) : la découverte reste
   proche des goûts sans les noyer.
 - Une recherche nomme un rayon quand elle contient l'un de ses noms, le plus précis (« lave-linge séchant » : les
   lave-linge séchants, pas les lave-linge), et à défaut quand tous ses mots le nomment (« plaque induction ») ; une marque,

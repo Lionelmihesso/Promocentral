@@ -14,8 +14,9 @@ const STEEL = [{ b: "#F7F7F5", s: "#E1E2DF", l: "#FFFFFF", k: "#C4C8CC" }, { b: 
 const ACCENTS = ["#7B5DC7", "#D9A93A", "#C9473B", "#4B7CC7", "#3E9A8D", "#D4704A"];
 
 export const RATIO = {
-  refrigerateur: 1.25, congelateur: 1.25, armoire: 1.25, aspirateur: 1.25,
+  refrigerateur: 1.25, congelateur: 1.25, armoire: 1.25, aspirateur: 1.25, smartphone: 1.25, enceinte: 1.25,
   lit: 0.8, canape: 0.8, table: 0.8, buffet: 0.8, meuble_tv: 0.8, matelas: 0.8, sommier: 0.8, plaque_cuisson: 0.8,
+  televiseur: 0.8, ordinateur_portable: 0.8, ecran_pc: 0.8,
 };
 export const ratioOf = cat => RATIO[cat] || 1;
 const ZOOM = { 0.8: 1.16, 1: 1.14, 1.25: 1.04 };          // l'objet remplit la vignette, comme sur une photo de catalogue
@@ -218,6 +219,131 @@ const robotvac = (p, F) => <g>
   <path d={`M112 ${F - 38} A110 30 0 0 0 288 ${F - 38}`} stroke={p.accent} strokeWidth="4" fill="none" opacity=".8" />
 </g>;
 
+/* v59 : l'électronique. Un écran éteint n'est pas un produit : chaque écran montre une image abstraite (couleur du
+   produit), jamais une interface ou un logo réels. */
+const tv = (p, F) => <g>
+  <rect x="84" y={F - 40} width="232" height="30" rx="5" fill={p.wood.b} />
+  <rect x="84" y={F - 40} width="232" height="7" rx="3" fill={p.wood.l} />
+  <path d={`M164 ${F - 24} H236`} stroke={p.wood.s} strokeWidth="3" strokeLinecap="round" />
+  <rect x="96" y={F - 12} width="8" height="12" rx="2" fill={p.wood.s} /><rect x="296" y={F - 12} width="8" height="12" rx="2" fill={p.wood.s} />
+  <rect x="168" y={F - 50} width="64" height="10" rx="3" fill="#2A2D31" />
+  <rect x="191" y={F - 62} width="18" height="16" fill="#33373C" />
+  <rect x="58" y={F - 206} width="284" height="150" rx="6" fill="#202326" />
+  <rect x="64" y={F - 200} width="272" height="138" rx="3" fill="#121416" />
+  <circle cx="266" cy={F - 166} r="17" fill={p.accent} opacity=".9" />
+  <path d={`M64 ${F - 102} L122 ${F - 135} L170 ${F - 110} L228 ${F - 152} L336 ${F - 96} V${F - 62} H64 Z`} fill={p.accent} opacity=".35" />
+  <path d={`M64 ${F - 84} L142 ${F - 112} L210 ${F - 90} L288 ${F - 120} L336 ${F - 100} V${F - 62} H64 Z`} fill={p.accent} opacity=".6" />
+  <path d={`M64 ${F - 200} H178 L112 ${F - 62} H64 Z`} fill="#FFFFFF" opacity=".05" />
+</g>;
+
+const phone = (p, F) => <g>
+  <rect x="146" y={F - 312} width="108" height="226" rx="22" fill={p.steel.k} />
+  <rect x="150" y={F - 308} width="100" height="218" rx="19" fill="#15181B" />
+  <rect x="156" y={F - 302} width="88" height="206" rx="14" fill={p.accent} opacity=".9" />
+  <path d={`M156 ${F - 176} Q200 ${F - 214} 244 ${F - 186} V${F - 110} Q244 ${F - 96} 230 ${F - 96} H170 Q156 ${F - 96} 156 ${F - 110} Z`}
+    fill="#FFFFFF" opacity=".2" />
+  {[0, 1, 2].map(i => [0, 1].map(j => <rect key={`${i}${j}`} x={168 + i * 26} y={F - 278 + j * 28} width="16" height="16" rx="5" fill="#FFFFFF" opacity=".55" />))}
+  <circle cx="200" cy={F - 296} r="3.5" fill="#0E1012" />
+  <rect x="124" y={F - 98} width="152" height="92" rx="12" fill={p.wood.b} />
+  <rect x="124" y={F - 98} width="152" height="10" rx="5" fill={p.wood.l} />
+  <path d={`M176 ${F - 60} H224`} stroke={p.wood.s} strokeWidth="3" strokeLinecap="round" />
+</g>;
+
+const laptop = (p, F) => <g>
+  <rect x="98" y={F - 204} width="204" height="160" rx="9" fill={p.steel.k} />
+  <rect x="106" y={F - 196} width="188" height="146" rx="3" fill="#15181B" />
+  <rect x="112" y={F - 190} width="176" height="134" rx="2" fill={p.accent} opacity=".85" />
+  <rect x="124" y={F - 178} width="90" height="60" rx="6" fill="#FFFFFF" opacity=".5" />
+  <rect x="224" y={F - 178} width="52" height="27" rx="6" fill="#FFFFFF" opacity=".3" />
+  <rect x="224" y={F - 144} width="52" height="26" rx="6" fill="#FFFFFF" opacity=".3" />
+  <rect x="124" y={F - 106} width="152" height="10" rx="5" fill="#FFFFFF" opacity=".35" />
+  <path d={`M60 ${F - 44} H340 L360 ${F - 16} H40 Z`} fill={p.steel.b} />
+  {[0, 1, 2].map(i => <path key={i} d={`M${82 - i * 6} ${F - 38 + i * 7} H${318 + i * 6}`} stroke={p.steel.k} strokeWidth="4"
+    strokeDasharray="9 3" opacity=".7" />)}
+  <path d={`M172 ${F - 20} H228`} stroke={p.steel.s} strokeWidth="3" strokeLinecap="round" />
+  <path d={`M40 ${F - 16} H360 V${F - 10} Q360 ${F - 6} 354 ${F - 6} H46 Q40 ${F - 6} 40 ${F - 10} Z`} fill={p.steel.s} />
+</g>;
+
+const tablet = (p, F) => <g>
+  <path d={`M176 ${F - 80} L150 ${F} M224 ${F - 80} L250 ${F}`} stroke={p.steel.k} strokeWidth="9" strokeLinecap="round" />
+  <rect x="78" y={F - 254} width="244" height="174" rx="18" fill={p.steel.k} />
+  <rect x="88" y={F - 244} width="224" height="154" rx="9" fill="#15181B" />
+  <rect x="94" y={F - 238} width="212" height="142" rx="6" fill={p.accent} opacity=".85" />
+  <circle cx="148" cy={F - 186} r="30" fill="#FFFFFF" opacity=".32" />
+  <rect x="196" y={F - 206} width="88" height="10" rx="5" fill="#FFFFFF" opacity=".6" />
+  <rect x="196" y={F - 186} width="66" height="8" rx="4" fill="#FFFFFF" opacity=".4" />
+  <rect x="112" y={F - 134} width="176" height="22" rx="8" fill="#FFFFFF" opacity=".22" />
+  <circle cx="83" cy={F - 167} r="2.5" fill="#0E1012" />
+  <rect x="146" y={F - 88} width="108" height="12" rx="5" fill={p.steel.k} />
+</g>;
+
+const headphones = (p, F) => <g>
+  <rect x="134" y={F - 22} width="132" height="14" rx="7" fill={p.wood.b} />
+  <rect x="192" y={F - 244} width="16" height="226" rx="6" fill={p.wood.b} />
+  <rect x="160" y={F - 256} width="80" height="16" rx="8" fill={p.wood.s} />
+  <path d={`M112 ${F - 140} Q112 ${F - 292} 200 ${F - 292} Q288 ${F - 292} 288 ${F - 140}`} stroke={p.steel.k} strokeWidth="18" fill="none"
+    strokeLinecap="round" />
+  <path d={`M150 ${F - 266} Q200 ${F - 280} 250 ${F - 266}`} stroke={p.fab.b} strokeWidth="12" fill="none" strokeLinecap="round" />
+  <rect x="82" y={F - 186} width="60" height="100" rx="27" fill={p.steel.k} />
+  <rect x="258" y={F - 186} width="60" height="100" rx="27" fill={p.steel.k} />
+  <rect x="130" y={F - 178} width="22" height="84" rx="10" fill={p.fab.b} />
+  <rect x="248" y={F - 178} width="22" height="84" rx="10" fill={p.fab.b} />
+  <circle cx="110" cy={F - 136} r="14" fill={p.accent} opacity=".9" /><circle cx="290" cy={F - 136} r="14" fill={p.accent} opacity=".9" />
+</g>;
+
+const speaker = (p, F) => <g>
+  <ellipse cx="200" cy={F - 8} rx="58" ry="8" fill={p.steel.k} />
+  <rect x="140" y={F - 286} width="120" height="276" rx="44" fill={p.fab.b} />
+  <path d={`M224 ${F - 280} Q260 ${F - 270} 260 ${F - 230} V${F - 54} Q260 ${F - 14} 224 ${F - 14} Z`} fill={p.fab.s} opacity=".55" />
+  {[...Array(12)].map((_, i) => <path key={i} d={`M150 ${F - 244 + i * 18} H250`} stroke={p.fab.s} strokeWidth="3" strokeLinecap="round"
+    strokeDasharray="2 6" opacity=".8" />)}
+  <ellipse cx="200" cy={F - 278} rx="52" ry="10" fill={p.steel.k} />
+  <circle cx="182" cy={F - 278} r="4.5" fill={p.accent} /><circle cx="200" cy={F - 278} r="4.5" fill="#FFFFFF" opacity=".8" />
+  <circle cx="218" cy={F - 278} r="4.5" fill={p.accent} />
+  <path d={`M260 ${F - 214} Q292 ${F - 170} 260 ${F - 126}`} stroke={p.steel.k} strokeWidth="9" fill="none" strokeLinecap="round" />
+</g>;
+
+const watch = (p, F) => <g>
+  <path d={`M166 ${F - 268} H234 L228 ${F - 188} H172 Z`} fill={p.accent} opacity=".9" />
+  <rect x="116" y={F - 92} width="168" height="84" rx="36" fill={p.fab.b} />
+  <rect x="132" y={F - 86} width="136" height="22" rx="11" fill={p.fab.l} opacity=".6" />
+  <path d={`M172 ${F - 104} H228 L236 ${F - 22} H164 Z`} fill={p.accent} />
+  <rect x="144" y={F - 210} width="112" height="124" rx="32" fill={p.steel.k} />
+  <rect x="154" y={F - 200} width="92" height="104" rx="24" fill="#111315" />
+  <circle cx="200" cy={F - 148} r="30" fill="none" stroke={p.accent} strokeWidth="7" strokeDasharray="130 60" strokeLinecap="round"
+    transform={`rotate(-90 200 ${F - 148})`} />
+  <circle cx="200" cy={F - 148} r="18" fill="none" stroke="#FFFFFF" strokeWidth="6" strokeDasharray="70 50" strokeLinecap="round" opacity=".7"
+    transform={`rotate(-90 200 ${F - 148})`} />
+  <rect x="254" y={F - 170} width="9" height="24" rx="3" fill={p.steel.s} />
+</g>;
+
+const gameConsole = (p, F) => <g>
+  <rect x="204" y={F - 30} width="80" height="24" rx="6" fill={p.steel.k} />
+  <path d={`M292 ${F - 278} Q314 ${F - 268} 314 ${F - 246} V${F - 54} Q314 ${F - 34} 292 ${F - 34} Z`} fill={p.steel.s} />
+  <rect x="196" y={F - 282} width="100" height="250" rx="20" fill={p.steel.b} />
+  <rect x="240" y={F - 274} width="12" height="234" rx="6" fill={p.steel.k} opacity=".55" />
+  <rect x="243" y={F - 262} width="6" height="44" rx="3" fill={p.accent} />
+  <path d={`M78 ${F - 74} Q86 ${F - 98} 122 ${F - 98} H178 Q214 ${F - 98} 222 ${F - 74} L234 ${F - 28} Q238 ${F - 10} 220 ${F - 10}
+    Q206 ${F - 10} 196 ${F - 32} H104 Q94 ${F - 10} 80 ${F - 10} Q62 ${F - 10} 66 ${F - 28} Z`} fill="#2E3136" />
+  <circle cx="118" cy={F - 66} r="10" fill="#575C62" /><circle cx="178" cy={F - 50} r="10" fill="#575C62" />
+  {[[196, F - 78], [208, F - 66], [184, F - 66]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="5" fill={p.accent} opacity=".9" />)}
+  <path d={`M140 ${F - 86} H160`} stroke="#575C62" strokeWidth="4" strokeLinecap="round" />
+</g>;
+
+const monitor = (p, F) => <g>
+  <path d={`M156 ${F - 10} H244 L234 ${F - 22} H166 Z`} fill={p.steel.k} />
+  <rect x="188" y={F - 76} width="24" height="58" rx="4" fill={p.steel.k} />
+  <rect x="64" y={F - 210} width="272" height="144" rx="8" fill="#1F2225" />
+  <rect x="70" y={F - 204} width="260" height="126" rx="3" fill="#121416" />
+  <rect x="82" y={F - 193} width="132" height="76" rx="6" fill={p.accent} opacity=".85" />
+  <rect x="224" y={F - 193} width="94" height="36" rx="6" fill="#FFFFFF" opacity=".22" />
+  <rect x="224" y={F - 149} width="94" height="32" rx="6" fill={p.accent} opacity=".4" />
+  <rect x="82" y={F - 106} width="236" height="14" rx="6" fill="#FFFFFF" opacity=".14" />
+  <path d={`M86 ${F - 2} L96 ${F - 20} H252 L262 ${F - 2} Z`} fill={p.steel.b} />
+  <path d={`M104 ${F - 12} H244`} stroke={p.steel.k} strokeWidth="4" strokeDasharray="8 3" opacity=".6" />
+  <ellipse cx="300" cy={F - 9} rx="16" ry="9" fill={p.steel.b} />
+</g>;
+
 const parcel = (p, F) => <g>
   <path d={`M120 ${F - 170} L200 ${F - 200} L280 ${F - 170} L200 ${F - 140} Z`} fill={p.wood.l} />
   <path d={`M120 ${F - 170} L200 ${F - 140} V${F - 20} L120 ${F - 50} Z`} fill={p.wood.b} />
@@ -229,6 +355,8 @@ const DRAW = {
   matelas: mattress, sommier: bedbase, refrigerateur: fridge, congelateur: freezer, lave_linge: (p, F) => washer(p, F, false),
   lave_linge_sechant: (p, F) => washer(p, F, false), seche_linge: (p, F) => washer(p, F, true), lave_vaisselle: dishwasher,
   four: oven, cuisiniere: oven, micro_ondes: oven, plaque_cuisson: hob, hotte: hood, aspirateur: stickvac, robot_aspirateur: robotvac,
+  televiseur: tv, smartphone: phone, ordinateur_portable: laptop, tablette: tablet, casque_audio: headphones, enceinte: speaker,
+  montre_connectee: watch, console: gameConsole, ecran_pc: monitor,
 };
 
 /* Une vignette : décor + objet. seed = identifiant du produit (couleurs stables d'un jour à l'autre). ratio, floor et

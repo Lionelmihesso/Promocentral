@@ -22,7 +22,7 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from .alternatives import pick
+from .alternatives import groups, pick
 from .catalog import haystack, position
 from .extract import product_attributes
 from .extract.categories import FAMILY_OF
@@ -137,12 +137,8 @@ def publish(store, today, now, partners=None, guard=False):
             if last is not None and now - float(last["value"]) < HOLD_S:
                 return {**stats, "held": shrink}
             stats["unguarded"] = shrink                      # deux nuits retenu : le catalogue de la veille a trop vieilli
-    by_cat = defaultdict(list)
-    for item in published:
-        if item["category"]:
-            by_cat[item["category"]].append(item)
     cheaper_rows, similar = [], []
-    for items in by_cat.values():
+    for items in groups(published):                      # même rayon, même type : seuls à pouvoir se remplacer
         for a in items:
             cheap, near = pick(a, items)
             cheaper_rows += [(a["id"], b["id"], rank) for rank, b in enumerate(cheap)]
