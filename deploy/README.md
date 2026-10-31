@@ -45,6 +45,8 @@ sudo deals publish                          # catalogue publié tout de suite (s
 ```
 Ensuite, la nuit lit chaque flux (un lot par source), comme les fiches. `sudo deals batches` montre les lots, leurs
 comptes et leurs refus ; `sudo deals replay <enseigne>` relit le dernier fichier gardé après une correction.
+Avant d'ouvrir une enseigne au public, 20 de ses offres se relisent à l'écran avec la grille « Du flux à l'écran »
+(`docs/ARCHITECTURE.md`) : ce que chaque champ du flux nourrit, et ce qui se passe quand il manque.
 
 ## 3. Lire les fiches d'une enseigne sans flux (dernier recours, une fois)
 Seulement si ses conditions d'utilisation le permettent (`docs/PRODUCTION.md`, P0-5) :

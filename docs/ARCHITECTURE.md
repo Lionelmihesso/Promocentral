@@ -44,6 +44,27 @@ ligne de prix ; un lot se rejoue ; une enseigne qui passe de ses fiches à son f
 de fiche, même offre). La démo en est la preuve : nourrie par les flux de ses enseignes (deux en XML Google Shopping,
 deux en CSV), elle publie exactement le catalogue qu'elle publiait en lisant leurs fiches (`tests/test_demo.py`).
 
+## Du flux à l'écran (restitution)
+
+L'app ne lit que le catalogue publié, et le catalogue vient des lots de la nuit : chaque élément d'un écran a une
+origine dans le flux (noms Google Shopping ; une colonne CSV s'y branche par la correspondance de la source), une règle
+qui la transforme, et une conduite quand le flux ne la donne pas. C'est la grille à suivre sur l'échantillon de chaque
+nouveau flux (`deals.py probe`, puis l'audit de 20 offres).
+
+| À l'écran | Dans le flux | Règle | Si le flux ne le donne pas |
+|---|---|---|---|
+| Le produit : nom court, marque | `title`, `brand` | `publish.display_name` | sans titre : ligne refusée ; sans marque : rapprochement par l'EAN seul |
+| Le même produit chez plusieurs enseignes (la fiche, la meilleure offre) | `gtin`, sinon `brand` + `mpn` | `market._find` : sur preuve seulement | une offre seule ; un titre semblable fait un candidat à revoir, jamais une fusion |
+| Le rayon, le type, la pièce | `product_type` (la catégorie de l'enseigne), le titre | ontologie : `extract.categorize` | lus dans le titre |
+| Les caractéristiques, l'entonnoir, les filtres, « moins cher », « similaires » | `product_detail` (paires nom/valeur), le titre | ontologie : `extract.product_attributes` ; on ne compare que des produits du même type | lues dans le titre |
+| Le prix | `sale_price` s'il est plus bas que `price`, sinon `price` | contrat : euros, prix vraisemblable ; un prix divisé ou multiplié par deux ou plus d'une nuit à l'autre n'est retenu que s'il se confirme la nuit suivante ; une ligne de prix seulement quand il change | ligne refusée |
+| Le prix barré, la remise | `price` quand `sale_price` existe (CSV : la colonne du prix habituel) ; `lowest_30d` s'il est donné | `judge` : la remise de l'enseigne est montrée sauf preuve contraire (notre historique, le plus bas des 30 jours, un prix barré qui ne bouge plus) | pas de remise : le produit reste dans la recherche et les favoris, à son prix |
+| « Prix bas », « au plus bas », depuis quand | — | notre historique, lot après lot (`publish.chart`, `catalog.position`) | se construit nuit après nuit : d'où la pré-collecte avant l'ouverture |
+| La fin de l'offre | `sale_price_effective_date` (sa date de fin) | montrée tant que la remise tient | non dite |
+| La disponibilité | `availability` | une alerte ne part que sur une offre en stock ; la meilleure offre est la moins chère hors rupture, et à prix égal celle dont la disponibilité est connue ; un produit en rupture ne montre pas de remise | « inconnue » : publiée, jamais promise |
+| L'enseigne, « voir l'offre » | `link` (l'adresse de la fiche) | le lien du programme est construit au clic, avec l'identifiant du clic (`affiliate.link`) ; le lien de suivi du flux est gardé à côté (`offers.tracking_url`) | ligne refusée |
+| (pas montré) | `image_link`, `shipping`, le vendeur | gardés (`products.image`, `prices.shipping`, `prices.seller`) : l'app garde ses illustrations ; le prix livré devient possible | — |
+
 ## Principes (ce qui rend le système juste par construction)
 
 1. **Calculer une fois, lire mille fois.** Les deals du jour sont une fonction des données de la nuit : `publish` les

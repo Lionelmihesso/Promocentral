@@ -9,6 +9,7 @@ compte avant l'ouverture, P2 vient après.
 """
 import argparse
 import json
+import re
 import shutil
 import socket
 import subprocess
@@ -150,11 +151,23 @@ def operations(tmp):
     dest = (CODE / "deploy" / "README.md").read_text(encoding="utf-8")
     offsite = any(w in dest for w in ("rclone", "Storage Box", "hors du serveur", "hors serveur", "s3://"))
     point("Exploitation", "une copie des sauvegardes vit hors du serveur", offsite,
+          "deploy/README.md décrit la copie hors du serveur" if offsite else
           "deploy/ : sauvegarde dans /var/backups/deals, sur le même disque que la base", "P1")
-    release = any((CODE / "deploy" / n).exists() for n in ("release.sh", "rollback.sh", "deals-release"))
+    # Le déploiement par versions, essayé pour de vrai : le script, des archives et une base réelles, services simulés.
+    if (CODE / "deploy" / "release.sh").exists() and (CODE / "tests" / "test_release.py").exists():
+        r = subprocess.run([sys.executable, "-m", "unittest", "tests.test_release.Release"], cwd=CODE,
+                           capture_output=True, text=True, timeout=600)
+        ran = re.search(r"Ran (\d+) test", r.stderr)
+        release = r.returncode == 0
+        proof = (f"deploy/release.sh essayé ({ran.group(1) if ran else '?'} essais, {'réussis' if release else 'en échec'}) : "
+                 "la version s'installe à côté des précédentes, la base est sauvegardée avant la bascule, des tests de fumée "
+                 "ratés ramènent la version d'avant et la base d'avant quand elle avait été migrée ; rollback d'une commande")
+    else:
+        release = False
+        proof = ("deploy/README.md : « sudo cp -r . /opt/deals && sudo systemctl restart deals-web » ; une base migrée "
+                 "refuse l'ancien code : revenir en arrière demande de restaurer la base à la main")
     point("Exploitation", "une version se déploie et se retire d'une commande (artefact daté, retour arrière)", release,
-          "deploy/README.md : « sudo cp -r . /opt/deals && sudo systemctl restart deals-web » ; une base migrée refuse "
-          "l'ancien code : revenir en arrière demande de restaurer la base à la main", "P1")
+          proof, "P1")
 
 
 # ------------------------------------------------------------------------------------------------ ce qui est servi
