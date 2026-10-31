@@ -69,7 +69,7 @@ dans cet ordre :
 Chaque réponse dit combien de produits elle donne (la sélection, ses autres critères gardés : la marque d'une page, la
 promo, les mots), et les donne (vérifié pour chaque réponse de chaque étape, `tests/test_funnel.py`). **Ni tout, ni
 rien** : une réponse qui donnerait toute la sélection, ou aucun produit, n'est pas proposée ; une question sans autre
-réponse n'est pas posée. « **Peu importe** » passe à la question suivante (l'app s'en souvient jusqu'à ce qu'on change
+réponse n'est pas posée. « **Passer** » passe à la question suivante (l'app s'en souvient jusqu'à ce qu'on change
 de rayon ou de phrase). **La fin** : plus de question, ou une sélection de trois produits ou moins — « Votre sélection »,
 son nombre, « Sauvegarder ». Les **étapes franchies** restent au-dessus de la question ; la croix d'une étape revient
 avant elle (retirer le rayon retire aussi le type et ses attributs, jamais le budget). Une sélection **toute dans un

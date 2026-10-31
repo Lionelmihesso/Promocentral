@@ -36,7 +36,7 @@
    ses illustrations.
 
    v60 : Affiner en entonnoir. Une question à la fois — l'univers (High-tech, Salon…), le rayon, le type, un attribut, le
-   budget —, chaque réponse avec son nombre de produits, « Peu importe » pour passer ; quand il n'y a plus de question,
+   budget —, chaque réponse avec son nombre de produits, « Passer » pour passer ; quand il n'y a plus de question,
    c'est votre sélection. Le même entonnoir dans la Recherche et sur la page d'une marque, d'une catégorie, d'une pièce.
    La fiche n'a plus la jauge du prix des derniers mois : le prix, la remise, l'offre.
 
@@ -457,10 +457,11 @@ const CSS = `
 .d .funnel .done .ok{flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center}
 .d .funnel .done h2{flex:1;color:var(--ink);font-size:30px}
 .d .funnel .done .fskip{flex-basis:100%;margin-top:0}
+.d .fskip.pass{display:flex;align-items:center;width:max-content;min-height:44px;margin-top:12px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);padding:0 18px;font-size:14.5px;font-weight:800;text-decoration:none}
 .d .funnel .fnone{margin:14px 0 8px;color:var(--mid);font-size:14px;font-weight:600}
 @keyframes fin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.d .fq{animation:none}}
-@media (hover:hover){.d .fopt:hover{border-color:var(--ink)}.d button.fstep:hover{background:var(--tint2)}}
+@media (hover:hover){.d .fskip.pass:hover{background:#F8D9CB}.d .fopt:hover{border-color:var(--ink)}.d button.fstep:hover{background:var(--tint2)}}
 /* profil : le centre de commande */
 .d .idline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 14px;margin:14px 16px 0;padding:12px 16px;border-radius:16px;background:var(--tint);font-size:14px;color:var(--mid);font-weight:600}
 .d .idline b{color:var(--ink)}
@@ -687,7 +688,7 @@ function Masonry({ items, cols, render }) {
 }
 
 /* Affiner en entonnoir (v60, deals/funnel.py) : une question à la fois — l'univers, le rayon, le type, un attribut, le
-   budget —, chaque réponse avec son nombre de produits ; « Peu importe » passe à la suivante (l'app s'en souvient) ;
+   budget —, chaque réponse avec son nombre de produits ; « Passer » passe à la suivante (l'app s'en souvient) ;
    quand il n'y a plus de question, c'est votre sélection. Les étapes franchies, en haut, se retirent d'un geste ; un
    rayon que la sélection dit d'elle-même (une marque qui ne fait que des téléviseurs) reste. at : funnelAt(…). */
 function Funnel({ at, total, onAnswer, onBack, onSkip, onRestart, keep }) {
@@ -704,7 +705,7 @@ function Funnel({ at, total, onAnswer, onBack, onSkip, onRestart, keep }) {
       <h3>{q.title}</h3>
       <div className="fopts">{q.options.map(o => <button key={o.label} className="fopt" onClick={() => onAnswer(o.set)}
         aria-label={`${o.label}, ${plural(o.count, "produit")}`}><span>{o.label}</span><em>{o.count}</em></button>)}</div>
-      <button className="fskip" onClick={() => onSkip(q.key)}>Peu importe</button>
+      <button className="fskip pass" onClick={() => onSkip(q.key)}>Passer</button>
     </div> : total > 0 ? <div className="done">
       <span className="ok"><Icon d={UI.check} size={18} sw={2.6} /></span>
       <h2>{plural(total, "produit")}</h2>
@@ -719,7 +720,7 @@ export default function App() {
   const [view, setView] = useState(null);          // null | item | brand | category | room | about — chacune garde `from` (« Retour »)
   const [q, setQ] = useState("");                  // Recherche : la phrase tapée
   const [crit, setCrit] = useState(NO_CRIT);       // Recherche : les critères choisis dans l'app (puces, entonnoir), qui l'emportent
-  const [skip, setSkip] = useState([]);            // Recherche : les questions de l'entonnoir passées (« Peu importe »)
+  const [skip, setSkip] = useState([]);            // Recherche : les questions de l'entonnoir passées (« Passer »)
   const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
   const [top, setTop] = useState(null);            // top deals (accueil, en premier)
   const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)

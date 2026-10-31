@@ -34,7 +34,7 @@ qui restent), la montre en puces modifiables, affine d'un geste (chaque choix di
 dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 41 phrases tapées comme on parle, plus aucune
 impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). **Affiner en entonnoir (v60)** : une question
 à la fois — l'univers (High-tech, Entretien, Chambre…), le rayon, le type, un attribut (4K, une taille d'écran), le
-budget —, chaque réponse avec ce qu'elle donne, « Peu importe » pour passer, et une fin : votre sélection ; de la
+budget —, chaque réponse avec ce qu'elle donne, « Passer » pour passer, et une fin : votre sélection ; de la
 Recherche vide à des téléviseurs OLED, 3 gestes et une fin (5 gestes et aucune fin avec la feuille de la v59, qui
 montrait 53 choix d'un coup) ; le même entonnoir sur la page d'une marque, d'une catégorie, d'une pièce. Règles et
 mesures : [`docs/RECHERCHE.md`](docs/RECHERCHE.md).
@@ -154,7 +154,7 @@ ouvert).
   jours relevés (`catalog.position`). Il sert au prix bas des top deals. La fiche le montrait en mots et en jauge de la
   v49 à la v59 ; retiré en v60 (la jauge troublait plus qu'elle n'aidait).
 - **Affiner en entonnoir (v60)** : une question à la fois — l'univers, le rayon, le type, les attributs du rayon, le
-  budget —, chaque réponse avec ce qu'elle donne, ni tout ni rien, « Peu importe », une fin (« Votre sélection »), dans
+  budget —, chaque réponse avec ce qu'elle donne, ni tout ni rien, « Passer », une fin (« Votre sélection »), dans
   la Recherche et sur les pages d'une marque, d'une catégorie, d'une pièce (`deals/funnel.py`, `docs/RECHERCHE.md`).
 - **Classement** : l'intérêt du deal (remise en % ; pour un prix bas, ce qu'il fait économiser sur le prix habituel)
   × (1 + ½ affinité de la personne pour le rayon ou la marque), donc au plus × 1,5 : une remise de 40 % hors de vos

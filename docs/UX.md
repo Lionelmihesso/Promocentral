@@ -7,7 +7,7 @@ feuille de la v59, sans fin : on picorait sans aller au bout). Il pose **une que
 précis : **l'univers** (High-tech, Entretien, Chambre, Salon, Cuisine, Buanderie : le niveau au-dessus des rayons),
 le **rayon**, le **type**, un **attribut** du rayon (« Taille d'écran ? », « Définition ? » : 4K), le **budget** ;
 chaque réponse dit combien de produits elle donne, et les donne. Une question dont aucune réponse ne resserre la
-sélection n'est pas posée ; « **Peu importe** » passe à la suivante ; des traits disent où l'on en est ; quand il n'y a
+sélection n'est pas posée ; « **Passer** » (une bulle colorée, v61) passe à la suivante ; des traits disent où l'on en est ; quand il n'y a
 plus de question, ou que la sélection tient en trois produits, c'est la fin : **votre sélection**, « 3 produits », et
 « Sauvegarder ». Les étapes franchies restent en haut, chacune se retire d'une croix. Le même entonnoir est **toujours
 présent** : dans la Recherche (avant toute saisie : « Quel univers ? » ; une phrase tapée devient ses étapes), sur la
