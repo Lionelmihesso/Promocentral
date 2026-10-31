@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from itertools import zip_longest
 
-from . import ontology
+from . import funnel, ontology
 from . import profile as P
 from . import query
 from .errors import NotFound
@@ -29,7 +29,7 @@ from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS  # noqa: 
 
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
-SORTS = ("relevance", "price", "discount")                 # Recherche : pertinence, prix croissant, remise
+SORTS = ("relevance", "price", "price_desc", "discount")   # Recherche : pertinence, prix croissant, décroissant, remise
 TOP_LIMIT = 10                                             # accueil : top deals (et « pour vous »)
 TOP_SAME = 3                                               # top deals suivant les goûts : au plus trois places par rayon
 LOW_DAYS = 60                                              # « depuis longtemps » : au moins 2 mois de prix relevés
@@ -282,8 +282,13 @@ class Catalog:
         produits des recherches récentes de la personne en tête (recent, gardées par son navigateur ; `lead`), puis, avec
         des goûts connus (prof), ceux de ses rayons et de ses marques, un sur quatre pris ailleurs (`profile.blend`), puis
         tout le catalogue, une catégorie à tour de rôle (`breadth`) ; recent dans la réponse : les recherches qui ont
-        orienté le feed. said : ce que la phrase seule demande (l'app en fait des critères à elle quand on touche une puce)."""
+        orienté le feed. said : ce que la phrase seule demande (l'app en fait des critères à elle quand on touche une puce).
+        funnel (v60) : Affiner en entonnoir (deals/funnel.py) — ce qui est choisi, les questions qui restent ; une sélection
+        toute dans un rayon (une marque qui ne fait que des téléviseurs) y entre d'elle-même : la réponse est celle du rayon,
+        qui y est une étape fixe."""
+        args = {k: v for k, v in locals().items() if k != "self"}    # la demande telle quelle (un rayon implicite la relit)
         said = query.read(q, self.brand_names()) if q else query.read("")
+        asked = category                                   # la catégorie choisie (« Robots aspirateurs »), pour l'entonnoir
         d = ontology.domain_of(category) if category else ontology.DOMAINS.get(domain or said["domain"])
         if category and d:                                 # un rayon d'un domaine à ontologie : le domaine, et son type s'il en est un
             sub = sub or next((x["key"] for x in d.subs if x["match"]["category"] == [category] and not x["match"].get("any")), None)
@@ -340,11 +345,12 @@ class Catalog:
         offs = {**{str(k): sum(r["pct"] >= k for r in here) for k in PROMO_STEPS}, "low": sum(cheap(r) for r in here)}
         score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
         order = (lambda r: (r["price"], r["product_id"])) if relaxed or crit["sort"] == "price" else \
+            (lambda r: (-r["price"], r["product_id"])) if crit["sort"] == "price_desc" else \
             (lambda r: (-r["pct"], r["price"], r["product_id"])) if crit["sort"] == "discount" else relevance(toks, score)
         used = []
         if relaxed:
             pass                                           # déjà du moins cher au plus cher
-        elif crit["sort"] in ("price", "discount"):
+        elif crit["sort"] in ("price", "price_desc", "discount"):
             hits.sort(key=order)
         elif feed:
             head, used = lead(hits, recent, score)
@@ -367,8 +373,19 @@ class Catalog:
         out["options"] = self._options(crit, toks, promo, relaxed, rayons, d) if rayons else None
         out["said"] = {k: said[k] for k in ("category", "room", "brand", "features", "attrs", "min_price", "max_price", "off", "low", "sort",
                                             "domain", "sub", "props")}
-        out["domain"] = {"key": d.key, "label": d.label,                 # ses rayons (son type choisi : le sien) : le rayon choisi dans Affiner
+        out["domain"] = {"key": d.key, "label": d.label,                 # ses rayons (son type choisi : le sien)
                          "categories": [d.category_of(crit["sub"])] if crit["sub"] in d.sub else list(d.categories)} if d else None
+        # L'entonnoir (v60) : ce qui est déjà choisi, les questions qui restent, chaque réponse avec son nombre de produits.
+        counts = Counter(r["category"] for r in hits) if relaxed else facet
+        room_asked = room or said["room"]
+        if d is None and not feed and not said["unsupported"] and len(hits) > funnel.FEW:
+            rayon = funnel.implied(counts, len(hits), room_asked)
+            if rayon:                                      # la sélection est toute dans un rayon : l'entonnoir y entre
+                inner = self.search(**{**args, "category": rayon.get("category"), "domain": rayon.get("domain")})
+                for step in inner["funnel"]["path"]:
+                    step["fixed"] = step["fixed"] or step["level"] == "category"
+                return inner
+        out["funnel"] = funnel.build(crit, d, counts, out["options"], [r["price"] for r in hits], len(hits), room_asked, asked)
         return out
 
     def _options(self, crit, toks, promo, relaxed, rayons, d=None):
@@ -548,10 +565,8 @@ class Catalog:
                            (product_id,))
         cheaper = self.s.q("SELECT c.* FROM alternatives a JOIN catalog c ON c.product_id=a.other_id WHERE a.product_id=? "
                            "ORDER BY a.rank", (product_id,))
-        history = json.loads(r["history"] or "null")
         attrs = json.loads(r["attrs"] or "{}")
-        return {**self._card(r, followed, saved), "history": history, "position": position(history, r["price"]),
-                "attrs": attrs, "offers": offers,
+        return {**self._card(r, followed, saved), "attrs": attrs, "offers": offers,
                 "similar": [self._card(x, followed, saved) for x in similar],
                 "alternatives": [{**self._card(x, followed, saved), "saving": round(r["price"] - x["price"])} for x in cheaper],
                 "signed_in": uid is not None}

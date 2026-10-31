@@ -1,10 +1,12 @@
-# La Recherche de DEALS — trouver vite, garder sans e-mail (v56 à v59)
+# La Recherche de DEALS — trouver vite, garder sans e-mail (v56 à v60)
 
 DEALS n'est pas un fil de bons plans à faire défiler : on vient chercher quelque chose et on doit le trouver vite. Deux
 leviers : **on vous recommande** (l'accueil et le feed suivent vos goûts, `docs/PERSONNALISATION.md`) et **vous
 cherchez** — une phrase comme on la dit, comprise en critères qu'on modifie d'un geste, une recherche qu'on garde et que
 DEALS surveille ; dans chaque rayon et son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise), le
-**type** et un ou deux **attributs** lus dans les offres. Le tout sans IA (des règles écrites, testées) et sans e-mail.
+**type** et un ou deux **attributs** lus dans les offres ; v60 : **Affiner en entonnoir**, une question à la fois, dans
+la Recherche et sur les pages d'une marque, d'une catégorie, d'une pièce. Le tout sans IA (des règles écrites, testées)
+et sans e-mail.
 
 ## Une phrase, des critères
 
@@ -29,9 +31,11 @@ voici le reste de votre recherche ») et le reste de la demande répond. Une phr
 mot à mot, comme avant. L'apostrophe du téléphone (« d’angle ») vaut l'apostrophe droite, partout, titres des produits
 compris.
 
-**Chaque critère devient une puce** (« Aspirateurs », « Balai », « Sans fil », « Moins de 300 € ») : la toucher ouvre
-**Affiner**, sa croix la retire et la recherche s'élargit aussitôt. Dès qu'on touche une puce, la phrase devient des
-critères de l'app et le champ ne garde que les mots en plus : rien n'est compris deux fois. Chaque geste part du dernier
+**Chaque critère se montre une fois** : le rayon, le type, les attributs et le budget sont les **étapes de l'entonnoir**
+(« Aspirateurs », « Balai », « Sans fil », « Moins de 300 € », v60) ; la marque, la promo, le tri et les mots restent
+des **puces** (toucher celles de la promo et du tri ouvre leur feuille). Une croix retire l'étape ou la puce et la
+recherche s'élargit aussitôt. Dès qu'on touche une étape, une puce ou une réponse, la phrase devient des critères de
+l'app et le champ ne garde que les mots en plus : rien n'est compris deux fois. Chaque geste part du dernier
 état voulu, sans attendre la réponse du précédent. Une recherche faite de puces se garde parmi les recherches récentes
 en mots lisibles (« Matelas · Moins de 500 € ») et, relue, redonne exactement les mêmes critères (vérifié pour toutes
 les phrases du banc).
@@ -39,22 +43,46 @@ les phrases du banc).
 ## Les aspirateurs : un type, deux attributs (v58)
 
 Dans un domaine qui a son ontologie, la phrase dit aussi un **type** (robot, balai, traîneau, laveur, à main) et deux
-**attributs** (sans fil, sans sac ; « filaire », « avec sac », « à sac » pour non) : « aspirateur traîneau à sac » donne
-« Aspirateurs traîneaux » et « Avec sac » ; « aspirateur » seul, le domaine entier, robots compris. Un produit y répond
-si son offre le dit (son titre ou sa catégorie) ou si son type l'est par définition (un robot est sans fil) ; ce que
-l'offre ne dit pas n'est pas promis. Les besoins de la v57 (« pour mon chat », « silencieux ») ne sont plus compris : le
-mot est dit sans résultat, comme ailleurs, et le reste de la demande répond. Règles et mesures : `docs/ONTOLOGIE.md`.
+**attributs** (sans fil, sans sac ; « filaire », « avec sac », « à sac » pour non) : « aspirateur traîneau à sac »
+donne « Aspirateurs », « Traîneau » et « Avec sac » ; « aspirateur » seul, le domaine entier, robots compris. Un
+produit y répond si son offre le dit (son titre ou sa catégorie) ou si son type l'est par définition (un robot est
+sans fil) ; ce que l'offre ne dit pas n'est pas promis. Les besoins de la v57 (« pour mon chat », « silencieux ») ne
+sont plus compris : le mot est dit sans résultat, comme ailleurs, et le reste de la demande répond. Règles et mesures
+: `docs/ONTOLOGIE.md`.
 
-## Affiner
+## Affiner en entonnoir (v60)
 
-Une feuille qui rassemble tout ce que la recherche demande, modifiable à tout moment : le **rayon** (celui choisi seul,
-« Changer de rayon » déplie la liste), ses **fonctions** et ses **tailles** (celles qui existent dans ce rayon), la
-**marque**, le **budget** (de… à…, ou un plafond proposé), la **promo**, le **tri**. Chaque choix dit combien de
-produits la recherche donnerait avec lui, ses autres critères gardés ; un choix qui ne donnerait rien, ou qui ne
-changerait rien, n'est pas proposé (sauf s'il est déjà pris, pour pouvoir le retirer). Le bouton dit le résultat
-(« Voir 5 produits »). Dans un domaine qui a son ontologie, Affiner propose le **type** (« Balai 13 », les plus fournis
-d'abord) et les **caractéristiques** du type (« Sans fil 26 · Avec fil 1 » ; pour un traîneau, « Sans sac · Avec sac »),
-chacune avec son nombre.
+La feuille Affiner de la v56 à la v59 rassemblait tout (le rayon, le type, les caractéristiques, les tailles, la marque,
+le budget, la promo, le tri : 53 choix d'emblée, jusqu'à 8 sections) et n'avait pas de fin : on picorait sans aller au
+bout. L'entonnoir (`deals/funnel.py`, pur ; la Recherche lui donne ce qu'elle a compté) pose **une question à la fois**,
+dans cet ordre :
+
+1. **Quel univers ?** — High-tech, Entretien, Chambre, Salon, Cuisine, Buanderie (`labels.ROOMS`), seulement quand
+   la sélection couvre plus de six rayons et qu'aucune pièce n'est choisie ;
+2. **Quel rayon ?** — les rayons de la sélection (ceux de la pièce choisie), les plus fournis d'abord ; choisir
+   « Aspirateurs », c'est aussi ses robots (le compte le dit), « Robots aspirateurs » est un rayon à lui seul ;
+3. **Quel type ?** puis **chaque attribut du rayon**, dans l'ordre de son ontologie (« Taille d'écran ? »,
+   « Définition ? » : 4K ou HD ; « Sac ? » ; « Capacité ? »…) ;
+4. **Votre budget ?** — quatre plafonds au plus, choisis dans une échelle (50 € à 5 000 €) pour partager la sélection
+   (vers un quart, la moitié, les trois quarts, neuf dixièmes) ; deux plafonds qui donnent la même sélection : le plus bas.
+
+Chaque réponse dit combien de produits elle donne (la sélection, ses autres critères gardés : la marque d'une page, la
+promo, les mots), et les donne (vérifié pour chaque réponse de chaque étape, `tests/test_funnel.py`). **Ni tout, ni
+rien** : une réponse qui donnerait toute la sélection, ou aucun produit, n'est pas proposée ; une question sans autre
+réponse n'est pas posée. « **Peu importe** » passe à la question suivante (l'app s'en souvient jusqu'à ce qu'on change
+de rayon ou de phrase). **La fin** : plus de question, ou une sélection de trois produits ou moins — « Votre sélection »,
+son nombre, « Sauvegarder ». Les **étapes franchies** restent au-dessus de la question ; la croix d'une étape revient
+avant elle (retirer le rayon retire aussi le type et ses attributs, jamais le budget). Une sélection **toute dans un
+rayon** (une marque qui ne fait que des téléviseurs, la pièce Entretien, toute en aspirateurs) y entre d'elle-même : le
+rayon est une étape sans croix, et la première question est celle du rayon.
+
+Le même entonnoir est sur la page d'une **marque** (sa marque gardée), d'une **catégorie** (sans répéter son titre) et
+d'une **pièce** (ses remises) ; ce qu'on y a choisi reste quand on ouvre une fiche et revient. Rien sous le budget : les
+plus proches au-dessus sont montrés, et l'entonnoir compte ceux-là.
+
+Ce qui a disparu avec la feuille : la liste des marques (une marque se tape, ou s'ouvre depuis une fiche), le budget de…
+à… (« entre 200 et 400 € » se tape, et se lit), Catégorie et Budget en accès direct (ce sont les premières questions).
+Promo et Trier (pertinence, prix croissant ou décroissant, remise) restent des feuilles d'un geste.
 
 ## Jamais d'impasse
 
@@ -135,13 +163,18 @@ inédites).
 ## Vérifier
 
 - Tests : `tests/test_query.py` (lecture d'une phrase, puces relues à l'identique, migration v11 → v12),
-  `tests/test_catalog.py` (Affiner et ses nombres, `said`, les aspirateurs : type, attributs, Affiner),
+  `tests/test_catalog.py` (les options et leurs nombres, `said`, les aspirateurs : type, attributs),
+  `tests/test_funnel.py` (v60 : l'ordre des questions, chaque réponse donne son nombre — 187 réponses vérifiées —, la
+  fin, les retours, le rayon implicite, ni tout ni rien, les plafonds de budget),
   `tests/test_ontology.py` (le fichier relu, ce qui se lit d'une offre, rien de deviné, la v57 relue),
   `tests/test_missions.py`, `tests/test_accounts.py` (comptes invités, adresse rattachée ou versée, clé renouvelée,
   effacement), `tests/test_autonomy.py` (invités expirés la nuit). 91 mutations des règles v58, puis 54 des règles v59
   (l'ontologie de chaque rayon, code et données ; l'électronique ; les alternatives ; la phrase ; Affiner ; missions ;
-  API) : toutes détectées (sept ne l'étaient pas au premier passage de la v59 : elles ont reçu un test).
-- Navigateur (Chromium, 81 étapes, deux passages) et audit d'accessibilité (99 écrans : contrastes, zones à toucher,
+  API) : toutes détectées (sept ne l'étaient pas au premier passage de la v59 : elles ont reçu un test) ; v60 : 35
+  mutations des règles de l'entonnoir et de sa place dans la Recherche (l'ordre des questions, ni tout ni rien, la
+  fin, les retours, les plafonds, le rayon implicite, les comptes quand rien n'est sous le budget, la pièce dite par
+  la phrase, le tri décroissant, la fiche sans courbe) : toutes détectées.
+- Navigateur (Chromium, 85 étapes, deux passages) et audit d'accessibilité (91 écrans : contrastes, zones à toucher,
   noms accessibles, feuilles modales titrées) : sans défaut.
 - Temps, 3 000 produits (`python -m bench.scale`) : une phrase comprise ~2,2 ms, critères choisis ~6 à 8 ms, une
   pièce ~15 ms, les recherches d'un invité ~7 ms ; avec 640 aspirateurs de plus (`--aspirateurs 640`) : « aspirateur
@@ -153,8 +186,9 @@ inédites).
 | Règle | Où |
 |---|---|
 | Lire une phrase, dire ses critères en puces, une caractéristique répond-elle | `deals/query.py` (`read`, `chips`, `fits`, `satisfies`) ; libellés `deals/labels.py` |
-| Chercher : la phrase et les critères de l'app, les mots qui restent, les plus proches, Affiner et ses nombres | `deals/catalog.py` (`search`, `_options`) |
+| Chercher : la phrase et les critères de l'app, les mots qui restent, les plus proches, les options et leurs nombres | `deals/catalog.py` (`search`, `_options`) |
+| Affiner en entonnoir (v60) : l'ordre des questions, ni tout ni rien, la fin, les retours, les plafonds, le rayon implicite | `deals/funnel.py` ; sa place dans la Recherche : `deals/catalog.py` (`search`) |
 | Les aspirateurs (v58) : l'ontologie du domaine, Affiner par type et par attribut | `deals/ontology/`, `deals/catalog.py` (`_domain_options`), `deals/query.py` (`fitter`) ; `docs/ONTOLOGIE.md` |
 | Sauvegarder, ce qui est nouveau, la cloche, la nuit | `deals/missions.py` |
 | Compte invité, adresse rattachée ou versée, effacer | `deals/accounts.py`, `deals/api.py` (`_keep`) |
-| L'écran | `web/src/App.jsx` (Recherche, `RefineSheet`, `EmailSheet`, `BrandSheet`, Profil ; v58 : vos rayons repliés) |
+| L'écran | `web/src/App.jsx` (Recherche, `Funnel` et `funnelAt`, `applyPatch`, les pages d'une marque, d'une catégorie, d'une pièce, `EmailSheet`, `BrandSheet`, Profil ; v58 : vos rayons repliés) |

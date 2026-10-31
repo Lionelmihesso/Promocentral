@@ -196,7 +196,7 @@ class Refine(unittest.TestCase):
         self.assertEqual(self.options(q="canapé sous 800 €")[:2], ([("D'angle", 1)], [("Convertible", 2)]))
         self.assertEqual(self.options(q="canapé d'angle sous 100 €"), self.options(q="canapé d'angle"))   # au-dessus du budget : ce qui est montré
         self.assertEqual(self.options(q="pour la chambre"), ([], [], {}, [("Nordvik", 1)]))   # une pièce : ses marques
-        self.assertEqual(self.options(q="pour le salon"), ([], [], {}, [("Nordvik", 2), ("Varenne", 2), ("Lumen", 1)]))   # pas les attributs de ses rayons
+        self.assertEqual(self.options(q="pour le salon"), self.options(q="canapé"))   # v60 : une pièce qui n'a qu'un rayon y entre
         self.assertEqual(self.options(q="canapé en promo")[:2], ([("D'angle", 2)], []))  # la promo demandée compte : deux d'angle convertibles
         self.assertEqual(self.options(q="canapé velours"), ([], [], {}, [("Lumen", 1)]))   # les mots aussi
         self.assertEqual(self.options(q="canapé d'angle", attrs={"seats": 3})[2],         # pris, même s'il ne change rien
@@ -306,7 +306,7 @@ class Domain(unittest.TestCase):
     def test_the_product_page_says_nothing_more(self):
         item = self.c.item(None, 1)
         self.assertEqual((item["attrs"]["sub"], item["attrs"]["cordless"]), ("balai", True))
-        self.assertFalse({"facts", "digest", "essentials"} & set(item))
+        self.assertFalse({"facts", "digest", "essentials", "history", "position"} & set(item))   # v60 : ni courbe ni jauge
 
 
 class Top(unittest.TestCase):

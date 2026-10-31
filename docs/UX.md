@@ -1,6 +1,20 @@
-# L'interface de DEALS — un flux vivant de remises, une recherche qui comprend, vos goûts (v59)
+# L'interface de DEALS — un flux vivant de remises, une recherche qui comprend, vos goûts (v60)
 
 ## Principe
+
+**Affiner en entonnoir (v60).** Affiner ne montre plus tout à la fois (53 choix d'emblée, jusqu'à 8 sections dans la
+feuille de la v59, sans fin : on picorait sans aller au bout). Il pose **une question à la fois**, du plus large au plus
+précis : **l'univers** (High-tech, Entretien, Chambre, Salon, Cuisine, Buanderie : le niveau au-dessus des rayons),
+le **rayon**, le **type**, un **attribut** du rayon (« Taille d'écran ? », « Définition ? » : 4K), le **budget** ;
+chaque réponse dit combien de produits elle donne, et les donne. Une question dont aucune réponse ne resserre la
+sélection n'est pas posée ; « **Peu importe** » passe à la suivante ; des traits disent où l'on en est ; quand il n'y a
+plus de question, ou que la sélection tient en trois produits, c'est la fin : **votre sélection**, « 3 produits », et
+« Sauvegarder ». Les étapes franchies restent en haut, chacune se retire d'une croix. Le même entonnoir est **toujours
+présent** : dans la Recherche (avant toute saisie : « Quel univers ? » ; une phrase tapée devient ses étapes), sur la
+page d'une **marque** (« Quel rayon ? », ou, pour une marque qui ne fait que des téléviseurs, ses questions d'emblée),
+d'une **catégorie** (« Téléviseurs » : « Quel type ? », puis la taille, la 4K) et d'une **pièce**. La fiche n'a plus la
+jauge du prix des derniers mois (elle troublait plus qu'elle n'aidait) : le prix, la remise, l'offre, l'alerte. Règles :
+`deals/funnel.py`, `docs/RECHERCHE.md`.
 
 **Peu de choses, et justes (v58).** Rien de plus que ce qui aide à décider vite. L'accueil commence par les top deals
 (les trois portes de la v57 doublaient ce qui existe : la Recherche, le filtre Promo, les pièces). Dans un domaine qui a
@@ -19,8 +33,9 @@ tablette, casque, enceinte, montre, console, écran ; un écran montre une image
 logo réels), et « Moins cher, comparable » ne propose qu'un téléviseur du même type et de la même taille.
 
 **Pinterest × Bloomberg.** Pinterest pour donner envie : des visuels, une mosaïque, l'inspiration par pièce. Bloomberg
-pour la vie et la décision : un bandeau où défilent les remises du jour avec l'heure de mise à jour, et dans chaque fiche
-le prix du jour situé sur les derniers mois, en mots et d'un coup d'œil (« Au plus bas depuis 2 mois », une jauge).
+pour la vie et la décision : un bandeau où défilent les remises du jour avec l'heure de mise à jour ; de la v49 à la
+v59, dans chaque fiche, le prix du jour situé sur les derniers mois (« Au plus bas depuis 2 mois », une jauge), retiré
+en v60. Le relevé des prix sert toujours : les top deals disent « Au plus bas » ou « Parmi les plus bas ».
 
 Les visuels sont des **illustrations originales** par catégorie (`web/src/art.jsx`), déclinées par produit (couleurs
 tirées du produit, proportions de l'objet : une armoire est haute, un canapé est large, d'où la mosaïque). Aucune image
@@ -30,8 +45,8 @@ pas montrées : c'est une décision à prendre (droits, vie privée, coût), voi
 La qualité reste implicite : seulement des remises réelles, aucune mention « vérifiée ». Les durées (depuis quand,
 jusqu'à quand) restent dans la fiche. Deux entrées : **les belles remises du moment** (l'accueil) et **le produit qu'on
 regarde** (la recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins cher, et aussi
-bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) et à « est-ce le bon moment ? » (le verdict de
-prix, règle : `catalog.position`).
+bien ? » (« Moins cher, comparable », règles : `deals/alternatives.py`) ; « est-ce le bon moment ? » se lit dans la
+remise réelle et, sur les top deals, dans « Au plus bas » (la jauge de la fiche, v49 à v59, est retirée en v60).
 
 **Trouver vite, garder sans e-mail (v56).** DEALS n'est pas un fil de bons plans à faire défiler : on vient chercher
 quelque chose. La **Recherche comprend une phrase** comme on la dit (« aspirateur balai sans fil sous 300 € ») et la
@@ -51,9 +66,9 @@ La **Recherche** répond à une intention précise : un champ qui comprend, les 
 mosaïque. Elle n'est jamais vide (v51) : avant toute saisie, vos recherches sauvegardées, vos recherches récentes ou des
 exemples, puis un **feed** qui montre l'étendue du catalogue, une catégorie à tour de rôle, ou « **Pour vous** » ;
 chaque lettre ou critère l'adapte sur place, sans écran blanc. Une marque tapée s'ouvre en raccourci au-dessus des
-résultats. Les pages d'une marque et d'une catégorie se trient (remises d'abord, prix croissant, décroissant). La fiche ne garde que ce qui sert la
-décision : le prix, le verdict de prix, l'enseigne la moins chère, l'alerte, les comparables moins chers ; la description
-technique et les autres enseignes restent chez l'enseigne.
+résultats. Les pages d'une marque, d'une catégorie et d'une pièce ont l'entonnoir (v60) et se trient (remises d'abord,
+prix croissant, décroissant). La fiche ne garde que ce qui sert la décision : le prix, la remise, l'enseigne la moins
+chère, l'alerte, les comparables moins chers ; la description technique et les autres enseignes restent chez l'enseigne.
 
 **Vos goûts d'abord, sans rien bloquer (v55, v56).** L'app apprend ce qui intéresse chacun, sans onboarding : vos
 rayons, choisis d'un geste dans le Profil ou sur la page d'une catégorie (« Mes rayons » ; en v55, un encart sous les
@@ -84,7 +99,8 @@ partenaire » près de l'offre, « Comment ça marche » au pied de chaque écra
 posées sur le visuel de la fiche comme des étiquettes et mènent à tous leurs produits, remises d'abord, même quand la
 marque n'a aucune remise aujourd'hui (plus de cul-de-sac). Et si ce n'est pas le bon prix : « Me prévenir sous un prix »,
 pour ce produit ou pour tous les comparables (même catégorie, mêmes fonctions, même taille), avec trois prix proposés
-(le plus bas des derniers mois, −10 %, −20 %). Plus largement, **une mission** : une envie et un prix en une phrase
+(v60 : −5 %, −10 %, −20 % du prix du jour ; avant, le plus bas des derniers mois, −10 %, −20 %). Plus largement, **une
+mission** : une envie et un prix en une phrase
 (« aspirateur balai sous 300 € ») ; l'app dit ce qu'elle a compris et ce qui y répond déjà, et un e-mail part la nuit où
 c'est le cas (`deals/missions.py`). Un onglet à part entière, un module dans le flux de l'accueil, la cloche qui compte
 les missions atteintes.
@@ -102,13 +118,13 @@ court, qui suffisent à départager), le signet (remplacé par le cœur).
 |---|---|
 | Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix ; immobile si l'appareil demande moins d'animations), « De bonnes affaires, pour vos envies. », **top deals** (« Remises et prix bas » : jusqu'à dix cartes à faire défiler, la plus forte remise d'abord, puis un prix bas, et ainsi de suite), **pour vous** (les deals et prix bas de vos rayons et de vos marques, sans répéter les top deals : « Vos rayons : Canapés, Matelas », « D'après vos recherches : Aspirateurs » ou « D'après vos visites : Canapés », et « Modifier », qui mène au Profil), **inspirations du moment** par pièce (Chambre, Salon, Cuisine, Buanderie, Entretien : « Jusqu'à −20 % » et les catégories ; les pièces de vos rayons d'abord), **les marques en promo** (même format : le produit de la meilleure remise, « Jusqu'à −19 % », les catégories), **notre sélection** en mosaïque (les autres remises) ; après deux rangées, **« Une envie précise ? »** : une phrase, qui ouvre la Recherche déjà comprise |
 | Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix en orange et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative ; dans les top deals, « Au plus bas » ou « Parmi les plus bas », et « Prix bas » sur le visuel d'un produit sans remise |
-| Pièce | ses remises en mosaïque |
-| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; **le verdict de prix** (« Au plus bas depuis 2 mois », « Un des prix les plus bas… », « Son prix habituel », « Plus cher que d'habitude » + « Souvent à 482 € ces 2 derniers mois ») et sa jauge (du plus bas au plus haut relevés, un point pour aujourd'hui, dans la zone verte, jaune ou orange du verdict) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère, la seule montrée), et dessous « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
+| Pièce | ses remises en mosaïque, l'entonnoir (« Quel rayon ? » ; Entretien, toute en aspirateurs : « Quel type ? ») et le tri |
+| Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré (v60 : plus de verdict de prix ni de jauge) ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère, la seule montrée), et dessous « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** (« Alerte à 550 € » une fois posée) ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir (alerte de prix) | pour : ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; prix maximum : trois prix proposés ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € », « 2 comparables déjà sous 550 € ») ; « Me prévenir sous 550 € » : posée tout de suite, sans e-mail (« Alerte à 550 € » sur la fiche, l'alerte dans le Profil) ; « Arrêter l'alerte à 550 € » |
-| Marque, catégorie | tous leurs produits en mosaïque, remises d'abord, ou par prix croissant ou décroissant ; « 1 remise aujourd'hui · 7 produits » ; suivre la marque (« Suivre », « Suivie ») ; une catégorie rejoint vos rayons (« Mes rayons », « Dans vos rayons ») |
-| Affiner | une feuille : le **rayon** (celui choisi ou dit par la phrase, « Changer de rayon » déplie la liste), son **type**, ses **caractéristiques** (oui ou non) et ses **tailles** (celles du rayon : « Taille d'écran : 55 pouces », « Capacité : 9 kg et plus »…), la **marque**, le **budget** (de… à…, ou moins de 200, 500, 1 000, 2 000 €), la **promo**, le **tri** ; chaque choix avec ce qu'il donnerait (« Balai 5 »), ceux qui ne donneraient rien ou ne changeraient rien ne sont pas proposés ; « Voir 5 produits », « Tout effacer » ; dans un domaine qui a son ontologie : le **type** (« Balai 13 », « Robot 8 », « Traîneau 6 »… : les plus fournis d'abord) et les **caractéristiques** (« Sans fil 26 · Avec fil 1 » ; pour un traîneau, « Sans sac 4 · Avec sac 2 ») |
+| Marque, catégorie | « 1 remise aujourd'hui · 7 produits » ; suivre la marque (« Suivre », « Suivie ») ; une catégorie rejoint vos rayons (« Mes rayons », « Dans vos rayons ») ; **l'entonnoir** (une marque : « Quel rayon ? », ou « Quel univers ? » au-delà de six rayons ; une marque d'un seul rayon : ce rayon, dit sans croix, et ses questions ; une catégorie : ses questions, sans répéter son titre) ; le tri (remises d'abord, prix croissant, décroissant) ; « 4 produits » et la mosaïque ; ce qu'on y a choisi reste quand on ouvre une fiche et revient |
+| Affiner (l'entonnoir, v60) | un bloc sombre sous les filtres : « AFFINER », des traits (faits, en cours, à venir) ; les **étapes franchies** (« High-tech × », « Téléviseurs × » : la croix revient avant elle, le type et ses attributs avec ; un rayon que la sélection dit d'elle-même, sans croix) ; **la question** (« Quel univers ? », « Quel rayon ? », « Quel type ? », « Taille d'écran ? », « Définition ? », « Votre budget ? ») et ses réponses, chacune avec son nombre (« OLED 3 ») ; « Peu importe » ; à la fin, « VOTRE SÉLECTION », ✓ « 3 produits », « Sauvegarder » (sur une page : « Recommencer ») ; rien sous le budget ou rien du tout : « Rien ici : retirez une étape. » |
 | Ajouter son e-mail | facultatif : « Pour recevoir vos alertes par e-mail et retrouver vos favoris, vos marques et vos recherches sur un autre appareil » ; un lien, aucun mot de passe ; « Ouvrez le lien reçu » ; le lien rattache l'adresse à ce qui est gardé ici (rien n'est perdu), ou verse ce qui est gardé ici dans le compte qui a déjà cette adresse |
-| Recherche | le champ, qui comprend une phrase (« aspirateur balai sans fil sous 300 € ») ; **Affiner** et les **puces** des critères compris ou choisis (« Aspirateurs », « Balai », « Sans fil », « Moins de 300 € » : toucher ouvre Affiner, la croix retire) et « Tout effacer » ; sans critère, **Catégorie**, **Budget**, **Promo** en accès direct ; avant toute saisie, **vos recherches sauvegardées** (une ligne, « 5 » sur celles qui ont du nouveau, « Tout voir » mène au Profil), **vos recherches récentes** (en mots lisibles : « Matelas · Moins de 500 € », « Effacer ») ou « Essayez » et cinq exemples, puis le **feed** (« À découvrir » ou « Pour vous ») ; dès qu'on tape ou choisit : la marque tapée en raccourci, « 3 produits » et **« Sauvegarder »** (« Sauvegardée » : un geste la retire), la mosaïque ; des mots sans produit : « « velours gris » : aucun produit ; voici le reste de votre recherche » ; rien sous le budget : « Rien à moins de 50 € · Les plus proches, dès 414 € » et « Me prévenir » ; rien du tout : « Rien pour « xyzzy » », « Pas encore là ? On surveille pour vous » et « Sauvegarder », puis le feed ; un rayon non suivi : « Les smartphones ne sont pas encore suivis » ; l'onglet touché à nouveau remonte en haut ; dans un domaine qui a son ontologie : les puces d'un type et de ses attributs (« Aspirateurs traîneaux », « Sans sac ») ; un mot qui n'en est pas un est dit comme ailleurs (« « chat parquet » : aucun produit ; voici le reste de votre recherche ») |
+| Recherche | le champ, qui comprend une phrase (« aspirateur balai sans fil sous 300 € » : les étapes « Aspirateurs », « Balai », « Sans fil », « Moins de 300 € » de l'entonnoir) ; **Promo** et **Trier** ; en puces, ce que l'entonnoir ne montre pas (la marque, la promo, le tri, les mots : la croix retire) et « Tout effacer » ; **l'entonnoir** (avant toute saisie : « Quel univers ? ») ; avant toute saisie, **vos recherches sauvegardées** (une ligne, « 5 » sur celles qui ont du nouveau, « Tout voir » mène au Profil), **vos recherches récentes** (en mots lisibles : « Matelas · Moins de 500 € », « Effacer ») ou « Essayez » et cinq exemples, puis le **feed** (« À découvrir » ou « Pour vous ») ; dès qu'on tape ou choisit : la marque tapée en raccourci, « 3 produits » et **« Sauvegarder »** (« Sauvegardée » : un geste la retire), la mosaïque ; des mots sans produit : « « velours gris » : aucun produit ; voici le reste de votre recherche » ; rien sous le budget : « Rien à moins de 50 € · Les plus proches, dès 414 € » et « Me prévenir » ; rien du tout : « Rien pour « xyzzy » », « Pas encore là ? On surveille pour vous » et « Sauvegarder », puis le feed ; un rayon non suivi : « Les smartphones ne sont pas encore suivis » ; l'onglet touché à nouveau remonte en haut ; dans un domaine qui a son ontologie : les étapes d'un type et de ses attributs (« Aspirateurs », « Traîneau », « Sans sac ») ; un mot qui n'en est pas un est dit comme ailleurs (« « chat parquet » : aucun produit ; voici le reste de votre recherche ») |
 | Comment ça marche | quelles offres (enseignes partenaires seulement, prix relus chaque nuit, remises réelles seulement), dans quel ordre (chaque écran), comment Deals est rémunéré (une commission, sans effet sur le prix ni sur le classement), vos données ; joignable depuis le pied de chaque écran et depuis l'offre |
 | Profil | le centre de commande, des titres seuls et beaucoup d'air (40 px entre deux sections, 48 sur ordinateur ; une section vide le dit d'un mot sur la ligne de son titre : « Aucune », « Aucun ») : « Gardé sur cet appareil, sans e-mail. Ajouter mon e-mail » (ou « Connecté avec … », ou, avant tout geste, « Rien n'est gardé pour l'instant. J'ai déjà un compte ») ; **vos recherches** sauvegardées (ce qui y répond, « 5 NOUVEAUX », la cloche pour l'e-mail de la nuit, la croix ; toucher ouvre la recherche et oublie ses nouveautés) ; **vos alertes de prix** (en veille ou atteinte : « Voir l'offre · 175 € chez … » en un geste) ; **vos favoris** (« 2 baisses de prix ») ; **vos marques** (« Ajouter » : toutes les marques, à suivre d'un geste) ; **vos rayons**, repliés (« Vos rayons · 2 choisis » et une flèche ; un geste les ouvre, un geste chacun, un geste les replie) ; **ce que l'app a compris** et « Oublier » ; l'interrupteur (« Me reconnaître à mon retour » sans e-mail, désactivé par défaut ; « Tenir compte des fiches que j'ouvre » avec un e-mail) ; « Effacer mes données » (avec confirmation), « Se déconnecter » ; la cloche de l'en-tête et l'onglet comptent les recherches qui ont du nouveau (et les baisses des favoris) |
 
@@ -576,3 +592,33 @@ téléviseur et ses comparables (même type, même taille, vérifiés dans le ca
 proposée à la place d'une console qui en a un, un smartphone jamais remplacé par moins de stockage ; « canapé
 convertible » lu comme un attribut du rayon ; et les étapes des versions précédentes.
 Planche : `docs/ux/18-v59.png`.
+
+## Mesures v59 → v60 : un entonnoir, une fiche sans jauge
+
+Démo du 14 décembre (127 produits), téléphone 390 × 844, mêmes gestes dans les deux versions, mesurés dans un vrai
+navigateur (Chromium).
+
+| | v59 | v60 |
+|---|---|---|
+| Fiche : la jauge du prix des derniers mois | oui (téléviseur, lave-linge, canapé) | **non** ; l'API n'envoie plus `history` ni `position` |
+| Fiche : où commence « Voir l'offre » (téléviseur · lave-linge · canapé) | 603 · 743 · 576 px | **444 · 612 · 444 px** |
+| Fiche : lignes de texte (mêmes trois fiches) | 22 · 26 · 21 | 20 · 25 · 20 |
+| Recherche vide → des téléviseurs OLED : gestes | 5 (Affiner, Téléviseurs, OLED, 55 pouces, « Voir 2 produits ») | **3** (High-tech, Téléviseurs, OLED) |
+| … choix montrés à chaque geste | 53, 24, 18, 17 (une feuille : 4 à 8 sections) | **6, 9, 4** (une question) |
+| … une fin | non : la feuille propose tout, toujours | **oui** : « Votre sélection », 3 produits (les deux OLED de 55 pouces et un de 65), « Sauvegarder » |
+| Page d'une marque : affiner sans la quitter | non (le tri seulement) | **oui** : Vistrel (des téléviseurs seulement) « Quel type ? », 4 réponses ; Kessler (7 rayons) « Quel univers ? », 3 réponses |
+| Page d'une catégorie (Téléviseurs) | non (le tri seulement) | **oui** : « Quel type ? », 4 réponses ; OLED : 3 produits, la fin |
+| Textes sous le contraste minimal · zones à toucher sous 44 px · éléments sans nom | 0 · 0 · 0 (99 écrans) | 0 · 0 · 0 (91 écrans : la feuille Affiner et ses défilements sont partis, l'entonnoir et les pages sont venus) |
+
+« 55 pouces » n'est plus demandé : à trois produits, l'entonnoir s'arrête (on les voit d'un coup d'œil) ; c'était un
+geste de plus pour un produit de moins. Ce qui a disparu avec la feuille : choisir une marque dans une liste (elle se
+tape, ou s'ouvre depuis sa page), un budget de… à… (« entre 200 et 400 € » se tape ; l'entonnoir propose des plafonds
+qui partagent la sélection), Catégorie et Budget en accès direct (ce sont les premières questions).
+
+Parcours vérifié dans un vrai navigateur (Chromium), 85 étapes, deux passages : l'univers avant toute saisie, une phrase
+devenue étapes et sa fin (« canapé convertible sous 1 000 € » : 2 produits, votre sélection), retirer une étape, une
+question à la fois et ses nombres (vérifiés contre la Recherche), retirer le rayon revient à l'univers, « Peu importe »,
+le budget en question et le tri en feuille, une recherche faite dans l'entonnoir gardée en mots lisibles et rejouée, les
+aspirateurs (le type puis le sac), les téléviseurs (une question passée ne revient pas), une marque de plusieurs rayons,
+une marque d'un seul rayon (jusqu'à la fin, puis « Recommencer »), une catégorie (son choix retrouvé au retour d'une
+fiche), une pièce ; la fiche sans jauge ; et les étapes des versions précédentes. Planche : `docs/ux/19-v60.png`.

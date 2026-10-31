@@ -12,7 +12,8 @@ que dit la phrase (feat : fonctions séparées par des virgules ; attr : clé:va
 dit criteria (ce qui est appliqué), chips (les mêmes, en mots), words et ignored (les mots cherchés, ceux qui ne
 trouvaient rien), unsupported (un rayon pas encore suivi) et relaxed (rien sous le budget : les plus proches au-dessus) ;
 sans mot ni filtre, le feed, orienté par recent (les dernières recherches du navigateur, séparées par « | ») et par les
-goûts.
+goûts. v60 : funnel (Affiner en entonnoir, deals/funnel.py : les étapes franchies, les questions qui restent) ; sort :
+relevance, price, price_desc, discount ; item/<id> n'envoie plus history ni position (la fiche n'a plus la jauge).
 Ce qu'on garde (v56 : sans e-mail) : save, brand/follow, interests {categories}, missions (POST : sauvegarder une
 recherche, prix facultatif), profile {learn} créent au besoin un compte invité (cookie) ; saves, follows, missions (GET)
 sont vides sans compte ; missions/delete, missions/seen (ce qui y répond n'est plus nouveau), missions/alert {id, on}

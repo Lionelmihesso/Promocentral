@@ -4,7 +4,9 @@ On ouvre l'app pour savoir quelles bonnes affaires existent aujourd'hui, et, pou
 non), ce qui le remplace pour moins cher. Un deal est un deal : le même pour tout le monde, sans onboarding ; seul l'ordre
 s'adapte à vos goûts. L'entrée est le produit ; la marque et la catégorie sont des entrées secondaires ; l'enseigne n'est
 qu'un attribut de l'offre. On cherche comme on parle (« aspirateur balai sans fil sous 300 € ») : la phrase devient des
-critères qu'on modifie d'un geste, et une recherche se **sauvegarde** — DEALS la surveille et dit ce qui est nouveau
+critères qu'on modifie d'un geste ; ou l'on se laisse guider, **une question à la fois** (quel univers, quel rayon,
+quel type, quel budget), jusqu'à **votre sélection** — dans la Recherche comme sur la page d'une marque ou d'une
+catégorie. Une recherche se **sauvegarde** — DEALS la surveille et dit ce qui est nouveau
 (une **mission**, avec un e-mail la nuit si on le souhaite). Tout se garde **sans e-mail** (favoris, marques, rayons,
 recherches, alertes de prix) ; l'e-mail, facultatif, sert aux alertes et à retrouver ses choix sur un autre appareil.
 
@@ -30,18 +32,23 @@ Modèle, vie privée et mesures : [`docs/PERSONNALISATION.md`](docs/PERSONNALISA
 comprend une phrase (rayon, pièce, marque, fonctions, taille ou capacité, budget de… à…, promo, prix bas, et les mots
 qui restent), la montre en puces modifiables, affine d'un geste (chaque choix dit ce qu'il donnerait), et ne mène jamais
 dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 41 phrases tapées comme on parle, plus aucune
-impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). Règles et mesures :
-[`docs/RECHERCHE.md`](docs/RECHERCHE.md).
+impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). **Affiner en entonnoir (v60)** : une question
+à la fois — l'univers (High-tech, Entretien, Chambre…), le rayon, le type, un attribut (4K, une taille d'écran), le
+budget —, chaque réponse avec ce qu'elle donne, « Peu importe » pour passer, et une fin : votre sélection ; de la
+Recherche vide à des téléviseurs OLED, 3 gestes et une fin (5 gestes et aucune fin avec la feuille de la v59, qui
+montrait 53 choix d'un coup) ; le même entonnoir sur la page d'une marque, d'une catégorie, d'une pièce. Règles et
+mesures : [`docs/RECHERCHE.md`](docs/RECHERCHE.md).
 
 **Une ontologie pour chaque rayon, bâtie sur ce que donnent les flux (v58, v59)** : trois niveaux seulement — la
 catégorie, le type (OLED ou QLED, hublot ou top, balai ou robot, d'angle…) et un ou deux attributs (4K, 5G, sans fil,
 No Frost ; une taille d'écran, une capacité) —, lus dans ce que l'enseigne donne de son offre par son flux affilié ou son
 API : le titre et sa catégorie (« TV - Vidéo > Téléviseurs > TV QLED »). Rien n'est rédigé ni deviné : ce que l'offre
-ne dit pas reste inconnu. « TV OLED 55 pouces » devient deux puces ; Affiner propose le type, les attributs et les
-tailles, chacun avec ce qu'il donnerait ; « Moins cher, comparable » ne remplace un téléviseur OLED de 55 pouces que par
-un OLED de 55 pouces. Sur 146 produits et 41 pièges écrits comme des flux, tout est rangé et lu juste, rien de deviné
-(v58 : 98 rangés, l'électronique pas du tout) ; sur 52 offres inédites, 49 rangées à la première lecture, 52 après
-correction. Ontologie et mesures : [`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
+ne dit pas reste inconnu. « TV OLED 55 pouces » devient trois étapes de l'entonnoir (Téléviseurs, OLED, 55 pouces) ;
+l'entonnoir demande le type, les attributs et les tailles, chacun avec ce qu'il donnerait ; « Moins cher,
+comparable » ne remplace un téléviseur OLED de 55 pouces que par un OLED de 55 pouces. Sur 146 produits et 41 pièges
+écrits comme des flux, tout est rangé et lu juste, rien de deviné (v58 : 98 rangés, l'électronique pas du tout) ; sur
+52 offres inédites, 49 rangées à la première lecture, 52 après correction. Ontologie et mesures :
+[`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
@@ -89,7 +96,10 @@ sur elle : `feat` des fonctions séparées par des virgules, `attr` des `clé:va
 `criteria` (ce qui est appliqué), `said` (ce que la phrase seule demande), `chips` (les critères en mots, un par puce,
 avec ce qu'on retire en la fermant), `words` (les mots qui filtrent), `ignored` (ceux qui ne trouvaient rien),
 `unsupported` (un rayon pas encore suivi), `relaxed` (rien sous le budget : les plus proches au-dessus, dès quel prix),
-`options` (Affiner : fonctions, tailles et marques du rayon ou de la pièce, avec ce que chacune donnerait), `categories`
+`options` (fonctions, tailles et marques du rayon ou de la pièce, avec ce que chacune donnerait), `funnel` (v60,
+l'entonnoir : `path`, les étapes franchies — `label`, `fixed`, `back` (les critères qui reviennent avant elle), `chips`
+(les puces qu'elle montre déjà) — et `questions`, dans l'ordre — `title`, `options` : `label`, `count`, `set` (les
+critères que la réponse ajoute)), `categories`
 (les catégories trouvées et leur nombre), `offs` (les produits de chaque palier de promo) ; sans mot ni filtre, le feed,
 orienté par `recent` : les dernières recherches gardées par le navigateur, séparées par `|` ; dans un rayon et son
 ontologie (v58 : les aspirateurs ; v59 : tous) : `domain=aspirateurs&sub=balai&prop=cordless:1` — le type, les
@@ -102,10 +112,10 @@ leurs produits, remises d'abord), `item/<id>`,
 déjà ; une mission : `product_id`, ou `like` (comparables à ce produit), ou `category`, `brand`, `features`, `attrs` ;
 et `max_price`).
 Ajoutés depuis la v41 : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche), `kind` (cartes :
-catégorie au singulier), `history` (fiche : prix des 90 derniers jours) et `position` (fiche : le prix du jour sur ces
-jours, voir plus bas), `published_at` (today : heure de la dernière publication), `saved_price` (favoris), `family`,
+catégorie au singulier), `published_at` (today : heure de la dernière publication), `saved_price` (favoris), `family`,
 `best` et `products` (catégories), `best`, `products`, `top` et `categories` (marques), `attrs` (fiche : caractéristiques
-lues, pour les missions) ; retiré en v49 : `specs` (la description n'est plus montrée) ;
+lues, pour les missions) ; retirés : `specs` en v49 (la description n'est plus montrée), `history` et `position` en v60
+(la fiche n'a plus la jauge du prix) ; tri `price_desc` (prix décroissant) en v60 ;
 `today?category=` accepte plusieurs catégories séparées par des virgules (univers, pièce).
 Garder (v56 : sans e-mail ; sans session, le premier geste crée un compte invité et pose son cookie, un an, renouvelé à
 chaque geste qui garde) : `save`, `brand/follow`, `interests`, `profile` {learn}, `missions` (POST : sauvegarder une
@@ -135,16 +145,17 @@ ouvert).
   ou un « prix barré » inchangé depuis 60 jours (c'est alors le prix). Fausse remise : 10 points de plus que la remise
   réelle, sauf si celle-ci dépasse 30 %. Une fiche reste consultable, sans remise affichée (`deals/judge.py`).
 - **Une carte** : le visuel (illustration de la catégorie), la remise posée dessus, la marque, un nom sur une ligne, le
-  prix et le prix barré. Les durées (depuis quand, jusqu'à quand) et le verdict de prix ne sont que dans la fiche. La
+  prix et le prix barré. Les durées (depuis quand, jusqu'à quand) ne sont que dans la fiche. La
   qualité est implicite. Aucune description technique ni autre enseigne : elles sont chez l'enseigne, qui est proposée
   seule (la moins chère, disponible).
-- **Le prix du jour sur les derniers mois** (fiche) : face au meilleur prix de chaque jour relevé (toutes enseignes
-  suivies, jusqu'à 90 jours, aujourd'hui exclu), « Au plus bas depuis N mois » si aucun jour n'était moins cher et que
-  le prix était plus haut au moins un jour sur deux ; « Un des prix les plus bas » s'il est moins cher qu'au moins 2
-  jours sur 3 ; « Plus cher que d'habitude » s'il est plus cher qu'au moins 2 jours sur 3 (« Souvent à X € », la
-  médiane) ; « Son prix habituel » sinon, prix immobile compris ; rien avant 14 jours relevés. « N mois » est arrondi en
-  dessous. La jauge va du plus bas au plus haut relevés ; le point place le jour parmi les jours relevés, dans la zone
-  du verdict (`catalog.position`).
+- **Le prix du jour sur les derniers mois** : face au meilleur prix de chaque jour relevé (toutes enseignes suivies,
+  jusqu'à 90 jours, aujourd'hui exclu), « au plus bas » si aucun jour n'était moins cher et que le prix était plus haut
+  au moins un jour sur deux ; « parmi les plus bas » s'il est moins cher qu'au moins 2 jours sur 3 ; rien avant 14
+  jours relevés (`catalog.position`). Il sert au prix bas des top deals. La fiche le montrait en mots et en jauge de la
+  v49 à la v59 ; retiré en v60 (la jauge troublait plus qu'elle n'aidait).
+- **Affiner en entonnoir (v60)** : une question à la fois — l'univers, le rayon, le type, les attributs du rayon, le
+  budget —, chaque réponse avec ce qu'elle donne, ni tout ni rien, « Peu importe », une fin (« Votre sélection »), dans
+  la Recherche et sur les pages d'une marque, d'une catégorie, d'une pièce (`deals/funnel.py`, `docs/RECHERCHE.md`).
 - **Classement** : l'intérêt du deal (remise en % ; pour un prix bas, ce qu'il fait économiser sur le prix habituel)
   × (1 + ½ affinité de la personne pour le rayon ou la marque), donc au plus × 1,5 : une remise de 40 % hors de vos
   rayons passe devant une remise de 26 % dans vos rayons. Une place sur quatre va au meilleur deal restant, sans les
@@ -170,12 +181,13 @@ ouvert).
   comprise en critères (`deals/query.py`) : rayon (ou pièce), marque, fonctions, taille ou capacité, budget (maximum,
   de… à…, minimum), remise minimale, prix bas, tri par prix (« pas cher ») ; ce qui est dit est exigé (mêmes règles que
   les missions), ce qui ne l'est pas ne l'est pas ; les mots qui restent filtrent s'ils trouvent, sinon ils sont dits
-  et le reste répond ; une phrase dont rien n'est compris est cherchée mot à mot ; un rayon non suivi est dit. Chaque
-  critère est une puce (la retirer élargit aussitôt) ; Affiner change le rayon, les fonctions, les tailles, la marque,
-  le budget, la promo, le tri, chaque choix avec ce qu'il donnerait, ses autres critères gardés (un choix qui ne donne
-  rien ou ne change rien n'est pas proposé). Rien sous le budget : les plus proches au-dessus, du moins cher au plus
-  cher. Tri par pertinence (d'abord les produits que les mots nomment, puis les remises, puis le prix), par prix
-  croissant ou par remise ; insensible aux accents, à la casse et aux tirets, synonymes courants (frigo, sofa, aspi…).
+  et le reste répond ; une phrase dont rien n'est compris est cherchée mot à mot ; un rayon non suivi est dit. Le
+  rayon, le type, les attributs et le budget sont les étapes de l'entonnoir, la marque, la promo, le tri et les mots
+  des puces (une croix élargit aussitôt) ; l'entonnoir pose la question suivante, chaque réponse avec ce qu'elle
+  donnerait, ses autres critères gardés (une réponse qui donne tout ou rien n'est pas proposée). Rien sous le budget :
+  les plus proches au-dessus, du moins cher au plus cher. Tri par pertinence (d'abord les produits que les mots
+  nomment, puis les remises, puis le prix), par prix croissant ou décroissant, ou par remise ; insensible aux accents,
+  à la casse et aux tirets, synonymes courants (frigo, sofa, aspi…).
   Jamais vide : sans mot ni filtre, un feed (les produits des quatre dernières recherches d'abord, puis ceux de vos
   rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue, une catégorie à tour de rôle).
 - **Chaque rayon a son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise)** : le type et un ou deux
@@ -234,16 +246,19 @@ ouvert).
 
 Une page (`web/src/App.jsx` → `web/app.html`, polices incluses, aucune requête vers un tiers) : un flux vivant de
 remises, à la croisée d'un Pinterest (mosaïque de visuels, inspiration par pièce) et d'un Bloomberg (bandeau défilant
-avec l'heure de mise à jour, verdict de prix et sa jauge). Les visuels sont des illustrations originales par catégorie
-(`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant que la question des droits n'est pas tranchée.
+avec l'heure de mise à jour ; la jauge du prix sur la fiche, de la v49 à la v59, est retirée en v60). Les visuels sont
+des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant
+que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Trois onglets :
 Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection ; « Une envie précise ? » ouvre la
-Recherche), Recherche (une phrase comprise en puces, Affiner, Sauvegarder ; vos recherches sauvegardées et récentes ;
-un feed qui s'adapte), Profil, le centre de commande (vos recherches et alertes, favoris, marques, rayons — repliés,
-ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres seuls, beaucoup d'air) ;
-« Comment ça marche » au pied de chaque écran ; espaces insécables du français dans les textes.
-Principe, écrans et mesures v41 à v59 : [`docs/UX.md`](docs/UX.md).
+Recherche), Recherche (une phrase comprise, l'entonnoir — une question à la fois, jusqu'à votre sélection —, Promo et
+Trier, Sauvegarder ; vos recherches sauvegardées et récentes ; un feed qui s'adapte ; le même entonnoir sur les pages
+d'une marque, d'une catégorie, d'une pièce), Profil, le centre de commande (vos recherches et alertes, favoris,
+marques, rayons — repliés, ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres
+seuls, beaucoup d'air) ; « Comment ça marche » au pied de chaque écran ; espaces insécables du français dans les
+textes.
+Principe, écrans et mesures v41 à v60 : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 

@@ -35,6 +35,11 @@
    casques, enceintes, montres, consoles, écrans PC) : une pièce « High-tech » à l'accueil, ses exemples dans la Recherche,
    ses illustrations.
 
+   v60 : Affiner en entonnoir. Une question à la fois — l'univers (High-tech, Salon…), le rayon, le type, un attribut, le
+   budget —, chaque réponse avec son nombre de produits, « Peu importe » pour passer ; quand il n'y a plus de question,
+   c'est votre sélection. Le même entonnoir dans la Recherche et sur la page d'une marque, d'une catégorie, d'une pièce.
+   La fiche n'a plus la jauge du prix des derniers mois : le prix, la remise, l'offre.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -60,11 +65,8 @@ const UI = {
   cal: ["M5.5 6h13a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M4.5 10h15", "M8.5 4v4", "M15.5 4v4"],
   next: ["M9.5 5.5L16 12l-6.5 6.5"],
   target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
-  minus: ["M6.5 12h11"],
   down: ["M7 10l5 5 5-5"],
-  up: ["M12 18.5v-12", "M6.5 12l5.5-5.5 5.5 5.5"],
   bookmark: ["M7.5 4.5h9a1 1 0 0 1 1 1v14.5l-5.5-3.6-5.5 3.6V5.5a1 1 0 0 1 1-1z"],
-  sliders: ["M4 7.5h9", "M18.5 7.5H20", C(15.8, 7.5, 2.2), "M4 16.5h2.5", "M11 16.5h9", C(8.7, 16.5, 2.2)],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
   fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -79,16 +81,16 @@ const clock = ts => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: 
 const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(ts * 1000));
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const spanOf = days => days >= 30 ? `${Math.floor(days / 30)} mois` : `${days} jours`;      // « depuis 2 mois » : arrondi en dessous
 const FAMILY = { electromenager: "Électroménager", electronique: "Électronique", ameublement: "Ameublement", literie: "Literie" };
-// Recherche : des exemples pour démarrer, les filtres (budget maximum, remise minimale) et les tris.
+// Recherche : des exemples pour démarrer, le filtre de promo et les tris (le rayon et le budget : l'entonnoir).
 const TRY = ["aspirateur balai sans fil", "TV OLED 55 pouces", "smartphone 5G", "lave-linge 9 kg", "canapé d'angle"];
-const BUDGETS = [["", "Tous les budgets"], ["200", "Moins de 200 €"], ["500", "Moins de 500 €"], ["1000", "Moins de 1 000 €"], ["2000", "Moins de 2 000 €"]];
 // Promo : un palier de remise, ou un prix parmi les plus bas depuis longtemps (catalog.cheap) ; seuls les choix qui
 // donnent quelque chose sont proposés, avec leur nombre de produits.
 const OFFS = [["", "Toutes"], ["1", "En promo"], ["10", "−10 % et plus"], ["20", "−20 % et plus"], ["30", "−30 % et plus"],
   ["40", "−40 % et plus"], ["50", "−50 % et plus"], ["low", "Prix parmi les plus bas"]];
-const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["discount", "Plus forte promo"]];
+const SORTS = [["relevance", "Pertinence"], ["price", "Prix croissant"], ["price_desc", "Prix décroissant"], ["discount", "Plus forte promo"]];
+// Pages d'une marque, d'une catégorie, d'une pièce : leur tri, dit au serveur (catalog.SORTS).
+const PAGE_SORT = { pct: "discount", asc: "price", desc: "price_desc" };
 // Les critères choisis dans l'app (puces, Affiner) ; la phrase tapée dit le reste (deals/query.py).
 // Dans un rayon et son ontologie (v59 : tous) : domain, sub (le type), props (sans fil, 5G, No Frost… : exigés).
 const NO_CRIT = { category: null, room: null, brand: null, features: [], attrs: {}, min: null, max: null, off: null, low: false, sort: null,
@@ -108,6 +110,26 @@ const searchParams = (text, c) => {
   const pr = Object.entries(c.props);
   if (pr.length) p.set("prop", pr.map(([k, v]) => `${k}:${v ? 1 : 0}`).join(","));
   return p;
+};
+// Une réponse de l'entonnoir, ou le retour avant une étape, appliquée aux critères (deals/funnel.py) : props et attrs
+// s'y ajoutent (null les vide, une valeur null retire la clé), le reste est remplacé.
+const applyPatch = (c, patch) => {
+  const out = { ...c };
+  for (const [k, v] of Object.entries(patch)) {
+    if (k !== "props" && k !== "attrs") { out[k] = v; continue; }
+    const m = v == null ? {} : { ...c[k] };
+    for (const [x, y] of Object.entries(v || {})) { if (y == null) delete m[x]; else m[x] = y; }
+    out[k] = m;
+  }
+  return out;
+};
+// Où en est l'entonnoir : les étapes (sans celles que le titre de la page dit déjà : hide), la question posée (la
+// première qui n'est pas passée), celles qui restent, combien sont faites (choisies ou passées).
+const funnelAt = (f, skip, hide = []) => {
+  if (!f) return null;
+  const path = f.path.filter(s => !hide.includes(s.level));
+  const open = f.questions.filter(q => !skip.includes(q.key));
+  return { path, open, q: open[0] || null, done: path.filter(s => !s.fixed).length + f.questions.length - open.length };
 };
 /* Vos dernières recherches (4, la plus récente d'abord), gardées par ce navigateur seulement : elles orientent le feed
    de la Recherche (« Pour vous ») ; le serveur ne les garde pas. */
@@ -174,11 +196,10 @@ async function api(path, body) {
   return data;
 }
 
-/* Prix proposés pour une alerte : le plus bas des derniers mois s'il est sous le prix du jour, puis −10 % et −20 %. */
+/* Prix proposés pour une alerte : −5 %, −10 % et −20 % du prix du jour. */
 function suggestions(p) {
-  const out = [], low = p.position?.low;
-  if (low != null && low < Math.round(p.price)) out.push([low, "le plus bas"]);
-  for (const f of [0.9, 0.8]) { const v = Math.floor(p.price * f); if (!out.some(([x]) => x === v)) out.push([v, `−${Math.round((1 - f) * 100)} %`]); }
+  const out = [];
+  for (const f of [0.95, 0.9, 0.8]) { const v = Math.floor(p.price * f); if (!out.some(([x]) => x === v)) out.push([v, `−${Math.round((1 - f) * 100)} %`]); }
   return out;
 }
 
@@ -287,21 +308,6 @@ const CSS = `
 .d .when{display:flex;align-items:center;gap:10px;margin-top:14px;background:var(--accent-soft);border-radius:14px;padding:12px 14px;font-size:14px;font-weight:600}
 .d .when .i{color:var(--accent)}
 .d .buy{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;min-height:54px;border-radius:15px;background:var(--ink);color:#fff;font-size:16px;font-weight:800;text-decoration:none}
-/* le prix du jour sur les derniers mois : un verdict, une jauge */
-.d .pos{margin-top:14px;border:1px solid var(--line);border-radius:16px;padding:13px 16px 12px}
-.d .pos .vd{display:flex;align-items:center;gap:9px;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
-.d .pos .vi{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--icon);color:#fff}
-.d .pos.good .vd{color:var(--good)}.d .pos.good .vi{background:var(--good)}
-.d .pos.warn .vd{color:var(--warn)}.d .pos.warn .vi{background:var(--warn)}
-.d .gauge{margin-top:12px}
-.d .gauge .now{position:relative;height:23px;font-size:11.5px;font-weight:800;color:var(--ink);line-height:14px}
-.d .gauge .now span{position:absolute;white-space:nowrap;transform:translateX(-50%)}
-.d .gauge .now span.l{transform:none}.d .gauge .now span.r{transform:translateX(-100%)}
-.d .track{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,#2E8B57 0%,#74B55A 24%,#E6C34D 40%,#E6C34D 60%,#E68B3F 76%,#DC6A36 100%)}
-.d .track i{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--ink);transform:translate(-50%,-50%);box-shadow:0 1px 3px rgba(0,0,0,.25)}
-.d .ends{display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px;color:var(--mid);font-weight:600}
-.d .ends b{color:var(--ink);font-weight:800}
-.d .pos .pn{margin:8px 0 0;font-size:13.5px;color:var(--mid);font-weight:600}
 /* comptes, marques */
 .d .cta{display:block;width:100%;margin-top:16px;border:0;background:var(--ink);color:#fff;border-radius:16px;min-height:50px;font-size:15px;font-weight:800}
 .d .cta:disabled{opacity:.5}
@@ -431,11 +437,9 @@ const CSS = `
 .d .near .tx small{display:block;font-size:12px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em}
 .d .near .tx span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .d .near b{font-size:16px;font-weight:800;letter-spacing:-.02em}
-/* recherche v56 : les critères compris, en puces modifiables ; affiner ; sauvegarder */
-.d .fchip.refine{gap:7px;padding:0 14px}
-.d .fchip.refine.on{background:var(--tint);border-color:var(--tint);color:var(--ink)}
+/* recherche v56 : les critères compris, en puces modifiables ; sauvegarder */
 .d .crit{flex:0 0 auto;display:flex;align-items:center;background:var(--ink);color:#fff;border-radius:999px;min-height:44px}
-.d .crit .cl{border:0;background:none;color:inherit;min-height:44px;min-width:44px;padding:0 2px 0 15px;font-size:14.5px;font-weight:700;white-space:nowrap}
+.d .crit .cl{display:flex;align-items:center;border:0;background:none;color:inherit;min-height:44px;min-width:44px;padding:0 2px 0 15px;font-size:14.5px;font-weight:700;white-space:nowrap}
 .d .crit .cx{border:0;background:none;color:inherit;width:44px;height:44px;display:grid;place-items:center;border-radius:999px;opacity:.85}
 .d .savebtn{flex:0 0 auto;display:flex;align-items:center;gap:7px;border:1.5px solid var(--ink);background:var(--paper);border-radius:999px;min-height:44px;padding:0 15px;font-size:14px;font-weight:800}
 .d .savebtn.on{background:var(--ink);color:#fff}
@@ -444,10 +448,34 @@ const CSS = `
 .d .ctag.on em{color:#D9D7D2}
 .d .ctag em.new,.d .st em.new{font-style:normal;background:var(--accent);color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:2px 7px;line-height:1.3;letter-spacing:.02em}
 .d .tryit .saved{margin-bottom:22px}
-.d .sheet.refine h3{margin:18px 0 8px}
-.d .sheet.refine .ctags .ctag{min-height:44px}
-.d .range{display:flex;gap:10px}.d .range .pinput{flex:1;min-width:0;margin-top:0}
 .d .sechead > div .n{display:block;margin-top:4px}
+/* v60 : Affiner en entonnoir — une question à la fois, chaque réponse avec son nombre de produits, une fin */
+.d .funnel{margin:14px 16px 0;background:var(--terminal);color:#F2F0EC;border-radius:22px;padding:16px 16px 10px}
+.d .funnel .k{display:flex;align-items:center;gap:8px;min-height:16px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:#FF9A70}
+.d .funnel .k i{width:7px;height:7px;border-radius:50%;background:#FF6A3D;box-shadow:0 0 0 3px rgba(255,106,61,.2)}
+.d .funnel .prog{display:flex;gap:4px;margin-left:auto}
+.d .funnel .prog b{width:14px;height:4px;border-radius:2px;background:#3A3D42}
+.d .funnel .prog b.on{background:#FF9A70}.d .funnel .prog b.at{background:#F2F0EC}
+.d .fpath{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.d .fstep{display:flex;align-items:center;gap:6px;border:0;background:#2A2C30;color:#F2F0EC;border-radius:999px;min-height:44px;padding:0 12px 0 15px;font-size:14px;font-weight:700;white-space:nowrap}
+.d .fstep .i{opacity:.7}
+.d .fstep.fixed{background:none;box-shadow:inset 0 0 0 1.5px #3A3D42;padding:0 15px}
+.d .fq{animation:fin .22s ease-out}
+.d .funnel h3{margin:16px 0 0;font-family:var(--serif);font-weight:400;font-size:31px;line-height:1.05;letter-spacing:-.01em;color:#fff}
+.d .fopts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.d .fopt{display:flex;align-items:center;gap:10px;border:0;background:#F2F0EC;color:var(--ink);border-radius:14px;min-height:48px;padding:0 14px 0 16px;font-size:15px;font-weight:800;text-align:left}
+.d .fopt em{font-style:normal;font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--mid)}
+.d .fskip{display:block;border:0;background:none;color:#BDBBB6;font-size:14px;font-weight:700;min-height:44px;padding:0 2px;margin-top:4px;text-decoration:underline;text-underline-offset:3px}
+.d .funnel .done{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:14px 0 6px}
+.d .funnel .done .ok{flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center}
+.d .funnel .done h2{flex:1;color:#fff;font-size:30px}
+.d .funnel .done .savebtn{background:#F2F0EC;border-color:#F2F0EC;color:var(--ink)}
+.d .funnel .done .savebtn.on{background:var(--good);border-color:var(--good);color:#fff}
+.d .funnel .done .fskip{flex-basis:100%;margin-top:0}
+.d .funnel .fnone{margin:14px 0 8px;color:#BDBBB6;font-size:14px;font-weight:600}
+@keyframes fin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.d .fq{animation:none}}
+@media (hover:hover){.d .fopt:hover{background:#fff}.d button.fstep:hover{background:#34363B}}
 /* profil : le centre de commande */
 .d .idline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 14px;margin:14px 16px 0;padding:12px 16px;border-radius:16px;background:var(--tint);font-size:14px;color:var(--mid);font-weight:600}
 .d .idline b{color:var(--ink)}
@@ -491,6 +519,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
   .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
   .d .idline,.d .savebar,.d .confirm{margin-left:0;margin-right:0}
+  .d .funnel{margin-left:0;margin-right:0;max-width:760px;padding:20px 22px 12px}
   .d .profile .psec{margin-top:48px}.d .fold{padding:0}
   .d .profile .sw{margin-left:0;margin-right:0}.d .profile .out > .ghost{padding-left:0;padding-right:0}
   .d .center{max-width:900px}
@@ -558,93 +587,6 @@ function EmailSheet({ reason, onClose, onDone }) {
         <button type="button" className="cta" autoFocus onClick={onDone}>J'ai ouvert le lien</button>
       </>}
     </form>
-  </div>;
-}
-
-/* Affiner une recherche : tout ce qu'elle demande, modifiable à tout moment — le rayon, les fonctions et les tailles qui
-   existent dans ce rayon (avec leur nombre de produits), la marque, le budget, la promo, le tri. Chaque choix s'applique
-   aussitôt ; la feuille dit combien de produits répondent. */
-function RefineSheet({ results, base, cats, brands, onEdit, onClose }) {
-  const dom = results?.domain?.key || base.domain;          // un domaine à ontologie : le type, puis sans fil, sans sac
-  useEscape(onClose);
-  const box = useRef(null);
-  useEffect(() => { box.current?.focus(); }, []);
-  const c = base, opts = results?.options, offs = results?.offs || {};
-  const [lo, setLo] = useState(c.min ?? ""), [hi, setHi] = useState(c.max ?? "");
-  useEffect(() => { setLo(c.min ?? ""); setHi(c.max ?? ""); }, [c.min, c.max]);
-  const num = v => v === "" || v == null ? null : Number(v) >= 1 ? Number(v) : null;
-  const chip = (key, label, on, onClick, count) => <button key={key} className={`ctag ${on ? "on" : ""}`} aria-pressed={on} onClick={onClick}
-    aria-label={count != null ? `${label}, ${plural(count, "produit")}` : undefined}>{on && <Icon d={UI.check} size={15} sw={2.8} />}{label}
-    {count != null && <em>{count}</em>}</button>;
-  const brandList = opts ? opts.brands.map(b => ({ name: b.name, count: b.count }))          // dans le rayon ou la pièce, selon la recherche
-    : brands.filter(b => b.products > 0).map(b => ({ name: b.name, count: b.products }));
-  // Le rayon choisi seul, la liste entière sur demande : ses fonctions et ses tailles viennent juste dessous.
-  const [wide, setWide] = useState(!c.category && !c.room && !c.domain);
-  const rayons = useRef(null), moved = useRef(false);
-  useEffect(() => {
-    const box = rayons.current;
-    if (moved.current && box) (wide ? box.querySelector(".ctag.on") || box.querySelector(".ctag") : box.querySelector(".ctag.more"))?.focus();
-  }, [wide]);
-  const none = x => ({ ...x, category: null, room: null, features: [], attrs: {}, domain: null, sub: null, props: {} });
-  const pickCat = key => { const was = c.category === key || (inDomain.length === 1 && inDomain[0] === key);
-    onEdit(x => was ? none(x) : { ...none(x), category: key }); moved.current = true; setWide(was); };
-  const unpick = () => { onEdit(none); moved.current = true; setWide(true); };
-  const inDomain = !c.category && c.domain ? results?.domain?.categories || [] : [];   // un rayon dit par la phrase (son domaine)
-  const isOn = key => c.category === key || inDomain.includes(key);
-  const picked = cats.find(k => k.key === c.category) || (inDomain.length === 1 ? cats.find(k => k.key === inDomain[0]) : null);
-  const promos = OFFS.filter(([k]) => k && (offs[k] > 0 || (k === "low" ? c.low : String(c.off || "") === k)));
-  const chosenLabel = picked?.label || (c.domain && results?.domain?.label) || results?.chips?.find(x => ["category", "room", "domain", "sub"].includes(x.id))?.label
-    || "Rayon choisi";
-  return <div className="sheet-wrap" onClick={onClose}>
-    <div className="sheet refine" ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="refine-h" onClick={e => e.stopPropagation()}>
-      <div className="eyebrow">Recherche</div>
-      <h2 id="refine-h">Affiner</h2>
-      <h3>Rayon</h3>
-      <div className="ctags" ref={rayons}>{wide ? <>{chip("all", "Tous", !c.category && !c.room && !c.domain, unpick)}
-        {cats.map(k => chip(k.key, k.label, isOn(k.key), () => pickCat(k.key), k.products))}</>
-        : <>{chip("chosen", chosenLabel, true, unpick, picked?.products)}
-          <button className="ctag more" aria-expanded="false" onClick={() => { moved.current = true; setWide(true); }}>Changer de rayon
-            <Icon d={UI.down} size={15} sw={2.4} /></button></>}</div>
-      {opts?.subs?.length > 0 && <><h3>Type</h3>
-        <div className="ctags">{opts.subs.map(t => chip(t.key, t.label, c.sub === t.key, () => onEdit(x => ({ ...x, domain: x.domain || dom,
-          sub: x.sub === t.key ? null : t.key })), t.count))}</div></>}
-      {opts?.props?.length > 0 && <><h3>Caractéristiques</h3>
-        <div className="ctags">{opts.props.map(p => chip(`${p.key}:${p.value}`, p.label, c.props[p.key] === p.value, () => onEdit(x => {
-          const props = { ...x.props };
-          if (props[p.key] === p.value) delete props[p.key]; else props[p.key] = p.value;
-          return { ...x, domain: x.domain || dom, props };
-        }), p.count))}</div></>}
-      {opts?.features?.length > 0 && <><h3>Fonctions</h3>
-        <div className="ctags">{opts.features.map(f => chip(f.key, f.label, c.features.includes(f.key), () => onEdit(x => ({ ...x,
-          features: x.features.includes(f.key) ? x.features.filter(y => y !== f.key) : [...x.features, f.key] })), f.count))}</div></>}
-      {opts && Object.entries(opts.attrs).map(([k, a]) => <div key={k}><h3>{a.title}</h3>
-        <div className="ctags">{a.values.map(v => chip(String(v.value), v.label, c.attrs[k] === v.value, () => onEdit(x => {
-          const attrs = { ...x.attrs };
-          if (attrs[k] === v.value) delete attrs[k]; else attrs[k] = v.value;
-          return { ...x, attrs };
-        }), v.count))}</div></div>)}
-      {brandList.length > 0 && <><h3>Marque</h3>
-        <div className="ctags">{brandList.slice(0, 16).map(b => chip(b.name, b.name, c.brand === b.name,
-          () => onEdit(x => ({ ...x, brand: x.brand === b.name ? null : b.name })), b.count))}</div></>}
-      <h3>Budget</h3>
-      <div className="range">
-        <label className="pinput"><span>De</span><input type="number" inputMode="numeric" min="1" value={lo} placeholder="—" aria-label="Prix minimum, en euros"
-          onChange={e => setLo(e.target.value)} onBlur={() => onEdit(x => ({ ...x, min: num(lo) }))} /><b>€</b></label>
-        <label className="pinput"><span>À</span><input type="number" inputMode="numeric" min="1" value={hi} placeholder="—" aria-label="Prix maximum, en euros"
-          onChange={e => setHi(e.target.value)} onBlur={() => onEdit(x => ({ ...x, max: num(hi) }))} /><b>€</b></label>
-      </div>
-      <div className="ctags" style={{ marginTop: 10 }}>{BUDGETS.filter(([v]) => v).map(([v, l]) => chip(v, l, c.max === Number(v) && c.min == null,
-        () => onEdit(x => ({ ...x, min: null, max: x.max === Number(v) && x.min == null ? null : Number(v) }))))}</div>
-      {promos.length > 0 && <><h3>Promo</h3>
-        <div className="ctags">{promos.map(([k, l]) => {
-          const on = k === "low" ? c.low : String(c.off || "") === k;
-          return chip(k, l, on, () => onEdit(x => k === "low" ? { ...x, low: !x.low } : { ...x, off: on ? null : Number(k) }), offs[k] ?? 0);
-        })}</div></>}
-      <h3>Trier</h3>
-      <div className="ctags">{SORTS.map(([k, l]) => chip(k, l, (c.sort || "relevance") === k, () => onEdit(x => ({ ...x, sort: k === "relevance" ? null : k }))))}</div>
-      <button className="cta" onClick={onClose}>{results ? `Voir ${plural(results.total, "produit")}` : "Voir les produits"}</button>
-      <button className="ghost" onClick={() => { onEdit(() => ({ ...NO_CRIT }), []); onClose(); }}>Tout effacer</button>
-    </div>
   </div>;
 }
 
@@ -761,42 +703,45 @@ function Masonry({ items, cols, render }) {
     {columns.map((c, i) => <div key={i} className="mcol">{c.items.map(render)}</div>)}</div>;
 }
 
-/* Le prix du jour sur les derniers mois, pour décider vite : un verdict en mots, une jauge du plus bas au plus haut
-   relevés, un point pour aujourd'hui (règle côté serveur : catalog.position). */
-// band : la zone de la jauge où tombe chaque verdict (vert, jaune, orange) ; le point y suit le rang du jour.
-const VERDICT = {
-  lowest: { tone: "good", icon: UI.check, band: [0, 0], say: span => `Au plus bas depuis ${span}` },
-  low: { tone: "good", icon: UI.check, band: [0.04, 0.3], say: span => `Un des prix les plus bas depuis ${span}` },
-  usual: { tone: "", icon: UI.minus, band: [0.38, 0.62], say: () => "Son prix habituel" },
-  high: { tone: "warn", icon: UI.up, band: [0.7, 0.96], say: () => "Plus cher que d'habitude" },
-};
-function PricePosition({ pos, price }) {
-  if (!pos) return null;
-  const v = VERDICT[pos.level], span = spanOf(pos.days), range = pos.high - pos.low;
-  const at = Math.min(v.band[1], Math.max(v.band[0], pos.rank));         // place parmi les jours, dans la zone du verdict
-  const left = `calc(9px + (100% - 18px) * ${at.toFixed(3)})`;
-  return <div className={`pos ${v.tone}`}>
-    <div className="vd"><span className="vi"><Icon d={v.icon} size={14} sw={2.8} /></span>{v.say(span)}</div>
-    {range > 0 && <div className="gauge" role="img" aria-label={`Depuis ${span}, de ${eur(pos.low)} à ${eur(pos.high)} ; aujourd'hui ${eur(price)}`}>
-      <div className="now" aria-hidden="true"><span className={at < 0.12 ? "l" : at > 0.88 ? "r" : ""} style={{ left: at < 0.12 ? 0 : at > 0.88 ? "100%" : left }}>aujourd'hui</span></div>
-      <div className="track"><i style={{ left }} /></div>
-      <div className="ends" aria-hidden="true"><span>Le plus bas <b>{eur(pos.low)}</b></span><span>Le plus haut <b>{eur(pos.high)}</b></span></div>
-    </div>}
-    {pos.level === "high" && <p className="pn">Souvent à {eur(pos.usual)} {pos.days >= 60 ? `ces ${Math.floor(pos.days / 30)} derniers mois`
-      : pos.days >= 30 ? "ce dernier mois" : `ces ${pos.days} derniers jours`}.</p>}
-  </div>;
+/* Affiner en entonnoir (v60, deals/funnel.py) : une question à la fois — l'univers, le rayon, le type, un attribut, le
+   budget —, chaque réponse avec son nombre de produits ; « Peu importe » passe à la suivante (l'app s'en souvient) ;
+   quand il n'y a plus de question, c'est votre sélection. Les étapes franchies, en haut, se retirent d'un geste ; un
+   rayon que la sélection dit d'elle-même (une marque qui ne fait que des téléviseurs) reste. at : funnelAt(…). */
+function Funnel({ at, total, onAnswer, onBack, onSkip, onRestart, keep }) {
+  if (!at || (!at.q && !at.done)) return null;                          // rien à demander, rien de choisi
+  const { path, q, done } = at, steps = done + at.open.length;
+  return <section className="funnel" aria-label="Affiner">
+    <div className="k"><i />{q ? "AFFINER" : "VOTRE SÉLECTION"}{q && steps > 1 && <span className="prog" aria-hidden="true">
+      {Array.from({ length: steps }, (_, i) => <b key={i} className={i < done ? "on" : i === done ? "at" : ""} />)}</span>}</div>
+    {path.length > 0 && <div className="fpath">{path.map(s => s.fixed
+      ? <span key={s.level + s.key} className="fstep fixed">{s.label}</span>
+      : <button key={s.level + s.key} className="fstep" onClick={() => onBack(s)} aria-label={`Retirer ${s.label}`}>{s.label}
+        <Icon d={UI.x} size={13} sw={2.6} /></button>)}</div>}
+    {q ? <div className="fq" key={q.level + q.key}>
+      <h3>{q.title}</h3>
+      <div className="fopts">{q.options.map(o => <button key={o.label} className="fopt" onClick={() => onAnswer(o.set)}
+        aria-label={`${o.label}, ${plural(o.count, "produit")}`}><span>{o.label}</span><em>{o.count}</em></button>)}</div>
+      <button className="fskip" onClick={() => onSkip(q.key)}>Peu importe</button>
+    </div> : total > 0 ? <div className="done">
+      <span className="ok"><Icon d={UI.check} size={18} sw={2.6} /></span>
+      <h2>{plural(total, "produit")}</h2>
+      {keep}
+      {onRestart && <button className="fskip" onClick={onRestart}>Recommencer</button>}
+    </div> : <p className="fnone">Rien ici : retirez une étape.</p>}
+  </section>;
 }
 
 export default function App() {
   const [tab, setTab] = useState("home");
   const [view, setView] = useState(null);          // null | item | brand | category | room | about — chacune garde `from` (« Retour »)
   const [q, setQ] = useState("");                  // Recherche : la phrase tapée
-  const [crit, setCrit] = useState(NO_CRIT);       // Recherche : les critères choisis dans l'app (puces, Affiner), qui l'emportent
+  const [crit, setCrit] = useState(NO_CRIT);       // Recherche : les critères choisis dans l'app (puces, entonnoir), qui l'emportent
+  const [skip, setSkip] = useState([]);            // Recherche : les questions de l'entonnoir passées (« Peu importe »)
   const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
   const [top, setTop] = useState(null);            // top deals (accueil, en premier)
   const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)
   const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
-  const [picking, setPicking] = useState(null);    // feuille ouverte : category | budget | off | refine | brands
+  const [picking, setPicking] = useState(null);    // feuille ouverte : off | sort | brands
   const [results, setResults] = useState(null);    // Recherche : la réponse (produits, critères compris, puces)
   const [searching, setSearching] = useState(false);  // une réponse est attendue : les résultats montrés pâlissent
   const [feed, setFeed] = useState(null);          // Recherche : le feed d'avant toute saisie
@@ -806,11 +751,12 @@ export default function App() {
   const [taste, setTaste] = useState(null);        // Profil : ce que l'app retient et a compris
   const [guestVariant] = useState(() => Math.random() < 0.1 ? "t" : "p"); // sans compte : une visite sur dix est témoin
   const seq = useRef(0);                           // seule la réponse à la dernière saisie compte
-  const [order, setOrder] = useState("pct");       // pages marque et catégorie : pct | asc | desc
-  const [list, setList] = useState(null);          // pièce
+  const [order, setOrder] = useState("pct");       // pages marque, catégorie, pièce : pct | asc | desc
+  const [pc, setPc] = useState(NO_CRIT);           // pages : ce qui y est choisi dans l'entonnoir
+  const [pskip, setPskip] = useState([]);          // pages : les questions passées
+  const [pres, setPres] = useState(null);          // pages : la réponse (une Recherche fixée sur la marque, la catégorie, la pièce)
+  const pseq = useRef(0);
   const [item, setItem] = useState(null);
-  const [brandPage, setBrandPage] = useState(null);
-  const [catPage, setCatPage] = useState(null);
   const [missions, setMissions] = useState(null);  // vos recherches sauvegardées (missions) : { missions, reached, fresh }
   const [alertOpen, setAlertOpen] = useState(false);
   const [session, setSession] = useState({ checked: false, email: null, guest: false, variant: "p" });
@@ -940,10 +886,20 @@ export default function App() {
     if (!view) return;
     setError(null);
     if (view.kind === "item") api(`item/${view.id}`).then(setItem).catch(() => setError("Produit introuvable."));
-    if (view.kind === "brand") api(`brand/${encodeURIComponent(view.name)}`).then(setBrandPage).catch(() => setError("Marque introuvable."));
-    if (view.kind === "category") api(`category/${view.key}`).then(setCatPage).catch(() => setError("Catégorie introuvable."));
-    if (view.kind === "room") api(`today?category=${view.room.cats.join(",")}`).then(setList).catch(() => setError("Pièce introuvable."));
   }, [view, version]);
+
+  // Pages d'une marque, d'une catégorie, d'une pièce (v60) : une Recherche fixée sur elles (ctx), avec l'entonnoir et un
+  // tri. Ce qu'on y choisit (pc), ce qu'on y passe (pskip) et le tri (order) les suivent quand on ouvre une fiche et revient.
+  const isPage = v => v?.kind === "brand" || v?.kind === "category" || v?.kind === "room";
+  const ctxOf = v => v.kind === "brand" ? { brand: v.name } : v.kind === "category" ? { category: v.key } : { room: v.room.key, off: 1 };
+  const pageKey = v => isPage(v) ? `${v.kind}:${v.name || v.key || v.room.key}` : null;
+  const pageParams = isPage(view) ? searchParams("", { ...pc, ...ctxOf(view), sort: PAGE_SORT[order] }).toString() : null;
+  useEffect(() => {
+    if (!pageParams) return;
+    const n = ++pseq.current, k = pageKey(view);
+    api(`search?${pageParams}`).then(d => { if (n === pseq.current) setPres({ ...d, _p: pageParams, _k: k }); })
+      .catch(() => { if (n === pseq.current) setError("Impossible de charger cette page."); });
+  }, [pageParams, version]);
 
   useEffect(() => { window.scrollTo(0, 0); setAlertOpen(false); setPicking(null); setErase(false); }, [view, tab]);
 
@@ -1016,15 +972,22 @@ export default function App() {
     });
   };
   const forget = () => { setRecent([]); recents.set([]); };
-  const goTab = t => { setView(null); setItem(null); setBrandPage(null); setCatPage(null); setList(null); setTab(t); setQ("");
+  const goTab = t => { setView(null); setItem(null); setTab(t); setQ(""); setSkip([]);
     setCrit(NO_CRIT); if (t === tab && !view) window.scrollTo(0, 0); };   // l'onglet déjà ouvert : en haut
   // Chaque vue garde celle d'où l'on vient : « Retour » y ramène. via : d'où vient la fiche (mesure des clics sortants).
-  const open = (id, via, mission) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, mission, from: v })); };
+  const snap = v => isPage(v) ? { ...v, crit: pc, skip: pskip, order } : v;   // une page quittée garde ce qu'on y a choisi
+  const open = (id, via, mission) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, mission, from: snap(v) })); };
   const openAbout = () => setView(v => ({ kind: "about", from: v }));
-  const openBrand = name => { setBrandPage(null); setOrder("pct"); setView(v => ({ kind: "brand", name, from: v })); };
-  const openCategory = key => { setCatPage(null); setOrder("pct"); setView(v => ({ kind: "category", key, from: v })); };
-  const openRoom = room => { setList(null); setView(v => ({ kind: "room", room, from: v })); };
-  const goBack = () => { setItem(null); setBrandPage(null); setCatPage(null); setList(null); setView(view?.from || null); };
+  const openPage = page => { setPc(NO_CRIT); setPskip([]); setOrder("pct"); setView(v => ({ ...page, from: snap(v) })); };
+  const openBrand = name => openPage({ kind: "brand", name });
+  const openCategory = key => openPage({ kind: "category", key });
+  const openRoom = room => openPage({ kind: "room", room });
+  const goBack = () => {
+    const b = view?.from || null;
+    setItem(null);
+    if (isPage(b)) { setPc(b.crit || NO_CRIT); setPskip(b.skip || []); setOrder(b.order || "pct"); }
+    setView(b);
+  };
   const search = text => { goTab("search"); setQ(text); };              // depuis l'accueil : la phrase va dans la Recherche
 
   // Ce que la phrase dit (said, lu par le serveur pour cette phrase-là), complété par ce qui a été choisi dans l'app, qui
@@ -1033,7 +996,7 @@ export default function App() {
   // attendre la réponse du précédent.
   const phraseSaid = results && results._q === q.trim() && q.trim() ? results.said : null;
   const merged = (s, c) => !s ? c : { category: c.category || (c.domain ? null : s.category) || null,
-    room: c.category || c.domain ? null : c.room || s.room || null,
+    room: c.room || s.room || null,                                       // v60 : la pièce reste, au-dessus du rayon (l'entonnoir)
     brand: c.brand || s.brand || null, features: [...new Set([...c.features, ...(s.features || [])])], attrs: { ...(s.attrs || {}), ...c.attrs },
     min: c.min ?? s.min_price ?? null, max: c.max ?? s.max_price ?? null, off: c.off || s.off || null, low: c.low || !!s.low,
     sort: c.sort || (s.sort && s.sort !== "relevance" ? s.sort : null),
@@ -1058,26 +1021,34 @@ export default function App() {
     if (id === "sort") return { ...c, sort: null };
     return c;
   }, id.startsWith("word:") ? (results?.words || []).filter(w => w !== id.slice(5)) : undefined);
-  const clearAll = () => { setCrit(NO_CRIT); setQ(""); };
+  const clearAll = () => { setCrit(NO_CRIT); setQ(""); setSkip([]); };
 
   // Vos recherches sauvegardées (des missions : Deals les surveille ; le prix est facultatif).
   const sig = m => JSON.stringify([m.category || null, m.room || null, m.brand || null, [...(m.features || [])].sort(),
     Object.entries(m.attrs || {}).sort(), m.min_price ?? null, m.max_price ?? null, m.off || null, !!m.low, [...(m.words || [])],
     m.domain || null, m.sub || null, Object.entries(m.props || {}).sort()]);
-  const current = results?.criteria ? { ...results.criteria, words: results.words || [] } : null;
+  // Ce qu'une réponse de la Recherche ou d'une page demande, mots compris : la recherche que « Sauvegarder » garde.
+  const wantOf = res => res?.criteria ? { ...res.criteria, words: res.words || [] } : null;
   const searches = (missions?.missions || []).filter(m => !m.product_id);
-  const savedMatch = current && searches.find(m => sig(m) === sig(current));
-  const saveSearch = async () => {
-    if (savedMatch) { await dropSaved(savedMatch); return; }
-    const c = current;
+  const savedOf = res => { const c = wantOf(res); return c ? searches.find(m => sig(m) === sig(c)) : null; };
+  const saveSearch = async res => {
+    const hit = savedOf(res), c = wantOf(res);
+    if (hit) { await dropSaved(hit); return; }
+    if (!c) return;
     try {
       const made = await keep("missions", { category: c.category, room: c.room, brand: c.brand, features: c.features, attrs: c.attrs,
         min_price: c.min_price, max_price: c.max_price, off: c.off, low: c.low, words: c.words,
         domain: c.domain, sub: c.sub, props: c.props });
       setMissions(x => ({ reached: 0, fresh: 0, ...x, missions: [made, ...(x?.missions || []).filter(m => m.id !== made.id)] }));   // « Sauvegardée » aussitôt
-      remember(intent); setVersion(v => v + 1);
+      if (res === results) remember(intent);
+      setVersion(v => v + 1);
       flash(c.max_price != null ? "Sauvegardée : on vous prévient sous votre prix" : "Recherche sauvegardée dans votre Profil");
     } catch (ex) { flash(ex.message); }
+  };
+  const saveBtn = (label, res, cls = "") => {
+    const on = !!savedOf(res);
+    return <button className={`savebtn ${on ? "on" : ""} ${cls}`} aria-pressed={on} onClick={() => saveSearch(res)}>
+      <Icon d={UI.bookmark} size={17} sw={2.2} fill={on} />{on ? "Sauvegardée" : label}</button>;
   };
   const dropSaved = async m => {
     setMissions(x => x && { ...x, missions: x.missions.filter(y => y.id !== m.id) });
@@ -1087,7 +1058,7 @@ export default function App() {
   const openSaved = m => {
     if (m.product_id) open(m.product_id, "mission", m.id);
     else {
-      setView(null); setItem(null); setTab("search"); setQ((m.words || []).join(" "));
+      setView(null); setItem(null); setTab("search"); setQ((m.words || []).join(" ")); setSkip([]);
       setCrit({ category: m.category || null, room: m.room || null, brand: m.brand || null, features: m.features || [], attrs: m.attrs || {},
         min: m.min_price ?? null, max: m.max_price ?? null, off: m.off || null, low: !!m.low, sort: null,
         domain: m.domain || null, sub: m.sub || null, props: m.props || {} });
@@ -1129,8 +1100,8 @@ export default function App() {
 
   const searchBar = <form role="search" onSubmit={e => { e.preventDefault(); remember(intent); e.currentTarget.querySelector("input")?.blur(); }}>
     <label className="sbar big"><Icon d={UI.search} size={20} />
-    <input value={q} onChange={e => setQ(e.target.value)} placeholder="« aspirateur balai sous 300 € », une marque…" aria-label="Rechercher" enterKeyHint="search" />
-    {q && <button type="button" className="sx" aria-label="Effacer le texte" onClick={() => setQ("")}><Icon d={UI.x} size={18} /></button>}</label></form>;
+    <input value={q} onChange={e => { setQ(e.target.value); setSkip([]); }} placeholder="« aspirateur balai sous 300 € », une marque…" aria-label="Rechercher" enterKeyHint="search" />
+    {q && <button type="button" className="sx" aria-label="Effacer le texte" onClick={() => { setQ(""); setSkip([]); }}><Icon d={UI.x} size={18} /></button>}</label></form>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
   const tabsList = [["home", "Accueil", UI.home], ["search", "Recherche", UI.search], ["me", "Profil", UI.user]];   // vos recherches et missions sont dans le Profil
   const fresh = missions?.fresh || 0;
@@ -1178,7 +1149,6 @@ export default function App() {
     <span className="rt"><b>{label}</b><span>Jusqu'à −{best} %</span><small>{sub}</small></span></button>;
   const sortBar = <div className="chips" role="group" aria-label="Trier">{[["pct", "Remises d'abord"], ["asc", "Prix croissant"], ["desc", "Prix décroissant"]].map(([k, l]) =>
     <button key={k} className={order === k ? "on" : ""} aria-pressed={order === k} onClick={() => setOrder(k)}>{l}</button>)}</div>;
-  const ordered = items => order === "pct" ? items : [...items].sort((a, b) => order === "asc" ? a.price - b.price : b.price - a.price);
   const liked = new Set((you?.taste?.cats || []).map(c => c.key));        // vos rayons : leurs pièces d'abord
   const rooms = ROOMS.map(r => {
     const here = categories.filter(c => r.cats.includes(c.key));
@@ -1195,8 +1165,8 @@ export default function App() {
     body = <div className="about">
       {back}
       <h1>Comment ça marche</h1>
-      <p className="lead">Deals repère chaque jour les bonnes affaires d'électroménager, d'électronique, d'ameublement et de literie, et vous dit si
-        c'est le bon moment d'acheter.</p>
+      <p className="lead">Deals repère chaque jour les bonnes affaires d'électroménager, d'électronique, d'ameublement et de literie : des
+        remises réelles, et les prix au plus bas depuis longtemps.</p>
       <h2>Quelles offres ?</h2>
       <p>Uniquement celles de nos enseignes partenaires. Leurs prix sont relus chaque nuit ; un prix qui n'a pas été relu depuis
         trois jours n'est plus montré. Une remise n'est affichée que si elle est réelle : nous la comparons aux prix des mois
@@ -1218,11 +1188,11 @@ export default function App() {
         <li><b>Chaque rayon</b> : le type (OLED ou QLED, balai ou robot, d'angle…) et un ou deux attributs (sans fil, 5G, No Frost ;
           une taille d'écran, une capacité) se lisent dans ce que l'enseigne donne de son offre, son titre et sa catégorie ; ce
           qu'elle ne dit pas reste inconnu, jamais deviné (un robot aspirateur, lui, est toujours sans fil). Affiner les
-          propose.</li>
+          demande, une question à la fois, chaque réponse avec son nombre de produits.</li>
         <li><b>Moins cher, comparable</b> : sur la fiche, des produits du même type, de la même taille (un téléviseur 55 pouces,
           un autre 55 pouces), qui ont au moins ce que le produit a (4K, 5G, réduction de bruit, autant de stockage) et coûtent au
           moins 10 % de moins.</li>
-        <li><b>Marque, catégorie</b> : les remises d'abord, ou le tri que vous choisissez.</li>
+        <li><b>Marque, catégorie, pièce</b> : les remises d'abord, ou le tri que vous choisissez ; Affiner y est aussi.</li>
         <li><b>Fiche</b> : l'offre la moins chère parmi nos partenaires.</li>
       </ul>
       <h2>Comment Deals est rémunéré ?</h2>
@@ -1260,7 +1230,6 @@ export default function App() {
           <h1 className="title">{item.name || item.title}</h1>
           <div className="prices">{item.pct > 0 && <span className="pct">−{item.pct} %</span>}<span className="now">{eur(item.price)}</span>
             {item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div>
-          <PricePosition pos={item.position} price={item.price} />
           {when && <div className="when"><Icon d={UI.cal} size={20} />{when}</div>}
           {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}${view.mission ? `&m=${view.mission}` : ""}&v=${variant}`}
             target="_blank" rel="noopener" onClick={() => note("c", item.id)}>
@@ -1281,38 +1250,30 @@ export default function App() {
       </div>
       {alertOpen && <AlertSheet item={item} current={mine} onClose={() => setAlertOpen(false)} onLaunch={launchAlert} onStop={dropSaved} />}
     </div>;
-  } else if (view?.kind === "brand" && brandPage) {
-    const on = isFollowed(brandPage.brand);
+  } else if (isPage(view)) {                     // une marque, une catégorie, une pièce : l'entonnoir, un tri, leurs produits
+    const res = pres?._k === pageKey(view) ? pres : null, stale = !!res && res._p !== pageParams;
+    const at = funnelAt(res?.funnel, pskip, view.kind === "category" ? ["category"] : view.kind === "room" ? ["room"] : []);
+    const fin = !!(at && !at.q && at.done > 0 && res?.total > 0);
+    const entry = view.kind === "brand" ? allBrands.find(x => x.name === view.name) : view.kind === "category" ? allCats.find(x => x.key === view.key) : null;
+    const title = view.kind === "brand" ? view.name : view.kind === "room" ? view.room.label : entry?.label || "…";
+    const sub = view.kind === "room" ? `${plural(allCats.filter(x => view.room.cats.includes(x.key)).reduce((n, x) => n + x.count, 0), "remise")} · ${view.room.sub}`
+      : entry ? `${entry.count ? `${plural(entry.count, "remise")} aujourd'hui · ` : ""}${plural(entry.products, "produit")}` : "";
+    const on = view.kind === "brand" ? isFollowed(view.name) : picks.includes(view.key);
     body = <>
       {back}
-      <div className="pagehead"><div><h1>{brandPage.brand}</h1>
-        <div className="sub">{brandPage.deals ? `${plural(brandPage.deals, "remise")} aujourd'hui · ` : ""}{plural(brandPage.products.length, "produit")}</div></div>
-        <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleFollow(brandPage.brand)} aria-pressed={on}>
-          <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Suivie" : "Suivre"}</button></div>
+      <div className="pagehead"><div><h1>{title}</h1>{sub && <div className="sub">{sub}</div>}</div>
+        {view.kind === "brand" && <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleFollow(view.name)} aria-pressed={on}>
+          <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Suivie" : "Suivre"}</button>}
+        {view.kind === "category" && <button className={`pill ${on ? "on" : ""}`} onClick={() => togglePick(view.key)} aria-pressed={on}>
+          <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Dans vos rayons" : "Mes rayons"}</button>}</div>
+      <Funnel at={at} total={res?.total ?? 0} onAnswer={set => setPc(x => applyPatch(x, set))}
+        onBack={s => { setPc(x => applyPatch(x, s.back)); if (s.level === "room" || s.level === "category") setPskip([]); }}
+        onSkip={key => setPskip(x => [...x, key])} onRestart={() => { setPc(NO_CRIT); setPskip([]); }} keep={res ? saveBtn("Sauvegarder", res) : null} />
       {sortBar}
-      <div style={{ height: 16 }} />
-      {grid(ordered(brandPage.products), "brand")}
-    </>;
-  } else if (view?.kind === "category" && catPage) {
-    const on = picks.includes(catPage.key);
-    body = <>
-      {back}
-      <div className="pagehead"><div><h1>{catPage.label}</h1>
-        <div className="sub">{catPage.deals ? `${plural(catPage.deals, "remise")} aujourd'hui · ` : ""}{plural(catPage.products.length, "produit")}</div></div>
-        <button className={`pill ${on ? "on" : ""}`} onClick={() => togglePick(catPage.key)} aria-pressed={on}>
-          <Icon d={on ? UI.check : UI.plus} size={17} sw={2.4} />{on ? "Dans vos rayons" : "Mes rayons"}</button></div>
-      {sortBar}
-      <div style={{ height: 16 }} />
-      {grid(ordered(catPage.products), "category")}
-    </>;
-  } else if (view?.kind === "room") {
-    body = <>
-      {back}
-      <div className="pagehead"><div><h1>{view.room.label}</h1>
-        <div className="sub">{list ? `${plural(list.total, "remise")} · ${view.room.sub}` : "…"}</div></div></div>
-      <div style={{ height: 18 }} />
-      {list && grid(list.products, "room")}
-      {list && list.total === 0 && <div className="empty">Aucune remise dans cette pièce aujourd'hui.</div>}
+      {res && res.total > 0 && (fin ? <div style={{ height: 16 }} />
+        : <div className="sechead"><h2>{plural(res.total, view.kind === "room" ? "remise" : "produit")}</h2></div>)}
+      {res && <div className={`flow ${stale ? "dim" : ""}`}>{grid(res.products, view.kind)}</div>}
+      {res && res.total === 0 && <div className="empty">{view.kind === "room" ? "Aucune remise dans cette pièce aujourd'hui." : "Aucun produit pour l'instant."}</div>}
     </>;
   } else if (tab === "home") {                    // éditorial : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
     const items = all?.products || [];
@@ -1348,40 +1309,43 @@ export default function App() {
       {rest.length > cols * 2 && <div style={{ height: 18 }} />}
       {grid(rest.slice(cols * 2), "home")}
     </>;
-  } else if (tab === "search") {                  // une phrase comprise, des critères modifiables, un feed que chaque saisie adapte
+  } else if (tab === "search") {                  // une phrase comprise, l'entonnoir, un feed que chaque saisie adapte
     const term = q.trim(), t = norm(term), any = term || hasCrit(crit);
     const shownRes = any ? results : null;
-    const chips = shownRes?.chips || [];
+    const src = any ? shownRes : feed;                                       // l'entonnoir de la réponse, ou du feed (l'univers)
+    const at = funnelAt(src?.funnel, skip);
+    const covered = new Set((at?.path || []).flatMap(s => s.chips));
+    const chips = (shownRes?.chips || []).filter(c => !covered.has(c.id));   // ce que l'entonnoir ne montre pas : marque, promo, tri, mots
+    const fin = !!(at && !at.q && at.done > 0 && shownRes?.total > 0 && !shownRes.relaxed);   // votre sélection : l'entonnoir la dit
     const brandHit = t.length >= 2 && !hasCrit(crit) ? allBrands.find(b => norm(b.name) === t) || allBrands.find(b => norm(b.name).startsWith(t)) : null;
     const offs = (shownRes || feed)?.offs || {};
     const base = applied();
-    const catOptions = (shownRes && term ? shownRes.categories : allCats.map(c => ({ key: c.key, label: c.label, count: c.products })))
-      .slice().sort((a, b) => a.label.localeCompare(b.label, "fr"));
     const sheets = {
-      category: ["Catégorie", [["", "Toutes les catégories"], ...catOptions.map(c => [c.key, c.label, c.count])], base.category || "",
-        v => edit(c => ({ ...c, category: v || null, room: null, features: [], attrs: {} }))],
-      budget: ["Budget", BUDGETS, base.max != null ? String(base.max) : "", v => edit(c => ({ ...c, min: null, max: v ? Number(v) : null }))],
       off: ["Promo", OFFS.filter(([k]) => !k || offs[k] > 0).map(([k, l]) => k ? [k, l, offs[k] ?? 0] : [k, l]), base.low ? "low" : String(base.off || ""),
         v => edit(c => ({ ...c, off: v && v !== "low" ? Number(v) : null, low: v === "low" }))],
+      sort: ["Trier", SORTS, base.sort || "relevance", v => edit(c => ({ ...c, sort: v === "relevance" ? null : v }))],
     };
+    const sheetOf = id => id === "off" || id === "low" ? "off" : id === "sort" ? "sort" : null;
     const quick = (key, name) => <button key={key} className="fchip" onClick={() => setPicking(key)} aria-haspopup="dialog">{name}<Icon d={UI.down} size={15} sw={2.4} /></button>;
     const mine = feed?.recent?.length > 0 || feed?.personal;   // le feed suit vos dernières recherches, vos goûts
     const feedHead = <div className="sechead"><h2>{mine ? "Pour vous" : "À découvrir"}</h2>
       <span className="n">{feed?.recent?.length > 0 ? "D'après vos recherches" : mine ? "D'après vos goûts" : feed ? plural(feed.total, "produit") : ""}</span></div>;
-    const saveBtn = (label, cls = "") => <button className={`savebtn ${savedMatch ? "on" : ""} ${cls}`} aria-pressed={!!savedMatch} onClick={saveSearch}>
-      <Icon d={UI.bookmark} size={17} sw={2.2} fill={!!savedMatch} />{savedMatch ? "Sauvegardée" : label}</button>;
+    const every = shownRes?.chips || [];
     body = <>
       <div className="pagehead"><h1>Recherche</h1></div>
       {searchBar}
       <div className="filters" role="group" aria-label="Critères de la recherche">
-        <button className={`fchip refine ${chips.length ? "on" : ""}`} onClick={() => setPicking("refine")} aria-haspopup="dialog">
-          <Icon d={UI.sliders} size={16} sw={2.2} />Affiner</button>
-        {chips.length ? chips.map(c => <span key={c.id} className="crit">
-          <button className="cl" onClick={() => setPicking("refine")} aria-label={`${c.label} : modifier`}>{c.label}</button>
-          <button className="cx" onClick={() => dropChip(c.id)} aria-label={`Retirer ${c.label}`}><Icon d={UI.x} size={14} sw={2.6} /></button></span>)
-          : <>{quick("category", "Catégorie")}{quick("budget", "Budget")}{quick("off", "Promo")}</>}
-        {chips.length > 0 && <button className="fchip clear" onClick={clearAll}><Icon d={UI.x} size={15} sw={2.4} />Tout effacer</button>}
+        {chips.map(c => <span key={c.id} className="crit">
+          {sheetOf(c.id) ? <button className="cl" onClick={() => setPicking(sheetOf(c.id))} aria-label={`${c.label} : modifier`}>{c.label}</button>
+            : <span className="cl">{c.label}</span>}
+          <button className="cx" onClick={() => dropChip(c.id)} aria-label={`Retirer ${c.label}`}><Icon d={UI.x} size={14} sw={2.6} /></button></span>)}
+        {!chips.some(c => c.id === "off" || c.id === "low") && quick("off", "Promo")}
+        {!chips.some(c => c.id === "sort") && quick("sort", "Trier")}
+        {(chips.length > 0 || (at?.done || 0) > 0) && <button className="fchip clear" onClick={clearAll}><Icon d={UI.x} size={15} sw={2.4} />Tout effacer</button>}
       </div>
+      <Funnel at={at} total={shownRes?.relaxed ? 0 : src?.total ?? 0} onAnswer={set => edit(c => applyPatch(c, set))}
+        onBack={s => { edit(c => applyPatch(c, s.back)); if (s.level === "room" || s.level === "category") setSkip([]); }}
+        onSkip={k => setSkip(x => [...x, k])} keep={shownRes ? saveBtn("Sauvegarder", shownRes) : null} />
       {!any && <div className="tryit">
         {searches.length > 0 && <div className="saved">
           <div className="th"><h3>Vos recherches sauvegardées</h3><button className="forget" onClick={() => goTab("me")}>Tout voir</button></div>
@@ -1390,9 +1354,9 @@ export default function App() {
             <Icon d={UI.bookmark} size={15} sw={2.2} />{m.title}{m.fresh > 0 && <em className="new">{m.fresh}</em>}</button>)}</div></div>}
         {recent.length > 0
           ? <><div className="th"><h3>Vos recherches récentes</h3><button className="forget" onClick={forget} aria-label="Effacer vos recherches">Effacer</button></div>
-            <div className="ctags row">{recent.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); remember(x); }}>{x}</button>)}</div></>
+            <div className="ctags row">{recent.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>
           : searches.length === 0 && <><h3>Essayez</h3>
-            <div className="ctags row">{TRY.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); remember(x); }}>{x}</button>)}</div></>}
+            <div className="ctags row">{TRY.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>}
       </div>}
       {!any || !shownRes ? <>{feedHead}<div className={`flow ${any ? "dim" : ""}`}>{grid(feed?.products || [], "feed")}</div></>
         : shownRes.unsupported ? <>
@@ -1400,8 +1364,8 @@ export default function App() {
           <p className="note">Électroménager, électronique, ameublement et literie seulement, pour l'instant.</p>
           {feedHead}{grid(feed?.products || [], "feed")}
         </> : shownRes.total === 0 ? <>{/* rien trouvé : on le dit, on propose de sauvegarder, et le feed reste là */}
-          <div className="sechead"><h2>{term && chips.every(c => c.id.startsWith("word:")) ? `Rien pour « ${term} »` : "Rien pour cette recherche"}</h2></div>
-          {chips.length > 0 && <div className="savebar"><span>Pas encore là ? On surveille pour vous.</span>{saveBtn("Sauvegarder")}</div>}
+          <div className="sechead"><h2>{term && every.every(c => c.id.startsWith("word:")) ? `Rien pour « ${term} »` : "Rien pour cette recherche"}</h2></div>
+          {every.length > 0 && <div className="savebar"><span>Pas encore là ? On surveille pour vous.</span>{saveBtn("Sauvegarder", shownRes)}</div>}
           {feedHead}{grid(feed?.products || [], "feed")}
         </> : <>
         {brandHit && <button className="brow" onClick={() => openBrand(brandHit.name)} aria-label={`La marque ${brandHit.name}`}>
@@ -1409,14 +1373,13 @@ export default function App() {
         {shownRes.relaxed ? <>
           <div className="sechead"><div><h2>Rien à moins de {eur(shownRes.relaxed.max_price)}</h2>
             <span className="n">Les plus proches, dès {eur(shownRes.relaxed.from)}</span></div></div>
-          <div className="savebar"><span>On vous prévient dès qu'un produit passe sous {eur(shownRes.relaxed.max_price)}.</span>{saveBtn("Me prévenir")}</div>
-        </> : <div className="sechead"><h2>{plural(shownRes.total, "produit")}</h2>{saveBtn("Sauvegarder")}</div>}
+          <div className="savebar"><span>On vous prévient dès qu'un produit passe sous {eur(shownRes.relaxed.max_price)}.</span>{saveBtn("Me prévenir", shownRes)}</div>
+        </> : fin ? <div style={{ height: 18 }} /> : <div className="sechead"><h2>{plural(shownRes.total, "produit")}</h2>{saveBtn("Sauvegarder", shownRes)}</div>}
         {shownRes.ignored?.length > 0 && <p className="note">« {shownRes.ignored.join(" ")} » : aucun produit ; voici le reste de votre recherche.</p>}
         <div className={`flow ${searching ? "dim" : ""}`}>{grid(shownRes.products, "search")}</div>
       </>}
       {picking && sheets[picking] && <ChoiceSheet title={sheets[picking][0]} options={sheets[picking][1]} value={sheets[picking][2]} onPick={sheets[picking][3]}
         onClose={() => setPicking(null)} />}
-      {picking === "refine" && <RefineSheet results={shownRes} base={base} cats={pickable} brands={allBrands} onEdit={edit} onClose={() => setPicking(null)} />}
     </>;
   } else {                                        // Profil : le centre de commande — vos recherches, favoris, marques, rayons, ce qui est compris
     const understood = [...(taste?.taste?.cats || []).filter(c => !c.chosen).map(c => ({ key: c.key, label: c.label, go: () => openCategory(c.key) })),

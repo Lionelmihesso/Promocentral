@@ -278,7 +278,7 @@ def chips(c):
         out.append({"id": "off", "label": "En promo" if c["off"] <= 1 else f"−{c['off']:g} % et plus"})
     if c.get("low"):
         out.append({"id": "low", "label": "Prix bas"})
-    if c.get("sort") in ("price", "discount"):
-        out.append({"id": "sort", "label": "Prix croissant" if c["sort"] == "price" else "Plus forte promo"})
+    if c.get("sort") in ("price", "price_desc", "discount"):
+        out.append({"id": "sort", "label": {"price": "Prix croissant", "price_desc": "Prix décroissant", "discount": "Plus forte promo"}[c["sort"]]})
     out += [{"id": f"word:{w}", "label": f"« {w} »"} for w in c.get("words") or []]
     return out
