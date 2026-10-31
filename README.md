@@ -39,10 +39,11 @@ Recherche vide à des téléviseurs OLED, 3 gestes et une fin (5 gestes et aucun
 montrait 53 choix d'un coup) ; le même entonnoir sur la page d'une marque, d'une catégorie, d'une pièce. Règles et
 mesures : [`docs/RECHERCHE.md`](docs/RECHERCHE.md).
 
-**Une ontologie pour chaque rayon, bâtie sur ce que donnent les flux (v58, v59)** : trois niveaux seulement — la
+**Une ontologie pour chaque rayon, bâtie sur ce que déclarent les enseignes (v58, v59)** : trois niveaux seulement — la
 catégorie, le type (OLED ou QLED, hublot ou top, balai ou robot, d'angle…) et un ou deux attributs (4K, 5G, sans fil,
-No Frost ; une taille d'écran, une capacité) —, lus dans ce que l'enseigne donne de son offre par son flux affilié ou son
-API : le titre et sa catégorie (« TV - Vidéo > Téléviseurs > TV QLED »). Rien n'est rédigé ni deviné : ce que l'offre
+No Frost ; une taille d'écran, une capacité) —, lus dans ce que l'enseigne déclare de son offre sur sa fiche (données
+structurées : le titre et sa catégorie, « TV - Vidéo > Téléviseurs > TV QLED ») ; les flux affiliés, qui donnent les
+mêmes champs, sont à brancher (lot 2 de [`docs/PRODUCTION.md`](docs/PRODUCTION.md)). Rien n'est rédigé ni deviné : ce que l'offre
 ne dit pas reste inconnu. « TV OLED 55 pouces » devient trois étapes de l'entonnoir (Téléviseurs, OLED, 55 pouces) ;
 l'entonnoir demande le type, les attributs et les tailles, chacun avec ce qu'il donnerait ; « Moins cher,
 comparable » ne remplace un téléviseur OLED de 55 pouces que par un OLED de 55 pouces. Sur 146 produits et 41 pièges
@@ -52,7 +53,9 @@ comparable » ne remplace un téléviseur OLED de 55 pouces que par un OLED de 5
 
 **Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
 lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
-d'octobre 2026, mesures avant / après : [`docs/AUDIT.md`](docs/AUDIT.md).
+d'octobre 2026, mesures avant / après : [`docs/AUDIT.md`](docs/AUDIT.md). Mise en production à J+30 (audit J1–3,
+registre des risques, décisions, plan par lots, go/no-go) : [`docs/PRODUCTION.md`](docs/PRODUCTION.md), vérifié par
+`python -m bench.cadre`.
 
 **Exploitation quasi autonome** : un agent de nuit (des règles écrites, pas d'IA) relance une source en panne passagère,
 met de côté celle qui échoue trop sans jamais forcer un anti-robot, retient un prix suspect, garde le catalogue de la
@@ -79,9 +82,11 @@ python deals.py explain <adresse>            ce que l'extraction voit sur une pa
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (178, ~37 s)
+python -m unittest discover -s tests -t .    tests (201, ~55 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale [--aspirateurs N]
           | bench.autonomy | bench.profiles [--scale] | bench.search [--scale] | bench.aspirateurs     mesures
+python -m bench.cadre                        le cadre de mise en production : points non négociables, sauvegarde,
+                                             en-têtes (docs/PRODUCTION.md)
 ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
 ```
 `--db` (avant la commande) choisit la base ; réglages par variables `DEALS_*` (`deals/config.py`,
