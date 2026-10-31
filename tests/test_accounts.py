@@ -70,7 +70,7 @@ class Accounts(unittest.TestCase):
         self.assertEqual([(m["id"], m["label"]) for m in mine], [(int(h["Location"].split("=")[1]), "Aspirateur balai · 300 € max")])
         self.raw("POST", "/api/r/auth/request", {"email": "noa@test.local"})  # une simple connexion ensuite : rien ne s'ajoute
         st, h, _ = self.raw("GET", f"/api/r/auth/verify?token={self.link().split('token=')[1]}")
-        self.assertEqual((h["Location"], outbox.mails[-1][1]["Subject"]), ("/", "Votre lien de connexion Deals"))
+        self.assertEqual((h["Location"], outbox.mails[-1][1]["Subject"]), ("/", "Votre lien de connexion Promo Central"))
         self.assertEqual(len(json.loads(self.raw("GET", "/api/r/missions", cookie=cookie)[2])["missions"]), 1)
 
     def test_magic_link(self):
@@ -287,7 +287,7 @@ class SmtpSend(unittest.TestCase):
         link = "https://deals.test/api/r/auth/verify?token=abc123"
         box.send("lea@exemple.fr", link)
         msg = email.message_from_string(srv.messages[0], policy=email.policy.default)
-        self.assertEqual((msg["To"], msg["Subject"]), ("lea@exemple.fr", "Votre lien de connexion Deals"))
+        self.assertEqual((msg["To"], msg["Subject"]), ("lea@exemple.fr", "Votre lien de connexion Promo Central"))
         self.assertIn(link, msg.get_body(("plain",)).get_content())
         self.assertIn(link, msg.get_body(("html",)).get_content())
         self.assertTrue(srv.auth)

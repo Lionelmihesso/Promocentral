@@ -1,5 +1,5 @@
 [Unit]
-Description=DEALS — la nuit (collecte, agent, publication, missions, contrôles, rapport, e-mail au responsable s'il y a lieu)
+Description=Promo Central — la nuit (collecte, agent, publication, missions, contrôles, rapport, e-mail au responsable s'il y a lieu)
 After=network-online.target
 Wants=network-online.target
 
@@ -9,7 +9,7 @@ User=deals
 Group=deals
 WorkingDirectory=/var/lib/deals
 EnvironmentFile=/etc/deals/deals.env
-ExecStart=/usr/bin/python3 /opt/deals/deals.py --db /var/lib/deals/deals.sqlite nightly
+ExecStart=/usr/bin/python3 /opt/deals/current/deals.py --db /var/lib/deals/deals.sqlite nightly
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

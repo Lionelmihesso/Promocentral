@@ -1,0 +1,4 @@
+{
+  "_note": "Un flux au format standard Google Shopping (RSS 2.0 ou Atom, espace de noms g:) : rien d'autre à écrire. Si une colonne diffère, la remplacer dans fields (exemple : \"fields\": {\"category\": \"google_product_category\"}).",
+  "preset": "google_shopping"
+}

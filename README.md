@@ -1,4 +1,6 @@
-# DEALS — les bons deals du jour, au même endroit
+# Promo Central — les bonnes affaires du jour, au même endroit
+
+(Nom de code technique : `deals` — la commande, le paquet Python, les services.)
 
 On ouvre l'app pour savoir quelles bonnes affaires existent aujourd'hui, et, pour le produit qu'on regarde (en remise ou
 non), ce qui le remplace pour moins cher. Un deal est un deal : le même pour tout le monde, sans onboarding ; seul l'ordre
@@ -6,13 +8,14 @@ s'adapte à vos goûts. L'entrée est le produit ; la marque et la catégorie so
 qu'un attribut de l'offre. On cherche comme on parle (« aspirateur balai sans fil sous 300 € ») : la phrase devient des
 critères qu'on modifie d'un geste ; ou l'on se laisse guider, **une question à la fois** (quel univers, quel rayon,
 quel type, quel budget), jusqu'à **votre sélection** — dans la Recherche comme sur la page d'une marque ou d'une
-catégorie. Une recherche se **sauvegarde** — DEALS la surveille et dit ce qui est nouveau
+catégorie. Une recherche se **sauvegarde** — Promo Central la surveille et dit ce qui est nouveau
 (une **mission**, avec un e-mail la nuit si on le souhaite). Tout se garde **sans e-mail** (favoris, marques, rayons,
 recherches, alertes de prix) ; l'e-mail, facultatif, sert aux alertes et à retrouver ses choix sur un autre appareil.
 
 Quatre familles chères, où une remise compte : **électroménager (aspirateurs compris), électronique (téléviseurs,
-smartphones, ordinateurs, tablettes, casques, enceintes, montres, consoles, écrans), ameublement, literie**. Une collecte
-par nuit, aucune IA, un seul petit serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
+smartphones, ordinateurs, tablettes, casques, enceintes, montres, consoles, écrans), ameublement, literie**. Une lecture
+par nuit des **flux produits** des enseignes partenaires (leurs fiches en dernier recours), aucune IA, un seul petit
+serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
 
 **Modèle d'affiliation** : seules les offres d'enseignes partenaires sont montrées ; chaque clic part par leur lien
 affilié avec son identifiant, qui revient dans les rapports du réseau (la vente se rattache à l'écran, à la mission, à
@@ -42,8 +45,8 @@ mesures : [`docs/RECHERCHE.md`](docs/RECHERCHE.md).
 **Une ontologie pour chaque rayon, bâtie sur ce que déclarent les enseignes (v58, v59)** : trois niveaux seulement — la
 catégorie, le type (OLED ou QLED, hublot ou top, balai ou robot, d'angle…) et un ou deux attributs (4K, 5G, sans fil,
 No Frost ; une taille d'écran, une capacité) —, lus dans ce que l'enseigne déclare de son offre sur sa fiche (données
-structurées : le titre et sa catégorie, « TV - Vidéo > Téléviseurs > TV QLED ») ; les flux affiliés, qui donnent les
-mêmes champs, sont à brancher (lot 2 de [`docs/PRODUCTION.md`](docs/PRODUCTION.md)). Rien n'est rédigé ni deviné : ce que l'offre
+structurées : le titre et sa catégorie, « TV - Vidéo > Téléviseurs > TV QLED »), ou dans son flux produits, qui donne
+les mêmes champs (v63, `deals/ingest/feeds.py`). Rien n'est rédigé ni deviné : ce que l'offre
 ne dit pas reste inconnu. « TV OLED 55 pouces » devient trois étapes de l'entonnoir (Téléviseurs, OLED, 55 pouces) ;
 l'entonnoir demande le type, les attributs et les tailles, chacun avec ce qu'il donnerait ; « Moins cher,
 comparable » ne remplace un téléviseur OLED de 55 pouces que par un OLED de 55 pouces. Sur 146 produits et 41 pièges
@@ -51,8 +54,14 @@ comparable » ne remplace un téléviseur OLED de 55 pouces que par un OLED de 5
 52 offres inédites, 49 rangées à la première lecture, 52 après correction. Ontologie et mesures :
 [`docs/ONTOLOGIE.md`](docs/ONTOLOGIE.md).
 
-**Architecture** : une chaîne de nuit qui calcule (collecte → marché → publication du catalogue), une app de jour qui
-lit le catalogue publié. Modules, règles et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
+**Architecture** : un monolithe modulaire, une chaîne de nuit qui calcule (ingestion → marché → publication du
+catalogue), une app de jour qui lit le catalogue publié ; des couches qui se parlent par des contrats, et des frontières
+vérifiées par un test. **Ingestion (v63)** : le flux produits de chaque enseigne (CSV, XML Google Shopping, JSON ; gzip
+ou zip), décrit par une entrée de configuration et la correspondance de ses colonnes — ajouter une enseigne ne demande
+aucun code ; chaque lecture est un lot tracé (empreinte, fichier brut gardé, lignes refusées et leur raison) et
+rejouable ; le même fichier relu ne crée ni doublon ni ligne de prix ; un flux tronqué ne supprime rien. La démo est
+nourrie par les flux de ses enseignes simulées et publie exactement le catalogue de la lecture de leurs fiches.
+Modules, contrats et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
 d'octobre 2026, mesures avant / après : [`docs/AUDIT.md`](docs/AUDIT.md). Mise en production à J+30 (audit J1–3,
 registre des risques, décisions, plan par lots, go/no-go) : [`docs/PRODUCTION.md`](docs/PRODUCTION.md), vérifié par
 `python -m bench.cadre`.
@@ -77,12 +86,16 @@ python deals.py quarantine [release <offre>] prix suspects retenus ; libérer un
 python deals.py partners                     enseignes partenaires déclarées et leur source
 python deals.py publish                      republier le catalogue sans relire le web
 python deals.py missions                     envoyer les e-mails des missions sur le catalogue publié
-python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
+python deals.py ingest <source|all> [--file F] [--dry-run]   lire le flux d'une enseigne (la nuit le fait pour toutes)
+python deals.py batches [--source <clé>] [--rejects <lot>]  les lots : quoi, quand, combien, lignes refusées
+python deals.py replay <source>              relire le fichier gardé du dernier lot (correspondance corrigée)
+python deals.py probe <fichier>              un échantillon de flux : format, colonnes, correspondance proposée
+python deals.py discover|diagnose|sample|build <enseigne|all>     lire les fiches d'une enseigne sans flux
 python deals.py explain <adresse>            ce que l'extraction voit sur une page, et pourquoi
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (201, ~55 s)
+python -m unittest discover -s tests -t .    tests (254, ~70 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale [--aspirateurs N]
           | bench.autonomy | bench.profiles [--scale] | bench.search [--scale] | bench.aspirateurs     mesures
 python -m bench.cadre                        le cadre de mise en production : points non négociables, sauvegarde,
@@ -292,14 +305,23 @@ financement, éco-participation, ODR, « autres offres dès … » jamais pris p
 
 ## Enseignes partenaires (affiliation)
 
-`DEALS_AFFILIATE` désigne un fichier JSON : clé d'enseigne (`deals/collect/retailers.py`) → règle de lien. Deux formes :
+`DEALS_AFFILIATE` désigne un fichier JSON : clé d'enseigne (`deals/ingest/retailers.py` ou `DEALS_SOURCES`) → règle de lien. Deux formes :
 le gabarit du réseau, avec `{url}` (l'adresse de la fiche, encodée) et `{subid}` (l'identifiant du clic), ou des
 paramètres ajoutés à l'adresse de la fiche (`tag=…&sub={subid}`) ; exemple : `deploy/affiliate.example.json`, gabarits
 exacts dans l'espace affilié de chaque réseau. Seules ces enseignes sont lues la nuit et publiées ; un fichier mal formé
 arrête le démarrage. Sans ce fichier (développement), tout est publié et les liens partent tels quels ; la démo simule
 des enseignes partenaires.
 
-## Collecte
+## Sources : les flux d'abord, les fiches en dernier recours
+
+Chaque enseigne partenaire est une source (`DEALS_SOURCES`, exemple : `deploy/sources.example.json`) : son **flux
+produits**, fourni par son programme d'affiliation, lu chaque nuit par le connecteur (`deals/ingest/`) ; ou, à défaut et
+si ses conditions le permettent, ses fiches. Enseignes visées (leaders de l'électroménager, de l'électronique et de
+l'ameublement) : Boulanger, Darty, Fnac, Conforama, But, IKEA, Maisons du Monde, La Redoute, Cdiscount — chacune
+s'active quand son programme est accepté et son flux branché (`deploy/README.md`). Relevé le 31/10/2026 : Boulanger
+annonce des flux produits à ses affiliés via Kwanko ; Fnac (profil Awin « Fnac FR ») des flux XML ou CSV ; Darty
+(Effinity selon darty.com, et un profil Awin « Darty FR ») un flux d'environ 15 000 produits — à confirmer à
+l'inscription. Le flux est aussi la seule voie pour Darty et Conforama, dont les fiches ne se lisent pas sans forcer.
 
 Familles : **électroménager** (lave-linge, sèche-linge, lave-vaisselle, réfrigérateurs, congélateurs, fours, plaques,
 hottes, cuisinières, aspirateurs, robots aspirateurs), **ameublement** (canapés, fauteuils, lits, armoires, tables, buffets, meubles TV, commodes),
@@ -307,7 +329,7 @@ hottes, cuisinières, aspirateurs, robots aspirateurs), **ameublement** (canapé
 aspirateurs : un aspirateur à main coûte souvent moins) n'entre pas au catalogue.
 
 Enseignes actives : Boulanger, Electro Dépôt, Ubaldi, Cdiscount, But, IKEA, Maisons du Monde, La Redoute, Vente-unique.
-Désactivées, avec la raison dans `deals/collect/retailers.py` : Conforama (défi Cloudflare, prix chargés par le
+Désactivées, avec la raison dans `deals/ingest/retailers.py` : Conforama (défi Cloudflare, prix chargés par le
 navigateur), Darty (anti-robot signalé contre les centres de données, à vérifier avec `diagnose darty`), Amazon
 (conditions d'utilisation). Un site qui bloque est signalé, jamais forcé.
 
@@ -332,6 +354,10 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
   domaine : quelques euros par an. Aucun proxy, aucune API payante, aucune IA.
 
 ## Limites connues
+- Aucun flux réel n'a encore été lu : le connecteur est prouvé sur des flux d'essai (CSV en Windows-1252, XML Google
+  Shopping, JSONL compressé) et sur ceux de la démo. Chaque vrai flux reçoit sa correspondance écrite sur un échantillon
+  (`probe`), puis un premier lot à blanc (`ingest --dry-run`) ; les noms de colonnes d'un réseau ne s'écrivent pas de
+  mémoire.
 - Les taux de lecture réels par enseigne restent à mesurer depuis le serveur (`diagnose`) : l'environnement de
   développement n'a pas accès au web ; tout est vérifié sur faux sites locaux, corpus publics et pages-pièges.
 - Pas de navigateur : un site dont les prix n'existent qu'après exécution du JavaScript reste illisible (Conforama).

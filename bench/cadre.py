@@ -163,7 +163,7 @@ def served(tmp):
     from deals.api import Api
     from deals.web import make_server
     st = fresh_store(tmp, "web.sqlite")
-    settings = Settings()
+    settings = Settings(public_url="https://promocentral.example")
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -187,8 +187,9 @@ def served(tmp):
     point("Sécurité", "la page porte une politique de contenu (Content-Security-Policy)", "Content-Security-Policy" in have,
           f"en-têtes de sécurité servis : {', '.join(sorted(have))}", "P2")
     caddy = (CODE / "deploy" / "Caddyfile").read_text(encoding="utf-8")
-    point("Sécurité", "le HTTPS est imposé au navigateur (Strict-Transport-Security)", "Strict-Transport-Security" in caddy,
-          "deploy/Caddyfile : aucune directive header Strict-Transport-Security", "P1")
+    hsts = headers.get("Strict-Transport-Security") or ("Caddyfile" if "Strict-Transport-Security" in caddy else None)
+    point("Sécurité", "le HTTPS est imposé au navigateur (Strict-Transport-Security)", hsts,
+          f"adresse publique en https : Strict-Transport-Security {hsts!r}", "P1")
     env = (CODE / "deploy" / "deals.env.example").read_text(encoding="utf-8")
     announced = "/robot" in env
     point("Sécurité", "la page qui décrit le robot, annoncée aux enseignes, existe", not announced or robot == 200,

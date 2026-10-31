@@ -94,7 +94,8 @@ def publish(store, today, now, partners=None, guard=False):
         fresh = [(o, intervals[o["id"]][-1]) for o in offs if intervals[o["id"]][-1]["last_seen"] >= now - FRESH_S]
         if not fresh:
             continue
-        fresh.sort(key=lambda x: (x[1]["availability"] == "out_of_stock", x[1]["price"], x[0]["id"]))
+        # la moins chère hors rupture ; à prix égal, une disponibilité dite plutôt qu'inconnue
+        fresh.sort(key=lambda x: (x[1]["availability"] == "out_of_stock", x[1]["price"], x[1]["availability"] != "in_stock", x[0]["id"]))
         for rank, (o, r) in enumerate(fresh):
             pct = round((1 - r["price"] / r["was"]) * 100) if r["was"] and r["was"] > r["price"] else 0
             catalog_offers.append((pid, o["id"], o["merchant"], r["price"], r["was"] if pct else None, pct, r["availability"], rank))

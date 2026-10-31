@@ -9,7 +9,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from .retailers import KEEP_THRESHOLD
+from ..retailers import KEEP_THRESHOLD
 
 
 def diagnose(crawler, key, urls):

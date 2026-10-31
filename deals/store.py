@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -160,6 +160,24 @@ MIGRATIONS = {
         "ALTER TABLE missions_v12 RENAME TO missions",
         "CREATE INDEX missions_user ON missions(user_id)",
         "ALTER TABLE login_links ADD COLUMN guest_id INTEGER",
+    ],
+    13: [  # ingestion par lots (ingest/) : chaque lecture d'une source (flux ou fiches) laisse un lot — quoi, quand, combien,
+           # empreinte du fichier, fichier brut gardé — et ses lignes refusées ; une offre dit sa source, son identifiant dans
+           # le flux, le lien de suivi du réseau et le dernier lot qui l'a vue ; un prix, le lot qui l'a relevé et la livraison
+        "CREATE TABLE batches (id INTEGER PRIMARY KEY, source TEXT NOT NULL, kind TEXT NOT NULL, cid TEXT, started_at REAL NOT NULL, "
+        "ended_at REAL, status TEXT NOT NULL DEFAULT 'running', received INTEGER NOT NULL DEFAULT 0, "
+        "accepted INTEGER NOT NULL DEFAULT 0, changed INTEGER NOT NULL DEFAULT 0, rejected INTEGER NOT NULL DEFAULT 0, "
+        "ignored INTEGER NOT NULL DEFAULT 0, checksum TEXT, bytes INTEGER, raw_path TEXT, connector TEXT, replay_of INTEGER, "
+        "fetched_at REAL, error TEXT, reasons TEXT)",
+        "CREATE INDEX batches_source ON batches(source, id)",
+        "CREATE TABLE batch_rejects (batch_id INTEGER NOT NULL, line INTEGER, external_id TEXT, reason TEXT NOT NULL, record TEXT)",
+        "CREATE INDEX batch_rejects_batch ON batch_rejects(batch_id)",
+        "ALTER TABLE offers ADD COLUMN source TEXT",
+        "ALTER TABLE offers ADD COLUMN external_id TEXT",
+        "ALTER TABLE offers ADD COLUMN tracking_url TEXT",
+        "ALTER TABLE offers ADD COLUMN batch_id INTEGER",
+        "ALTER TABLE prices ADD COLUMN batch_id INTEGER",
+        "ALTER TABLE prices ADD COLUMN shipping REAL",
     ],
 }
 

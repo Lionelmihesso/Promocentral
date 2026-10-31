@@ -753,6 +753,7 @@ export default function App() {
   const [emailFor, setEmailFor] = useState(null);  // ajouter son e-mail : pourquoi (feuille ouverte)
   const [erase, setErase] = useState(false);       // « Effacer mes données » : la confirmation est montrée
   const [toast, setToast] = useState(null);
+  const [legal, setLegal] = useState(null);         // mentions légales : l'identité de l'éditeur, lue au serveur
   const [error, setError] = useState(null);
   const width = useWidth();
   const cols = width >= 1200 ? 5 : width >= 1000 ? 4 : width >= 700 ? 3 : 2;
@@ -962,6 +963,8 @@ export default function App() {
   const snap = v => isPage(v) ? { ...v, crit: pc, skip: pskip, order } : v;   // une page quittée garde ce qu'on y a choisi
   const open = (id, via, mission) => { if (via === "search") remember(intent); setItem(null); setView(v => ({ kind: "item", id, via, mission, from: snap(v) })); };
   const openAbout = () => setView(v => ({ kind: "about", from: v }));
+  const openLegal = () => setView(v => ({ kind: "legal", from: v }));
+  useEffect(() => { if (view?.kind === "legal" && !legal) api("legal").then(setLegal).catch(() => {}); }, [view, legal]);
   const openPage = page => { setPc(NO_CRIT); setPskip([]); setOrder("pct"); setView(v => ({ ...page, from: snap(v) })); };
   const openBrand = name => openPage({ kind: "brand", name });
   const openCategory = key => openPage({ kind: "category", key });
@@ -1006,7 +1009,7 @@ export default function App() {
   }, id.startsWith("word:") ? (results?.words || []).filter(w => w !== id.slice(5)) : undefined);
   const clearAll = () => { setCrit(NO_CRIT); setQ(""); setSkip([]); };
 
-  // Vos recherches sauvegardées (des missions : Deals les surveille ; le prix est facultatif).
+  // Vos recherches sauvegardées (des missions : Promo Central les surveille ; le prix est facultatif).
   const sig = m => JSON.stringify([m.category || null, m.room || null, m.brand || null, [...(m.features || [])].sort(),
     Object.entries(m.attrs || {}).sort(), m.min_price ?? null, m.max_price ?? null, m.off || null, !!m.low, [...(m.words || [])],
     m.domain || null, m.sub || null, Object.entries(m.props || {}).sort()]);
@@ -1137,11 +1140,43 @@ export default function App() {
     aria-pressed={picks.includes(c.key)} onClick={() => togglePick(c.key)}>{picks.includes(c.key) && <Icon d={UI.check} size={15} sw={2.8} />}{c.label}</button>);
 
   let body;
-  if (view?.kind === "about") {                    // référencement, classement, rémunération : ce que la loi demande de dire
+  if (view?.kind === "legal") {                    // qui édite, qui héberge, quelles données et quels droits (LCEN, RGPD)
+    const L = legal || {}, v = (x, name) => x || <em className="todo">à compléter ({name})</em>;
+    body = <div className="about">
+      {back}
+      <h1>Mentions légales</h1>
+      <h2>Éditeur</h2>
+      <p>{v(L.editor, "DEALS_LEGAL_EDITOR")}<br />{v(L.registration, "DEALS_LEGAL_REGISTRATION")}<br />{v(L.address, "DEALS_LEGAL_ADDRESS")}</p>
+      <h2>Directeur de la publication</h2>
+      <p>{v(L.director, "DEALS_LEGAL_DIRECTOR")}</p>
+      <h2>Hébergeur</h2>
+      <p>{v(L.host, "DEALS_LEGAL_HOST")}</p>
+      <h2>Contact</h2>
+      <p>{v(L.contact, "DEALS_LEGAL_CONTACT")}</p>
+      <h2>Données personnelles</h2>
+      <p>Responsable du traitement : {v(L.editor, "DEALS_LEGAL_EDITOR")}.</p>
+      <ul>
+        <li><b>Sans compte</b> : vos recherches récentes et les fiches ouvertes pendant la visite restent dans votre
+          navigateur ; il les joint à chaque lecture pour ordonner ce qui vous est montré, nos serveurs n'en gardent rien.</li>
+        <li><b>Ce que vous gardez</b> (favoris, marques, rayons, recherches, alertes) : un compte sans e-mail, propre à
+          cet appareil, le garde pour vous rendre ce service ; il tient à un cookie de session, valable un an après le dernier
+          choix gardé, et un compte que plus personne ne peut ouvrir est effacé.</li>
+        <li><b>Votre e-mail</b>, facultatif : il sert à vous envoyer vos alertes et vos liens de connexion, et à
+          retrouver vos choix sur un autre appareil. Il n'est transmis qu'à notre prestataire d'envoi.</li>
+        <li><b>Mesures</b> : les fiches vues et les clics vers les enseignes sont comptés pour savoir ce qui est utile ;
+          une enseigne ne reçoit qu'un identifiant de clic, qui ne dit pas qui vous êtes.</li>
+        <li><b>Cookies</b> : un seul cookie, celui de votre session, nécessaire au service ; aucun traceur publicitaire,
+          aucune mesure d'audience par un tiers.</li>
+        <li><b>Vos droits</b> : accès, rectification, effacement, opposition, portabilité. « Effacer mes
+          données », dans Profil, efface tout aussitôt ; pour le reste, écrivez à {v(L.contact, "DEALS_LEGAL_CONTACT")}.
+          Vous pouvez aussi saisir la CNIL (cnil.fr).</li>
+      </ul>
+    </div>;
+  } else if (view?.kind === "about") {             // référencement, classement, rémunération : ce que la loi demande de dire
     body = <div className="about">
       {back}
       <h1>Comment ça marche</h1>
-      <p className="lead">Deals repère chaque jour les bonnes affaires d'électroménager, d'électronique, d'ameublement et de literie : des
+      <p className="lead">Promo Central repère chaque jour les bonnes affaires d'électroménager, d'électronique, d'ameublement et de literie : des
         remises réelles, et les prix au plus bas depuis longtemps.</p>
       <h2>Quelles offres ?</h2>
       <p>Uniquement celles de nos enseignes partenaires. Leurs prix sont relus chaque nuit ; un prix qui n'a pas été relu depuis
@@ -1171,7 +1206,7 @@ export default function App() {
         <li><b>Marque, catégorie, pièce</b> : les remises d'abord, ou le tri que vous choisissez ; Affiner y est aussi.</li>
         <li><b>Fiche</b> : l'offre la moins chère parmi nos partenaires.</li>
       </ul>
-      <h2>Comment Deals est rémunéré ?</h2>
+      <h2>Comment Promo Central est rémunéré ?</h2>
       <p>Quand vous achetez après avoir touché « Voir l'offre », l'enseigne nous verse une commission. Votre prix ne change pas,
         et le montant de la commission n'entre dans aucun classement.</p>
       <h2>Vos données</h2>
@@ -1409,7 +1444,7 @@ export default function App() {
 
   return <div className="d"><style>{CSS}</style><div className="app">
     {!(view?.kind === "item" && width < 1000) && <header className="top">
-      <button className="logo" onClick={() => goTab("home")} aria-label="Deals, accueil">Deals<b>.</b></button>
+      <button className="logo" onClick={() => goTab("home")} aria-label="Promo Central, accueil">Promo Central<b>.</b></button>
       <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k && !view ? "on" : ""} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <Icon d={d} size={18} />{l}{badge[k] > 0 && <span className="dot">{badge[k]}</span>}</button>)}</div>
       <button className="ibtn" aria-label={fresh ? freshSaid : "Vos recherches"} onClick={() => goTab("me")}>
@@ -1417,8 +1452,9 @@ export default function App() {
     </header>}
     {error && <div className="empty">{error}</div>}
     {body}
-    {view?.kind !== "about" && <footer className="legal">Offres d'enseignes partenaires, remises vérifiées.{" "}
-      <button className="lnk" onClick={openAbout}>Comment ça marche</button></footer>}
+    {view?.kind !== "about" && view?.kind !== "legal" && <footer className="legal">Offres d'enseignes partenaires, remises vérifiées.{" "}
+      <button className="lnk" onClick={openAbout}>Comment ça marche</button>{" · "}
+      <button className="lnk" onClick={openLegal}>Mentions légales</button></footer>}
     <nav className="d-nav" aria-label="Navigation">{tabsList.map(([k, l, d]) =>
       <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <span className="ic"><Icon d={d} size={23} fill={tab === k && k !== "search"} />

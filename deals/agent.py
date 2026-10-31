@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 
 from . import health, quarantine, sources
-from .collect.report import euros
+from .ingest.report import euros
 
 POLICY = {
     "retry_source": "auto",             # échec passager : relue une fois dans la nuit (jamais pour un anti-robot ou un 429)
@@ -93,12 +93,7 @@ class Tools:
         return (self.crawler.nightly([key], cid=cid, retry=True).get("retailers") or {}).get(key) or {}
 
     def probe_source(self, key):
-        o = self.s.q("SELECT * FROM offers WHERE retailer=? AND product_id IS NOT NULL AND status IN ('active', 'blocked') "
-                     "ORDER BY checked_at DESC LIMIT 1", (key,), one=True)
-        if o is None:
-            return {"readable": False, "why": "aucune fiche suivie"}
-        r = self.crawler.read(o)
-        return {"readable": r["status"] in ("ok", "not_modified"), "status": r["status"], "offer_id": o["id"]}
+        return self.crawler.probe_source(key)          # une page témoin, ou le flux (ingest/collector.py)
 
     def disable_source(self, key, reason):
         sources.set_status(self.s, key, "disabled", reason, self.clock())
@@ -456,7 +451,7 @@ def digest(store, day, sender, to, settled=()):
             f"{len(open_)} incident{'s' if len(open_) > 1 else ''} ouvert{'s' if len(open_) > 1 else ''}" if open_ else
             "tout est rentré dans l'ordre")
     m = EmailMessage()
-    m["Subject"], m["From"], m["To"] = f"Deals · nuit du {day} : {head}", sender, to
+    m["Subject"], m["From"], m["To"] = f"Promo Central · nuit du {day} : {head}", sender, to
     m.set_content("\n".join(lines) + "\n")
     return m
 

@@ -1,6 +1,7 @@
-"""La nuit de bout en bout : collecter, vérifier, publier, prévenir — l'agent veille à chaque étape (agent.py).
+"""La nuit de bout en bout : lire les sources, vérifier, publier, prévenir — l'agent veille à chaque étape (agent.py).
 
-  registre des sources → collecte des partenaires lisibles → agent : relance, nuits ratées, mise de côté, page témoin,
+  registre des sources → ingestion des partenaires lisibles (ingest/collector.py : leurs flux, un lot par source ; leurs
+  fiches en dernier recours) → agent : relance, nuits ratées, mise de côté, sonde (page témoin ou flux),
   quarantaine des prix suspects → publication (garde) → e-mails des missions (garde contre l'envoi massif) → contrôles
   de santé → incidents, conseils, décisions → rapport du matin → e-mail au responsable s'il y a lieu
 
@@ -15,7 +16,7 @@ from . import agent as A
 from . import health, sources
 from .accounts import expire_guests
 from .catalog import Catalog
-from .collect import report
+from .ingest import report
 from .missions import Missions
 from .ops import Ops
 from .publish import publish
@@ -26,7 +27,7 @@ def sender_of(settings):
 
 
 def run(store, settings, crawler, outbox, retailers, rules=None, clock=time.time, stream=None, report_dir=None):
-    """Une nuit. retailers : les enseignes connues (clé → réglages, collect/retailers.py) ; rules : les enseignes
+    """Une nuit. retailers : les enseignes connues (clé → réglages, ingest/registry.py) ; rules : les enseignes
     partenaires (affiliate.py ; None en développement : tout est lu et publié) ; report_dir : où écrire le rapport du matin
     (None : pas de rapport). → bilan de la nuit."""
     ops = Ops(store, settings.env, stream, clock)

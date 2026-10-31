@@ -21,7 +21,7 @@ import urllib.request
 import zlib
 from urllib.parse import urlsplit
 
-from .vendor.protego import Protego
+from ...vendor.protego import Protego
 
 MAX_BYTES = 15_000_000
 MAX_CRAWL_DELAY = 300.0

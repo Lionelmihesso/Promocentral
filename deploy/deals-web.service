@@ -1,5 +1,5 @@
 [Unit]
-Description=DEALS — app et API publiques (/ et /api/r/)
+Description=Promo Central — app et API publiques (/ et /api/r/)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,7 @@ User=deals
 Group=deals
 WorkingDirectory=/var/lib/deals
 EnvironmentFile=/etc/deals/deals.env
-ExecStart=/usr/bin/python3 /opt/deals/deals.py --db /var/lib/deals/deals.sqlite serve --port 8000
+ExecStart=/usr/bin/python3 /opt/deals/current/deals.py --db /var/lib/deals/deals.sqlite serve --port 8000
 Restart=always
 RestartSec=3
 NoNewPrivileges=true

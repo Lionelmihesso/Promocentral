@@ -158,7 +158,7 @@ class Migration(unittest.TestCase):
         c.execute("INSERT INTO missions(id, user_id, category, want, max_price, label, created_at) VALUES (3, 7, 'lit', '{}', 700, 'Lit · 700 € max', 0)")
         c.close()
         s = Store(path)
-        self.assertEqual(s.q("PRAGMA user_version", one=True)["user_version"], 12)
+        self.assertEqual(s.q("PRAGMA user_version", one=True)["user_version"], store.SCHEMA_VERSION)
         self.assertEqual([s.q(f"SELECT COUNT(*) n FROM {t}", one=True)["n"] for t in ("users", "sessions", "follows", "saves", "missions")],
                          [1, 1, 1, 1, 1])
         self.assertEqual(s.q("SELECT max_price, alert, seen FROM missions", one=True), {"max_price": 700, "alert": 1, "seen": None})

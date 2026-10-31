@@ -1,6 +1,6 @@
 """Quarantaine des prix suspects : une offre relue à moins de 30 % du prix habituel de son produit (la médiane des jours
 relevés, au moins 14 jours : catalog.usual, de la publication précédente) n'est plus publiée et elle est relue en priorité
-les nuits suivantes (collect/crawl.py). Revenue à son prix habituel, elle est libérée et le prix suspect est écarté des
+les nuits suivantes (ingest/). Revenue à son prix habituel, elle est libérée et le prix suspect est écarté des
 courbes et des verdicts (prices.rejected) : c'était une erreur. Relue au même prix les CONFIRM nuits suivantes, le prix
 est cru, l'offre libérée, et ce prix-là n'est plus suspecté. Une erreur de prix d'un soir n'atteint ainsi ni l'app ni les e-mails
 des missions. Règle versionnée (RULE), citée par chaque décision ; les décisions sont des actions de l'agent (agent.py),

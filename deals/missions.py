@@ -1,4 +1,4 @@
-"""Missions : vos recherches sauvegardées, que Deals surveille. « Aspirateur balai sous 300 € », « canapé velours », « tout
+"""Missions : vos recherches sauvegardées, que Promo Central surveille. « Aspirateur balai sous 300 € », « canapé velours », « tout
 produit comparable à celui-ci » : ce que la Recherche a compris (query.read), gardé et relu sur le catalogue publié.
 
 Une mission dit ce qu'on veut — un rayon et, si on l'a précisé, des fonctions (balai, sans fil…), une taille, une
@@ -147,7 +147,7 @@ def label(m, name=None):
     return " · ".join([head] + extra)
 
 
-PARTNERS_NOTE = "Liens vers nos enseignes partenaires : si vous achetez, Deals touche une commission, sans surcoût pour vous."
+PARTNERS_NOTE = "Liens vers nos enseignes partenaires : si vous achetez, Promo Central touche une commission, sans surcoût pour vous."
 
 
 def mission_message(to, items, base, sender):
@@ -174,7 +174,7 @@ def mission_message(to, items, base, sender):
         html.append("</ul>")
     text.append(f"Vos missions, pour les modifier ou les arrêter : {base}/")
     text.append(PARTNERS_NOTE)
-    html.append(f'<p style="color:#5E6166">Vos missions, pour les modifier ou les arrêter : <a href="{base}/">Deals</a></p>')
+    html.append(f'<p style="color:#5E6166">Vos missions, pour les modifier ou les arrêter : <a href="{base}/">Promo Central</a></p>')
     html.append(f'<p style="color:#5E6166;font-size:12px">{PARTNERS_NOTE}</p>')
     msg = EmailMessage()
     msg["Subject"], msg["From"], msg["To"] = subject, sender, to
@@ -213,7 +213,7 @@ class Missions:
     @staticmethod
     def _product(r):
         return {"product_id": r["product_id"], "category": r["category"], "brand": r["brand"], "price": r["price"], "pct": r["pct"],
-                "in_stock": r["availability"] != "out_of_stock", "attrs": enrich(json.loads(r["attrs"] or "{}"), r), "search": r["search"],
+                "in_stock": r["availability"] == "in_stock", "attrs": enrich(json.loads(r["attrs"] or "{}"), r), "search": r["search"],
                 "level": r["level"], "span": r["span"], "usual": r["usual"]}
 
     def _match(self, spec, rows=None, nearest=True, memo=None):

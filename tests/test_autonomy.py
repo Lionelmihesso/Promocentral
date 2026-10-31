@@ -16,7 +16,7 @@ from unittest import mock
 from deals import cli, config, demo, health, night, quarantine, sim, sources
 from deals.agent import POLICY, Agent, Tools, urgent
 from deals.api import Api, Request
-from deals.collect.report import summarize
+from deals.ingest.report import summarize
 from deals.errors import Unavailable
 from deals.ops import Ops, scrub
 from deals.store import Store
@@ -34,7 +34,7 @@ def setUpModule():
     global WARM
     WARM = Path(tempfile.mkdtemp(), "warm.sqlite")
     s = Store(WARM)
-    demo.build(s, end=WARM_END, nights=(WARM_END - START).days, partners=set(demo.RULES))
+    demo.build(s, end=WARM_END, nights=(WARM_END - START).days, partners=set(demo.RULES), mode="site")   # pannes de pages
     s.close()
 
 
@@ -106,7 +106,7 @@ class Scenario(unittest.TestCase):
     def setUp(self):
         self.path = clone(WARM)
         self.s = Store(self.path)
-        self.w = demo.world(self.s, START)
+        self.w = demo.world(self.s, START, mode="site")
         self.faults = self.w.crawler.f = Faults(self.w.crawler.f, self.w.clock)
         self.box = Box(self.w.clock)
         self.settings = config.load({}, public_url="https://deals.test", operator_email=OPERATOR)
@@ -415,7 +415,7 @@ class Catalog(Scenario):
         with mock.patch("deals.night.health.snapshot", side_effect=RuntimeError("base verrouillée")):
             self.nights(1)                                                   # même sans contrôles, l'erreur est un incident
         self.assertEqual(self.s.q("SELECT entity FROM incidents WHERE kind='night_error' AND status='open'"), [{"entity": "contrôles"}])
-        with mock.patch("deals.collect.crawl.summarize", side_effect=RuntimeError("bilan impossible")):
+        with mock.patch("deals.ingest.pages.crawl.summarize", side_effect=RuntimeError("bilan impossible")):
             out = self.nights(1)[0]                                          # la passe casse après avoir ouvert sa ligne
         run = self.s.q("SELECT status, ended FROM runs WHERE cid=?", (out["cid"],), one=True)
         self.assertEqual(run["status"], "failed")                            # jamais « en cours » pour toujours
@@ -545,7 +545,7 @@ class Units(unittest.TestCase):
         self.assertIn("… et 2 autres : deals.py actions", text)
 
     def test_the_next_night_compares_with_the_night_not_with_a_retry(self):
-        from deals.collect.report import previous_retailers
+        from deals.ingest.report import previous_retailers
         self.s.x("INSERT INTO runs(day, started, stats, status) VALUES ('2025-10-01', 1, ?, 'partial_success')",
                  (json.dumps({"retailers": {"a": {"was_rate": 0.5}, "b": {"was_rate": 0.4}}}),))
         self.s.x("INSERT INTO runs(day, started, stats, status) VALUES ('2025-10-01', 2, ?, 'retry')",
@@ -572,11 +572,11 @@ class Command(Scenario):
         self.nights(3)
         self.s.close()
         status = self.cli("status")
-        self.assertIn("Deals · état critique", status)
+        self.assertIn("Promo Central · état critique", status)
         self.assertIn("Rapido mise de côté (agent : 3 nuits ratées (anti-robot))", status)
         self.assertIn("CRITIQUE · Rapido · bloquée par un anti-robot · 3 nuits · mise de côté", status)
         listing = self.cli("sources", "enable", "rapido", "--reason", "liste blanche obtenue", SUDO_USER="lea")
-        self.assertRegex(listing, r"rapido +Rapido +active")
+        self.assertRegex(listing, r"rapido +Rapido +site +active")
         self.s = Store(self.path)
         self.assertEqual(sources.status(self.s, "rapido"), "active")
         gesture = self.actions("enable_source")[-1]

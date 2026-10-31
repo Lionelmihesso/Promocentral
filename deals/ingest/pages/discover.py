@@ -7,7 +7,7 @@ import re
 from collections import defaultdict
 from xml.etree import ElementTree as ET
 
-from .retailers import CATEGORY_URL_HINTS, FAMILIES
+from ..retailers import CATEGORY_URL_HINTS, FAMILIES
 
 PRODUCT_SITEMAP_HINT = re.compile(r"product|produit|pdp|article|fiche|item|offer", re.I)
 

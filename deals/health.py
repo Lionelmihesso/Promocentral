@@ -11,14 +11,15 @@ from datetime import datetime, timezone
 
 from . import sources
 
-RULES = {"version": "h2", "blocked": 0.5, "throttled": 0.3, "layout": 0.5, "suspect_min": 5, "suspect_share": 0.20,
+RULES = {"version": "h3", "blocked": 0.5, "throttled": 0.3, "layout": 0.5, "suspect_min": 5, "suspect_share": 0.20,
          "catalog": 0.80, "catalog_min": 20, "freshness": 0.90, "freshness_critical": 0.70, "mass_min": 30, "mass_factor": 3,
-         "clicks_drop": 0.30, "clicks_min": 20}
+         "clicks_drop": 0.30, "clicks_min": 20, "feed_rejects": 0.20, "feed_collapse": 0.50}
 RUNBOOK = {"source_blocked": "source-bloquee", "source_throttled": "source-ralentie", "source_failing": "source-en-echec",
            "source_layout": "page-changee", "suspect_prices": "prix-suspects", "budget": "budget-de-nuit",
            "catalog_held": "catalogue-retenu", "catalog_small": "catalogue-reduit", "freshness": "fraicheur",
            "mission_mail": "envoi-des-missions", "mail_quota": "quota-e-mails", "mass_mail": "envoi-massif",
-           "clicks_drop": "clics-en-chute", "night_error": "nuit-en-erreur"}
+           "clicks_drop": "clics-en-chute", "night_error": "nuit-en-erreur", "feed_rejects": "flux-lignes-refusees",
+           "feed_collapse": "flux-en-baisse"}
 KIND = {"blocked": "source_blocked", "throttled": "source_throttled", "layout": "source_layout", "transient": "source_failing"}
 EVIDENCE = ("pages", "success", "blocked", "rate_limited", "errors", "no_price", "interrupted", "failures")
 
@@ -113,6 +114,12 @@ def findings(snap, rules=RULES):
         if c:
             out.append(finding(KIND[c], key, "critical" if s.get("failures", 0) >= sources.FAIL_NIGHTS else "warning",
                                **{k: s.get(k) for k in EVIDENCE}, **({"was_drop": True} if s.get("was_drop") else {})))
+        if s.get("kind") == "feed" and not s.get("broken"):     # un flux lu : la qualité de ses lignes
+            if s.get("pages") and s.get("reject_share", 0) >= rules["feed_rejects"]:
+                out.append(finding("feed_rejects", key, "warning", rejected=s.get("rejected"), pages=s.get("pages"),
+                                   share=s.get("reject_share"), reasons=s.get("reasons")))
+            if s.get("previous_accepted") and s.get("accepted", 0) < rules["feed_collapse"] * s["previous_accepted"]:
+                out.append(finding("feed_collapse", key, "warning", accepted=s.get("accepted"), before=s["previous_accepted"]))
         held = (snap.get("quarantine") or {}).get(key, 0)
         if held >= rules["suspect_min"] and pages and held / pages >= rules["suspect_share"]:
             out.append(finding("suspect_prices", key, "warning", held=held, pages=pages))

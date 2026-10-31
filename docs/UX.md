@@ -632,3 +632,16 @@ fiche), une pièce ; la fiche sans jauge ; et les étapes des versions précéde
   nouveautés et les alertes). Sauvegarder reste possible depuis la Recherche, et le message dit où la retrouver. Sans
   recherche en cours, la Recherche propose ses exemples (« Essayez ») ou vos recherches récentes.
 - Vérifié : 201 tests ; parcours e2e 85 étapes ; audit de 90 écrans, 0 défaut ; 390 px sans débordement.
+
+## v63 : Promo Central, et une page légale
+
+- **Le nom** : « Promo Central. » remplace « Deals. » dans l'en-tête (téléphone et ordinateur), le titre de la page,
+  « Comment ça marche » (« Comment Promo Central est rémunéré ? ») et les e-mails (connexion, missions). Rien d'autre ne
+  change à l'écran : les écrans validés de la v60 à la v62 restent tels quels.
+- **Mentions légales et données personnelles** : un lien de plus en pied de page, à côté de « Comment ça marche ».
+  La page dit l'éditeur, le directeur de la publication, l'hébergeur, le contact, et ce que la plateforme garde de vous,
+  pourquoi, combien de temps, et vos droits. L'identité est lue dans la configuration (`DEALS_LEGAL_…`) ; en
+  développement, ce qui manque est écrit « à compléter » ; en production, l'app ne démarre pas sans elle.
+- **La démo est nourrie par des flux** (ingestion v63) et montre exactement le même catalogue qu'avant.
+- Vérifié : parcours e2e 85 étapes sur 85 sur la démo nourrie par flux ; audit de 92 écrans (dont la page légale),
+  0 défaut.

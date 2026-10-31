@@ -49,7 +49,7 @@ elle devient caduque quand son incident se résout ou qu'un responsable a tranch
 
 | Règle | Valeur | Où |
 |---|---|---|
-| Nuit ratée pour une source | moins de 80 % des pages lues avec un prix, ou passe interrompue (5 refus de suite) | `sources.py`, `collect/retailers.py` |
+| Nuit ratée pour une source | fiches : moins de 80 % des pages lues avec un prix, ou passe interrompue (5 refus de suite) ; flux : injoignable, illisible, ou aucune offre retenue | `sources.py`, `ingest/retailers.py`, `ingest/collector.py` |
 | Cause | anti-robot (≥ 50 % de pages bloquées) · trop de requêtes (≥ 30 % de 429) · page changée (≥ 50 % sans prix, ou prix barré perdu à prix inchangé) · erreurs | `health.cause` |
 | Mise de côté | 3 nuits ratées de suite ; page témoin tous les 3 jours | `sources.FAIL_NIGHTS`, `agent.PROBE_S` |
 | Quarantaine (q1) | prix à moins de 30 % du prix habituel du produit (médiane des jours relevés) ; cru s'il est relu au même prix les 2 nuits suivantes ; revenu à la normale : libéré, le prix faux écarté des courbes et des verdicts | `quarantine.py` |

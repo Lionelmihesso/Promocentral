@@ -15,25 +15,13 @@ import threading
 import time
 from collections import Counter, defaultdict
 
-from .. import extract as X
-from ..labels import CATEGORY_LABEL
-from .report import previous_retailers, summarize
-from .retailers import BREAKER, FAMILY_OF, MIN_PRICE, MIN_PRICE_CATEGORY, RETAILERS
+from ... import extract as X
+from ..contract import in_scope
+from ..report import previous_retailers, summarize
+from ..retailers import BREAKER, RETAILERS
 
 REFUSALS = ("blocked", "rate_limited", "error")
 KEEPS = {"gone", "blocked", "disallowed", "out_of_scope"}
-
-
-def in_scope(ex):
-    """Première lecture d'une fiche : None si elle entre au catalogue, sinon la raison."""
-    cat, src = X.categorize(ex.get("title"), ex.get("category"))
-    fam = FAMILY_OF.get(cat)
-    if fam is None:
-        return "accessoire" if src == "accessory" else f"hors des familles suivies ({cat or 'catégorie inconnue'})"
-    floor = MIN_PRICE_CATEGORY.get(cat, MIN_PRICE[fam])
-    if ex["price"] < floor:
-        return f"{ex['price']:.2f} € : sous le seuil de {floor:.0f} € ({CATEGORY_LABEL.get(cat, fam).lower()}), accessoire probable"
-    return None
 
 
 class Crawler:
@@ -68,6 +56,15 @@ class Crawler:
                               r.get("last_modified") if ex else None)
         return {"offer_id": o["id"], "retailer": o["retailer"], "status": st, "outcome": outcome, "note": note,
                 "method": ex["method"] if ex else None, "was": ex.get("list_price") if ex else None}
+
+    def probe_source(self, key):
+        """Une page témoin d'une source mise de côté : se lit-elle de nouveau ?"""
+        o = self.m.s.q("SELECT * FROM offers WHERE retailer=? AND product_id IS NOT NULL AND status IN ('active', 'blocked') "
+                       "ORDER BY checked_at DESC LIMIT 1", (key,), one=True)
+        if o is None:
+            return {"readable": False, "why": "aucune fiche suivie"}
+        r = self.read(o)
+        return {"readable": r["status"] in ("ok", "not_modified"), "status": r["status"], "offer_id": o["id"]}
 
     def inspect(self, url):
         """Ce que l'extraction voit sur une page, sans rien enregistrer (diagnostic)."""
@@ -126,7 +123,7 @@ class Crawler:
     # ------------------------------------------------------------ la nuit
     def nightly(self, retailers=None, cid=None, retry=False):
         """La passe : retailers, les clés à lire (None : toutes les enseignes activées ; [] : aucune) ; cid, l'identifiant de
-        corrélation de la nuit ; retry : relance d'une enseigne par l'agent. → bilan (collect/report.py), avec son numéro."""
+        corrélation de la nuit ; retry : relance d'une enseigne par l'agent. → bilan (ingest/report.py), avec son numéro."""
         day, started = self.m.today(), self.clock()
         keys = [k for k in (self.R if retailers is None else retailers) if self.R[k].get("enabled")]
         run = self.m.s.x("INSERT INTO runs(day, started, cid, status) VALUES (?,?,?,'running')", (day.isoformat(), started, cid))

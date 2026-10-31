@@ -13,6 +13,7 @@ enseignes sont fictives.
 import json
 import random
 import re
+from xml.sax.saxutils import escape
 from datetime import date, datetime, timedelta, timezone
 
 # (catégorie, titre avec attributs, prix de base)
@@ -332,6 +333,48 @@ class Market:
               + [{"@type": "PropertyValue", "name": k, "value": v} for k, v in p["props"].items()],
               "offers": offer}
         return f"<html><head><script type='application/ld+json'>{json.dumps(ld, ensure_ascii=False)}</script></head><body></body></html>"
+
+
+    def feed(self, merchant, k, fmt="xml"):
+        """Le flux produits d'une enseigne simulée le jour k : les mêmes offres que ses fiches (html), au format Google
+        Shopping (XML, espace de noms g:) ou en CSV à la française (point-virgule, virgule décimale, Windows-1252)."""
+        day = self.start + timedelta(days=k)
+        rows = []
+        for o in (x for x in self.offers if x["merchant"] == merchant):
+            p = self.products[o["pid"]]
+            price, listed, stock, until = o["price"][k], o["list"][k], o["stock"][k], o["until"][k]
+            end = self.start + timedelta(days=until) if listed and o["declares"] and until is not None else None
+            props = ([("Classe énergétique", p["energy"])] if p["energy"] else []) + list(p["props"].items())
+            rows.append({"id": f"{o['pid']}", "title": p["title"], "url": o["url"], "brand": p["brand"], "gtin": p["gtin"],
+                         "category": p["category"].replace("_", "-"), "price": price, "list": listed, "stock": stock,
+                         "end": end, "props": props})
+        if fmt == "csv":
+            dec = lambda v: f"{v:.2f}".replace(".", ",")
+            lines = ["id;nom;marque;ean;categorie;lien;prix;prix_barre;disponibilite;fin_promo;caracteristiques"]
+            for r in rows:
+                lines.append(";".join([r["id"], r["title"], r["brand"], r["gtin"], r["category"], r["url"], dec(r["price"]),
+                                       dec(r["list"]) if r["list"] else "", "En stock" if r["stock"] else "Rupture",
+                                       r["end"].strftime("%d/%m/%Y") if r["end"] else "",
+                                       " | ".join(f"{n}: {v}" for n, v in r["props"])]))
+            return ("\r\n".join(lines) + "\r\n").encode("cp1252")
+        x = lambda v: escape(str(v))
+        items = []
+        for r in rows:
+            regular, sale = (r["list"], r["price"]) if r["list"] else (r["price"], None)
+            parts = [f"<g:id>{x(r['id'])}</g:id>", f"<title>{x(r['title'])}</title>", f"<link>{x(r['url'])}</link>",
+                     f"<g:price>{regular:.2f} EUR</g:price>", f"<g:availability>{'in_stock' if r['stock'] else 'out_of_stock'}</g:availability>",
+                     f"<g:gtin>{r['gtin']}</g:gtin>", f"<g:brand>{x(r['brand'])}</g:brand>",
+                     f"<g:product_type>{x(r['category'])}</g:product_type>", "<g:condition>new</g:condition>"]
+            if sale is not None:
+                parts.append(f"<g:sale_price>{sale:.2f} EUR</g:sale_price>")
+            if r["end"]:
+                parts.append(f"<g:sale_price_effective_date>{day.isoformat()}T00:00+0100/{r['end'].isoformat()}T23:59+0100"
+                             "</g:sale_price_effective_date>")
+            parts += [f"<g:product_detail><g:attribute_name>{x(n)}</g:attribute_name><g:attribute_value>{x(v)}</g:attribute_value>"
+                      "</g:product_detail>" for n, v in r["props"]]
+            items.append("<item>" + "".join(parts) + "</item>")
+        return ('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel>'
+                f"<title>{x(merchant)}</title><link>https://{slug(merchant)}.sim/</link>" + "".join(items) + "</channel></rss>\n").encode()
 
 
 class SimClock:

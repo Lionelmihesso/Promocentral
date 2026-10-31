@@ -1,4 +1,4 @@
-"""Réglages de DEALS, en un seul endroit.
+"""Réglages de Promo Central (nom de code : deals), en un seul endroit.
 
 Valeurs par défaut pour le développement ; en production, les variables d'environnement DEALS_<NOM> (fichier
 /etc/deals/deals.env) les remplacent : DEALS_DB, DEALS_PUBLIC_URL, DEALS_SMTP_HOST… Les règles du produit (seuils,
@@ -17,7 +17,7 @@ class Settings:
     public_url: str = "http://127.0.0.1:8000"     # sert aux liens de connexion ; en https, le cookie est marqué Secure
     port: int = 8000
     trust_proxy: bool = True                        # X-Forwarded-For pris en compte seulement s'il vient de 127.0.0.1 (Caddy)
-    user_agent: str = "DealsBot/0.1 (+https://deals.example/robot ; contact : robot@deals.example)"
+    user_agent: str = "PromoCentralBot/0.1 (+https://promocentral.example/robot ; contact : robot@promocentral.example)"
     min_interval_s: float = 5.0                     # au moins 5 s entre deux requêtes vers un même site
     night_budget_s: float = 4 * 3600.0              # durée maximale de la passe de nuit
     reports_dir: str = "reports"
@@ -31,6 +31,16 @@ class Settings:
     mails_per_day: int = 250                        # plafond global d'e-mails de connexion (offre gratuite courante : 300/jour)
     mission_mails: int = 50                         # plafond d'e-mails de missions par nuit ; le reste part la nuit suivante
     affiliate: str = ""                             # fichier JSON des enseignes partenaires (affiliate.py) ; vide : développement
+    sources: str = ""                               # fichier JSON des sources (ingest/registry.py : flux des enseignes) ; vide : le code
+    raw_dir: str = "raw"                            # fichiers bruts des flux, gardés raw_keep_days jours (ingest/batches.py)
+    raw_keep_days: int = 14
+    feed_max_mb: int = 500                          # taille maximale d'un flux téléchargé
+    legal_editor: str = ""                          # mentions légales (page de l'app) : éditeur (raison sociale, forme, capital)
+    legal_registration: str = ""                    # immatriculation (RCS, SIREN), TVA intracommunautaire
+    legal_address: str = ""                         # adresse du siège
+    legal_director: str = ""                        # directeur de la publication
+    legal_contact: str = ""                         # contact (et exercice des droits sur les données personnelles)
+    legal_host: str = ""                            # hébergeur : nom, adresse, téléphone
     operator_email: str = ""                        # responsable d'exploitation : l'agent lui écrit si c'est utile (agent.py)
     env: str = "dev"                                # dev | prod : noté dans chaque ligne du journal
     log_json: bool = False                          # journal opérationnel aussi en JSON sur la sortie d'erreur (journald)
@@ -38,6 +48,14 @@ class Settings:
 
 TRUE, FALSE = ("1", "true", "yes", "oui", "on"), ("0", "false", "no", "non", "off")
 SMTP_TLS = ("starttls", "ssl", "none")
+
+
+LEGAL = ("legal_editor", "legal_registration", "legal_address", "legal_director", "legal_contact", "legal_host")
+
+
+def legal_missing(s):
+    """Les mentions légales qui manquent (DEALS_LEGAL_…) : en production, l'app ne démarre pas sans elles."""
+    return ["DEALS_" + k.upper() for k in LEGAL if not getattr(s, k).strip()]
 
 
 def load(env=None, **overrides):

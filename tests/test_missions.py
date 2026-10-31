@@ -1,4 +1,4 @@
-"""Missions (missions.py) : vos recherches sauvegardées, que Deals surveille ; « je veux un aspirateur balai sous 300 €,
+"""Missions (missions.py) : vos recherches sauvegardées, que Promo Central surveille ; « je veux un aspirateur balai sous 300 €,
 préviens-moi ».
 
 Ce que le produit promet : une phrase suffit ; rien n'est deviné (ce qui n'est pas dit n'est pas exigé, ce qui est dit
@@ -155,7 +155,7 @@ class Night(unittest.TestCase):
         self.assertIn("Zephyr, Aspirateur balai sans fil V8 40 min : 289 €", body)
         self.assertIn(f"https://deals.test/?p=2&from=mail&m={mission['id']}", body)                  # la fiche…
         self.assertIn(f"Voir l'offre : https://deals.test/api/r/out/102?from=mail&m={mission['id']}", body)   # …ou l'offre, en un clic
-        self.assertIn("Deals touche une commission, sans surcoût pour vous", body)                     # liens partenaires : dit
+        self.assertIn("Promo Central touche une commission, sans surcoût pour vous", body)                     # liens partenaires : dit
         self.assertNotIn("Kessler", body)
         self.assertEqual(self.m.notify(box, "https://deals.test")["emails"], 0)                        # pas deux fois au même prix
         self.put(2, "Aspirateur balai sans fil V8 40 min", "Zephyr", 349)                             # remonte…

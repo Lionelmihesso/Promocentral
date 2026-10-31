@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Promo Central — le robot</title>
+<style>
+:root{--ink:#141414;--mid:#5E6166;--paper:#FFFFFF}
+@media (prefers-color-scheme:dark){:root{--ink:#F2F0EC;--mid:#BDBBB6;--paper:#121315}}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:32px 16px 48px}
+h1{font-size:30px;line-height:1.15;margin:0 0 12px}h2{font-size:18px;margin:28px 0 6px}
+code{font-size:14px;background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;word-break:break-all}
+p,li{color:var(--ink)}small{color:var(--mid)}
+</style></head>
+<body><main>
+<h1>Le robot de Promo Central</h1>
+<p>Promo Central montre chaque jour les bonnes affaires de ses enseignes partenaires. Pour connaître leurs prix, il lit
+d'abord leur <b>flux produits</b>, fourni par leur programme d'affiliation. Pour une enseigne qui n'en a pas, un robot lit
+ses fiches produit, une par une, une fois par nuit.</p>
+<h2>Comment il se présente</h2>
+<p><code>{agent}</code></p>
+<h2>Ce qu'il fait, et ce qu'il ne fait pas</h2>
+<ul>
+<li>Il respecte <code>robots.txt</code> (RFC 9309), y compris <code>Crawl-delay</code> ; un site injoignable ou un robots.txt
+inaccessible, et il s'abstient.</li>
+<li>Il laisse au moins 5 secondes entre deux pages d'un même site, et demande seulement ce qui a changé (ETag,
+Last-Modified).</li>
+<li>Il ne lit que des fiches produit des familles suivies (électroménager, électronique, ameublement, literie).</li>
+<li>Il ne contourne jamais une protection : un site qui le bloque est signalé et laissé de côté, jamais forcé.</li>
+</ul>
+<h2>Le refuser, ou nous joindre</h2>
+<p>Pour l'exclure : <code>User-agent: PromoCentralBot</code> puis <code>Disallow: /</code> dans votre robots.txt, pris en compte
+dans les 24 heures. Pour toute question : {contact}.</p>
+<p><small>English: Promo Central reads its partner retailers' product feeds first; for retailers without a feed, a polite
+robot reads product pages once a night, honours robots.txt and Crawl-delay, waits at least 5 s between pages and never
+bypasses a protection.</small></p>
+</main></body></html>

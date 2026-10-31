@@ -12,7 +12,7 @@ from pathlib import Path
 
 from deals import extract as X
 from deals.extract.page import jsonld_items
-from deals.fetch import Fetcher, classify, decode
+from deals.ingest.pages.fetch import Fetcher, classify, decode
 from deals.vendor.protego import Protego
 from tests.pages import FORMATS, HELDOUT, PAGES, RULE_FORMAT
 

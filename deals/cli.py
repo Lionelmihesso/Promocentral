@@ -1,4 +1,4 @@
-"""DEALS — une seule ligne de commande.
+"""Promo Central — une seule ligne de commande (deals.py, nom de code interne de la plateforme).
 
   python deals.py serve [--port 8000]                l'app et son API (en production, derrière Caddy)
   python deals.py demo [--port 8000]                 l'app sur un marché simulé (base temporaire)
@@ -10,6 +10,10 @@
   python deals.py sources [enable|disable <clé>]     registre des sources, reprendre ou mettre de côté
   python deals.py quarantine [release <offre>]       prix suspects retenus, libérer un prix vérifié
   python deals.py partners                           enseignes partenaires déclarées (DEALS_AFFILIATE) et leur source
+  python deals.py ingest <source|all> [--file F] [--dry-run]   lire un flux maintenant (nightly le fait pour toutes)
+  python deals.py batches [--source <clé>] [--n 20] [--rejects <lot>]   les lots lus : quoi, quand, combien, refus
+  python deals.py replay <source>                    relire le fichier gardé du dernier lot (correspondance corrigée)
+  python deals.py probe <fichier> [--format csv|xml|…]   ce qu'est un échantillon de flux et la correspondance proposée
   python deals.py missions                           e-mails des missions arrivées à leur prix (fait par nightly)
   python deals.py publish                            republier le catalogue sans relire le web
   python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
@@ -40,11 +44,14 @@ from .accounts import outbox_for
 from .agent import LABEL, STATUS, Agent, Tools, describe, names
 from .api import Api
 from .backup import backup
-from .collect import diagnose as D
-from .collect.crawl import Crawler
-from .collect.discover import discover
-from .collect.retailers import RETAILERS
-from .fetch import Fetcher
+from .ingest import batches as B
+from .ingest import feeds as F
+from .ingest import registry
+from .ingest.collector import Collector
+from .ingest.pages import diagnose as D
+from .ingest.pages.crawl import Crawler
+from .ingest.pages.discover import discover
+from .ingest.pages.fetch import Fetcher
 from .catalog import Catalog
 from .market import Market
 from .missions import Missions
@@ -70,7 +77,7 @@ def status_lines(store, now=None):
     late = age is not None and (age > STALE_S or last["status"] == "failed")      # comme la sonde (/api/r/health)
     state = "en attente de la première nuit" if last is None else "critique" if late or any(
         i["severity"] == "critical" for i in open_) else "dégradé" if open_ else "normal"
-    lines = [f"Deals · état {state} · {utc(now)}"]
+    lines = [f"Promo Central · état {state} · {utc(now)}"]
     if last:
         st = json.loads(last["stats"] or "{}")
         lines.append(f"Dernière nuit : {last['day']} · {NIGHT.get(last['status'], last['status'] or '—')} · "
@@ -117,9 +124,11 @@ def main(argv=None):
     try:
         settings = config.load()
         rules = affiliate.load(settings.affiliate)             # enseignes partenaires ; None : développement
+        specs = registry.load(settings.sources)                # sources : les fiches du code, les flux de DEALS_SOURCES
     except ValueError as e:
         sys.exit(f"Réglage invalide : {e}")
-    ap = argparse.ArgumentParser(prog="deals", description="DEALS — les bons deals du jour")
+    sites = registry.sites(specs)
+    ap = argparse.ArgumentParser(prog="deals", description="Promo Central — les bonnes affaires du jour")
     ap.add_argument("--db", default=settings.db)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("serve", "demo"):
@@ -154,6 +163,18 @@ def main(argv=None):
     b = sub.add_parser("backup")
     b.add_argument("dest")
     b.add_argument("--keep", type=int, default=14)
+    ig = sub.add_parser("ingest")
+    ig.add_argument("source", help="clé d'une source « feed » ou « all »")
+    ig.add_argument("--file", help="lire ce fichier au lieu de l'adresse du flux")
+    ig.add_argument("--dry-run", action="store_true", help="lire et contrôler sans rien écrire")
+    ba = sub.add_parser("batches")
+    ba.add_argument("--source")
+    ba.add_argument("--n", type=int, default=20)
+    ba.add_argument("--rejects", type=int, help="les lignes refusées d'un lot")
+    sub.add_parser("replay").add_argument("source")
+    pr = sub.add_parser("probe")
+    pr.add_argument("file")
+    pr.add_argument("--format", choices=F.FORMATS)
     a = ap.parse_args(argv)
     settings = replace(settings, db=a.db)
     if a.cmd in NETWORK and settings.user_agent == config.Settings.user_agent:
@@ -169,6 +190,17 @@ def main(argv=None):
     if a.cmd == "backup":
         print(backup(settings.db, a.dest, a.keep))
         return 0
+    if a.cmd == "probe":
+        try:
+            info = F.probe(Path(a.file).read_bytes(), a.format)
+        except (OSError, F.FeedError) as e:
+            sys.exit(f"{a.file} : {e}")
+        print(json.dumps(info, ensure_ascii=False, indent=2, default=str))
+        print("\nCorrespondance proposée (à relire, puis à enregistrer pour la source dans DEALS_SOURCES) :")
+        print(json.dumps(info["proposed"], ensure_ascii=False, indent=2))
+        return 0
+    if a.cmd == "serve" and settings.env == "prod" and (missing := config.legal_missing(settings)):
+        sys.exit("Mentions légales incomplètes en production : " + ", ".join(missing) + " (deploy/deals.env.example)")
     store = Store(settings.db)
     if a.cmd == "serve":
         return _serve(store, settings, a.port, rules)
@@ -184,8 +216,10 @@ def main(argv=None):
 
     market = Market(store)
     fetcher = Fetcher(user_agent=settings.user_agent, min_interval=settings.min_interval_s)
-    crawler = Crawler(market, fetcher, RETAILERS, settings.night_budget_s)
-    keys = lambda: [k for k in RETAILERS if RETAILERS[k]["enabled"]] if a.retailer == "all" else [a.retailer]
+    crawler = Crawler(market, fetcher, sites, settings.night_budget_s)
+    collector = Collector(store, market, crawler, specs, raw_dir=settings.raw_dir, keep_days=settings.raw_keep_days,
+                          max_bytes=settings.feed_max_mb * 1024 * 1024, user_agent=settings.user_agent)
+    keys = lambda: [k for k in sites if sites[k]["enabled"]] if a.retailer == "all" else [a.retailer]
 
     def urls(k, n=None):
         f = Path(f"urls/{k}.json")
@@ -205,12 +239,12 @@ def main(argv=None):
                           operator=settings.operator_email or None, actor=who)
 
     if a.cmd == "nightly":
-        if partners is not None and not partners & {k for k in RETAILERS if RETAILERS[k]["enabled"]}:
+        if partners is not None and not partners & {k for k in specs if specs[k]["enabled"]}:
             store.close()
-            sys.exit("DEALS_AFFILIATE : aucune des enseignes déclarées n'est suivie (clés de deals/collect/retailers.py).")
-        if partners is not None and partners - set(RETAILERS):
-            print("Enseignes partenaires inconnues, ignorées :", ", ".join(sorted(partners - set(RETAILERS))))
-        out = night.run(store, settings, crawler, outbox_for(settings), RETAILERS, rules, stream=ops.stream,
+            sys.exit("DEALS_AFFILIATE : aucune des enseignes déclarées n'est suivie (clés de deals/ingest/retailers.py ou de DEALS_SOURCES).")
+        if partners is not None and partners - set(specs):
+            print("Enseignes partenaires inconnues, ignorées :", ", ".join(sorted(partners - set(specs))))
+        out = night.run(store, settings, collector, outbox_for(settings), specs, rules, stream=ops.stream,
                         report_dir=settings.reports_dir)
         if out["report"]:
             print(Path(settings.reports_dir, f"{out['report']}.md").read_text(encoding="utf-8"))
@@ -269,7 +303,7 @@ def main(argv=None):
                 store.close()
                 sys.exit(f"source inconnue : {a.key} (deals.py sources les liste)")
         for r in sources.listing(store):
-            print(f"{r['key']:<16} {r['name']:<18} {r['status']:<9} {'partenaire' if r['partner'] else '—':<11} "
+            print(f"{r['key']:<16} {r['name']:<18} {r['kind'] or 'site':<5} {r['status']:<9} {'partenaire' if r['partner'] else '—':<11} "
                   f"nuits ratées {r['failures']} · dernière réussite {utc(r['last_success'])[:10] if r['last_success'] else '—'}"
                   f"{' · ' + r['reason'] if r['reason'] else ''}")
     elif a.cmd == "quarantine":
@@ -291,19 +325,50 @@ def main(argv=None):
             print("Aucun fichier de partenaires (DEALS_AFFILIATE) : développement, tout est lu et publié.")
         reg = {r["key"]: r for r in sources.listing(store)}
         for k in sorted(rules or ()):
-            known = k in RETAILERS
+            known = k in specs
             src = reg.get(k)
-            print(f"{k:<16} {RETAILERS[k]['name'] if known else 'inconnue':<18} "
-                  f"{('suivie' if RETAILERS[k]['enabled'] else 'désactivée dans le code') if known else 'clé absente de retailers.py'}"
+            print(f"{k:<16} {specs[k]['name'] if known else 'inconnue':<18} "
+                  f"{(specs[k]['kind'] + (' suivie' if specs[k]['enabled'] else ' désactivée')) if known else 'clé absente des sources'}"
                   f"{' · source ' + src['status'] if src else ''}")
     elif a.cmd == "publish":
         print(json.dumps(publish(store, market.today(), market.clock(), partners), ensure_ascii=False))
+    elif a.cmd in ("ingest", "replay"):
+        flows = registry.feeds(specs)
+        todo = [k for k in flows if flows[k]["enabled"]] if a.source == "all" else [a.source]
+        unknown = [k for k in todo if k not in flows]
+        if unknown or not todo:
+            store.close()
+            sys.exit(f"source « feed » inconnue : {', '.join(unknown) or a.source} (flux déclarés : {', '.join(flows) or 'aucun'} ; DEALS_SOURCES)")
+        for k in todo:
+            try:
+                stat, _ = collector.replay(k) if a.cmd == "replay" else collector.ingest(k, file=a.file, dry_run=a.dry_run)
+            except ValueError as err:
+                print(f"{k} : {err}")
+                continue
+            print(f"{flows[k]['name']} · lot {stat['batch']} : {stat['received']} lignes, {stat['accepted']} offres retenues"
+                  f"{'' if a.cmd == 'ingest' and a.dry_run else ' (' + str(stat.get('changed', 0)) + ' prix changés)'}, "
+                  f"{stat['rejected']} refusées, {stat['ignored']} hors périmètre"
+                  f"{' · ÉCHEC : ' + (stat.get('error') or 'aucune offre retenue') if stat.get('broken') else ''}")
+            for why, n in (stat.get("reasons") or {}).items():
+                print(f"     {n:>6} · {why}")
+        if a.cmd == "ingest" and not a.dry_run:
+            print("Publié à la prochaine nuit, ou tout de suite : python deals.py publish")
+    elif a.cmd == "batches":
+        if a.rejects:
+            for r in store.q("SELECT * FROM batch_rejects WHERE batch_id=? ORDER BY line", (a.rejects,)):
+                print(f"ligne {r['line']} · {r['external_id'] or '—'} · {r['reason']}\n     {r['record'][:300]}")
+        else:
+            for b in B.listing(store, a.source, a.n):
+                print(f"[{b['id']}] {utc(b['started_at'])} {b['source']:<14} {b['kind']:<4} {b['status']:<9} "
+                      f"reçues {b['received']} · retenues {b['accepted']} · prix changés {b['changed']} · refusées {b['rejected']} "
+                      f"· hors périmètre {b['ignored']}{' · rejeu du lot ' + str(b['replay_of']) if b['replay_of'] else ''}"
+                      f"{' · ' + b['error'] if b['error'] else ''}")
     elif a.cmd == "discover":
         Path("urls").mkdir(exist_ok=True)
         for k in keys():
-            res = discover(fetcher, RETAILERS[k], a.per)
+            res = discover(fetcher, sites[k], a.per)
             Path(f"urls/{k}.json").write_text(json.dumps(res["by_category"], ensure_ascii=False, indent=1), encoding="utf-8")
-            print(f"{RETAILERS[k]['name']:<16} {res['total']:>5} fiches · {res['files_read']} plans de site lus · "
+            print(f"{sites[k]['name']:<16} {res['total']:>5} fiches · {res['files_read']} plans de site lus · "
                   + ", ".join(f"{c} {len(v)}" for c, v in res["by_category"].items()))
     elif a.cmd == "diagnose":
         Path(settings.reports_dir).mkdir(exist_ok=True)
@@ -320,7 +385,7 @@ def main(argv=None):
                 w.writeheader()
                 w.writerows(res["rows"])
             prot = ", ".join(f"{v} ({n})" for v, n in s["protections"].items()) or "—"
-            lines.append(f"| {RETAILERS[k]['name']} | {s['pages']} | {pct(s['read_ok'])} | {pct(s['with_price'])} | {pct(s['with_was'])} | "
+            lines.append(f"| {sites[k]['name']} | {s['pages']} | {pct(s['read_ok'])} | {pct(s['with_price'])} | {pct(s['with_was'])} | "
                          f"{pct(s['with_gtin'])} | {pct(s['blocked'])} | {prot} | {s['verdict']} |")
             print(lines[-1])
             print(f"    prix : {s['methods'] or '—'} · prix barré : {s['was_methods'] or '—'} · statuts : {s['statuses']}")
@@ -330,7 +395,7 @@ def main(argv=None):
             u = urls(k, a.n)
             if u:
                 res = D.sample(fetcher, k, u)
-                print(f"{RETAILERS[k]['name']:<16} {res['saved']}/{res['pages']} pages enregistrées dans {res['dir']}")
+                print(f"{sites[k]['name']:<16} {res['saved']}/{res['pages']} pages enregistrées dans {res['dir']}")
         print("Compressez le dossier samples/ et joignez-le : l'extraction se règle alors sur vos vraies pages.")
     elif a.cmd == "build":
         for k in keys():
@@ -354,9 +419,11 @@ def main(argv=None):
         market.set_rules(a.host, json.loads(a.rules))
         print(f"règle enregistrée pour {a.host} : relancez « python deals.py diagnose <enseigne> »")
     elif a.cmd == "review":
-        for p in store.q("SELECT id, title, brand, gtin FROM products WHERE needs_review=1 LIMIT 50"):
+        for p in store.q("SELECT id, title, brand, gtin, mpn FROM products WHERE needs_review=1 LIMIT 50"):
             merchants = " | ".join(o["merchant"] for o in store.q("SELECT merchant FROM offers WHERE product_id=?", (p["id"],)))
-            print(f"[{p['id']}] {p['brand'] or ''} {p['title']} (EAN {p['gtin'] or '—'}) : {merchants}")
+            near = ", ".join(f"[{i}] {s:.0%}" for i, s in market.candidates(p["id"])[:3]) or "aucun"
+            print(f"[{p['id']}] {p['brand'] or ''} {p['title']} (EAN {p['gtin'] or '—'}, réf. {p['mpn'] or '—'}) : {merchants}"
+                  f"\n     titres semblables (jamais fusionnés) : {near}")
     elif a.cmd == "estimate":
         print(crawler.estimate())
     elif a.cmd == "metrics":

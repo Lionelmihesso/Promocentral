@@ -27,6 +27,27 @@ attend une décision (§ 7).
 - **Ce qui ne change pas :** monolithe modulaire, SQLite, jobs de nuit, ni microservice ni IA. Les mesures ne
   justifient pas autre chose (§ 1).
 
+## Avancement (v63, 31 octobre 2026)
+
+Décisions prises le 31 octobre : le nom affiché devient **Promo Central** (seul changement de front, avec la page
+légale) ; les sources visées sont les leaders français (Boulanger, Darty, Fnac, puis Conforama, But, IKEA, Maisons du
+Monde, La Redoute, Cdiscount) ; les propositions par défaut de D3 à D5 sont retenues (pré-collecte silencieuse,
+comptes de service, page légale en pied de page). Les §§ 1 à 5 ci-dessous restent le constat de la v24.
+
+| Lot | État | Preuve |
+|---|---|---|
+| 1. Socle des données | **fait** : plus de fusion au titre (candidat à revoir), deux EAN jamais fusionnés, une alerte ne part que sur une offre en stock, à prix égal la disponibilité connue gagne | `tests/test_market.py` ; `bench.cadre` : 0 écart P0 |
+| 2. Connecteur de flux | **fait** sur flux d'essai et flux de la démo ; le premier vrai flux attend D1 (accès aux programmes) | `deals/ingest/` ; `tests/test_ingest.py` (formats, contrôles, lots, rejeu, flux tronqué, flux illisible, panne de 3 nuits avec l'agent) ; `tests/test_demo.py` : la démo nourrie par flux publie exactement le catalogue de la lecture des fiches |
+| Architecture | **fait** : couches et contrats écrits, frontières vérifiées par un test ; la collecte des fiches déplacée sous `deals/ingest/pages/` | `docs/ARCHITECTURE.md` ; `tests/test_architecture.py` |
+| 3. Données réelles | à faire, avec D1 et le serveur : échantillon par source, audit de 20 offres, seuils, pré-collecte | — |
+| 4. Exploitation | **en partie** : versions datées, tests de fumée et retour arrière d'une commande (base restaurée si elle avait été migrée), HSTS, page `/robot`, sources et correspondances d'exemple, variables d'environnement ; restent la préproduction, la copie des sauvegardes hors du serveur et la sonde (comptes D4) | `deploy/release.sh`, `deploy/smoke.py`, `tests/test_release.py` ; `bench.cadre` : 16/19 |
+| 5. Conformité | **en partie** : nom Promo Central partout (app, e-mails, robot), page « Mentions légales et données personnelles » (identité lue dans `DEALS_LEGAL_…`, l'app refuse de démarrer en production sans elle) ; reste la relecture par un juriste | parcours e2e 85/85, audit 92 écrans sans défaut |
+| 6. Préproduction, ouverture | à faire | — |
+
+**Ce qui attend de vous** : l'inscription aux programmes (Boulanger chez Kwanko, Fnac chez Awin, Darty sur Effinity ou
+Awin, à confirmer) et, pour chacun, l'adresse du flux ; l'identité légale (`DEALS_LEGAL_…`) ; le domaine ; les comptes de
+service (D4).
+
 ## 1. Baseline exécutée (31 octobre 2026)
 
 | Contrôle | Commande | Résultat |
@@ -248,7 +269,7 @@ commit et un zip vérifié depuis un dossier propre. 15 à 20 % du temps reste r
   quarantaine). Une ligne invalide est rejetée avec sa raison, sans arrêter le lot.
 - *Un flux incomplet ne supprime rien* : les offres absentes vieillissent comme une page non relue (au-delà de 3
   jours, plus montrées) et la garde de publication (−20 %) reste.
-- *Fichiers* : `deals/collect/feed.py` (nouveau), `deals/sources.py`, `deals/store.py` (migration 13 : `batches`),
+- *Fichiers* (faits en v63) : `deals/ingest/` (registry, feeds, contract, batches, collector), `deals/sources.py`, `deals/store.py` (migration 13 : `batches`),
   `deals/night.py`, `deals/cli.py`, `tests/test_feed.py` (fixtures CSV et XML, rejeu, flux tronqué, ligne
   invalide), `bench/cadre.py`.
 - *Migration* : v12 → v13, ajout d'une table, sans recopie ; testée sur une copie de base.

@@ -4,4 +4,4 @@
 # Les gestes d'un responsable (approve, sources enable…) sont journalisés à son nom : DEALS_ACTOR.
 exec systemd-run --quiet --wait --pty --collect --uid=deals --gid=deals \
   -p WorkingDirectory=/var/lib/deals -p EnvironmentFile=/etc/deals/deals.env --setenv=DEALS_ACTOR="${SUDO_USER:-$(id -un)}" \
-  /usr/bin/python3 /opt/deals/deals.py --db /var/lib/deals/deals.sqlite "$@"
+  /usr/bin/python3 /opt/deals/current/deals.py --db /var/lib/deals/deals.sqlite "$@"

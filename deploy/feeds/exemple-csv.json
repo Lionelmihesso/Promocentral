@@ -1,0 +1,11 @@
+{
+  "_note": "Exemple de correspondance d'un flux CSV : chaque champ de Promo Central (à gauche) reçoit le nom de la colonne du flux (à droite). Les noms ci-dessous sont un EXEMPLE : ceux d'un vrai flux se lisent sur un échantillon (deals.py probe <fichier> les propose), jamais de mémoire.",
+  "format": "csv", "delimiter": ";", "encoding": "cp1252", "category_separator": ">",
+  "fields": {
+    "external_id": "id_produit", "title": "nom", "url": "url_produit", "tracking_url": "lien_affilie",
+    "price": "prix", "list_price": "prix_barre", "availability": "disponibilite", "gtin": "ean", "mpn": "reference_fabricant",
+    "brand": "marque", "category": "categorie", "image": "image", "valid_until": "fin_promo", "shipping": "frais_de_port",
+    "lowest_30d": "prix_plus_bas_30_jours", "properties": "caracteristiques"
+  },
+  "availability": {"sous 48 h": "in_stock", "en réassort": "backorder"}
+}

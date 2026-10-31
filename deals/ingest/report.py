@@ -1,6 +1,6 @@
 """Bilan de la passe de nuit et rapport du matin (reports/AAAA-MM-JJ.md et .json).
 
-Par enseigne : pages relues, inchangées (304), prix changés, bloquées, disparues, sans prix, erreurs, hors catalogue,
+Par enseigne lue par ses fiches : pages relues, inchangées (304), prix changés, bloquées, disparues, sans prix, erreurs, hors catalogue,
 taux de prix barré lu, réussite. Alertes : réussite sous 80 %, passe interrompue (coupe-circuit), budget atteint,
 taux de prix barré en chute alors que les prix, eux, n'ont pas bougé (la page a sans doute changé ; une fin de promotion
 fait remonter les prix : ce n'est pas une alerte). Plus fortes baisses de la nuit (celles retenues en quarantaine
@@ -75,20 +75,36 @@ def write(stats, report_dir, agent=None):
     d = Path(report_dir)
     d.mkdir(parents=True, exist_ok=True)
     s = stats
-    lines = [f"# Collecte du {s['day']}", "", f"{s['offers']} pages relues · {s['products']} produits · {s['to_review']} à vérifier", "",
+    lines = [f"# Collecte du {s['day']}", "", f"{s['offers']} offres relues (fiches et flux) · {s['products']} produits · "
+             f"{s['to_review']} à vérifier", "",
              "| Enseigne | Pages | Lues | Inchangées (304) | Prix changés | Bloquées | Disparues | Sans prix | Erreurs | Prix barré lu | Réussite |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     pct = lambda v: "—" if v is None else f"{v * 100:.0f} %"
-    for k, r in sorted(s["retailers"].items()):
+    sites = {k: r for k, r in s["retailers"].items() if r.get("kind") != "feed"}
+    flows = {k: r for k, r in s["retailers"].items() if r.get("kind") == "feed"}
+    for k, r in sorted(sites.items()):
         lines.append(f"| {'⚠ ' if r['alert'] else ''}{r['name']} | {r['pages']} | {r['ok']} | {r['unchanged_304']} | {r['changed']} | "
                      f"{r['blocked']} | {r['gone']} | {r['no_price']} | {r['errors']} | {pct(r['was_rate'])} | {pct(r['success'])} |")
+    if flows:
+        lines += ["", "| Flux | Lignes reçues | Offres retenues | Prix changés | Refusées | Hors périmètre | Lot |",
+                  "|---|---|---|---|---|---|---|"]
+        for k, r in sorted(flows.items()):
+            lines.append(f"| {'⚠ ' if r.get('alert') else ''}{r['name']} | {r.get('received', 0)} | {r.get('accepted', 0)} | "
+                         f"{r.get('changed', 0)} | {r.get('rejected', 0)} | {r.get('ignored', 0)} | {r.get('batch')} |")
     if s["price_drops"]:
         lines += ["", "## Plus fortes baisses", ""] + [f"- {x['brand'] or ''} {x['title'] or x['url']} ({x['retailer']}) : "
                                                        f"{euros(x['before'])} → {euros(x['after'])} (−{x['drop'] * 100:.0f} %)"
                                                        f"{' — retenu : prix suspect, en quarantaine' if x.get('held') else ''}"
                                                        for x in s["price_drops"][:15]]
     notes = []
-    for r in s["retailers"].values():
+    for r in flows.values():
+        if r.get("broken"):
+            notes.append(f"⚠ {r['name']} : flux en échec ({r.get('error') or 'aucune offre retenue'}) : python deals.py batches "
+                         f"--source <clé>, puis docs/RUNBOOK.md#source-en-echec.")
+        elif r.get("reject_share", 0) >= 0.2:
+            why = ", ".join(f"{k} ({v})" for k, v in (r.get("reasons") or {}).items())
+            notes.append(f"⚠ {r['name']} : {r['rejected']} lignes refusées ({r['reject_share'] * 100:.0f} %) : {why}.")
+    for r in sites.values():
         if r["interrupted"]:
             notes.append(f"⚠ {r['name']} : passe interrompue après {BREAKER} refus de suite ({r['interrupted']} pages non relues).")
         if r["not_read"]:
@@ -96,7 +112,7 @@ def write(stats, report_dir, agent=None):
         if r["was_drop"]:
             notes.append(f"⚠ {r['name']} : le prix barré n'est presque plus lu ({r['was_rate'] * 100:.0f} % des pages) : "
                          "changement de page probable (python deals.py explain <adresse>).")
-    alerts = [r["name"] for r in s["retailers"].values() if r["alert"]]
+    alerts = [r["name"] for r in sites.values() if r["alert"]]
     if alerts:
         notes.append(f"⚠ Sous le seuil de {KEEP_THRESHOLD * 100:.0f} % : {', '.join(alerts)}. Blocage ou changement de page ? "
                      "(python deals.py diagnose <enseigne>)")

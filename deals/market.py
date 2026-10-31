@@ -3,8 +3,10 @@
   track(url, retailer, merchant, category_hint) → offer_id     une adresse de fiche à suivre
   record(offer, ex) → changed | unchanged | suspect            le prix lu, enregistré au changement seulement
   touch(offer_id)                                              page inchangée (304) : le dernier prix est reconfirmé
+  mark(offer_id, source, external_id, tracking_url, batch_id)  d'où vient l'offre (ingestion par flux)
   set_result(offer_id, status, ok, …)                          issue d'une lecture : statut, note, protection, ETag
-  match_product(ex) → product_id                               EAN, sinon marque + référence, sinon titre (même marque)
+  match_product(ex) → product_id                               EAN, sinon marque + référence ; sinon un produit neuf
+  candidates(product_id) → [(produit, ressemblance)]           les produits au titre semblable, à revoir (jamais fusionnés)
   other_product(offer, ex) → bool                              la page relue montre-t-elle un autre produit ?
 Les écritures se font dans la transaction de l'appelant (une par page relue). Une variation énorme (÷2, ×2) est mise
 en attente et confirmée par une seconde lecture avant d'être enregistrée.
@@ -18,7 +20,7 @@ from urllib.parse import urlsplit
 from . import extract as X
 
 SUSPECT_LOW, SUSPECT_HIGH = 0.5, 2.0
-SAME_TITLE = 0.8        # rapprochement par titre : 80 % de mots communs, même marque
+SAME_TITLE = 0.8        # titre semblable (80 % de mots communs, même marque) : un candidat à revoir, jamais une fusion
 OTHER_TITLE = 0.2       # en dessous, la page relue montre un autre produit
 
 
@@ -38,6 +40,7 @@ def jaccard(a, b):
 class Market:
     def __init__(self, store, clock=time.time):
         self.s, self.clock = store, clock
+        self.batch_of = {}            # enseigne → lot en cours (ingest/collector.py) : chaque prix relevé dit son lot
 
     def today(self):
         return utc_day(self.clock())
@@ -54,6 +57,12 @@ class Market:
 
     def offer(self, offer_id):
         return self.s.q("SELECT * FROM offers WHERE id=?", (offer_id,), one=True)
+
+    def mark(self, offer_id, source=None, external_id=None, tracking_url=None, batch_id=None):
+        """La provenance d'une offre lue dans un flux : sa source, son identifiant dans le flux, le lien de suivi du réseau
+        (gardé à part de l'adresse de la fiche), le dernier lot qui l'a vue."""
+        self.s.x("UPDATE offers SET source=COALESCE(?, source), external_id=COALESCE(?, external_id), tracking_url=?, "
+                 "batch_id=COALESCE(?, batch_id) WHERE id=?", (source, external_id, tracking_url, batch_id, offer_id))
 
     def set_result(self, offer_id, status, ok, note=None, protection=None, etag=None, last_modified=None):
         self.s.x("UPDATE offers SET status=?, note=?, protection=?, etag=COALESCE(?, etag), last_modified=COALESCE(?, last_modified), "
@@ -86,31 +95,43 @@ class Market:
                      (cat, json.dumps(merged, ensure_ascii=False), ex.get("image"), pid))
             return pid
         attrs = X.product_attributes(ex.get("title"), cat, None, ex.get("properties"), ex.get("category"))
-        review = 0 if ex.get("gtin") or (ex.get("brand") and ex.get("mpn")) else 1
+        review = 0 if ex.get("gtin") else int(not (ex.get("brand") and ex.get("mpn")) or bool(self._similar(ex)))
         return self.s.x("INSERT INTO products(gtin, brand, mpn, title, norm_title, category, attributes, image, needs_review, created_at) "
                         "VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (ex.get("gtin"), ex.get("brand"), ex.get("mpn"), ex.get("title") or "?", norm_title(ex.get("title")), cat,
                          json.dumps(attrs, ensure_ascii=False), ex.get("image"), review, self.clock()))
 
     def _find(self, ex):
+        """Le produit déjà connu de l'offre, sur preuve seulement : le même EAN, sinon la même marque et la même référence
+        fabricant (et pas d'EAN différent). Un titre semblable n'en est pas une : deux références d'une même gamme se
+        ressemblent à un caractère près (WGG244Z0FR, WGG244Z1FR) ; il fait un candidat à revoir (candidates)."""
         if ex.get("gtin"):
             p = self.s.q("SELECT id FROM products WHERE gtin=?", (ex["gtin"],), one=True)
             if p:
                 return p["id"]
         brand, mpn = (ex.get("brand") or "").strip().lower(), (ex.get("mpn") or "").strip().lower()
         if brand and mpn:
-            p = self.s.q("SELECT id FROM products WHERE lower(brand)=? AND lower(mpn)=?", (brand, mpn), one=True)
-            if p:
+            p = self.s.q("SELECT id, gtin FROM products WHERE lower(brand)=? AND lower(mpn)=?", (brand, mpn), one=True)
+            if p and not (ex.get("gtin") and p["gtin"] and p["gtin"] != ex["gtin"]):     # deux EAN : deux produits
                 if ex.get("gtin"):
                     self.s.x("UPDATE products SET gtin=COALESCE(gtin, ?) WHERE id=?", (ex["gtin"], p["id"]))
                 return p["id"]
-        nt = norm_title(ex.get("title"))
-        if nt and not ex.get("gtin"):
-            rows = self.s.q("SELECT id, norm_title FROM products WHERE lower(COALESCE(brand, ''))=?", (brand,))
-            best = max(rows, key=lambda r: jaccard(nt, r["norm_title"] or ""), default=None)
-            if best and jaccard(nt, best["norm_title"] or "") >= SAME_TITLE:
-                return best["id"]
         return None
+
+    def _similar(self, ex, exclude=None):
+        """Les produits de même marque au titre semblable (≥ SAME_TITLE), les plus proches d'abord : des candidats à
+        revoir, jamais fusionnés."""
+        nt, brand = norm_title(ex.get("title")), (ex.get("brand") or "").strip().lower()
+        if not nt:
+            return []
+        rows = self.s.q("SELECT id, norm_title FROM products WHERE lower(COALESCE(brand, ''))=? AND id IS NOT ?", (brand, exclude))
+        near = [(r["id"], round(jaccard(nt, r["norm_title"] or ""), 2)) for r in rows]
+        return sorted([x for x in near if x[1] >= SAME_TITLE], key=lambda x: (-x[1], x[0]))
+
+    def candidates(self, product_id):
+        """Les produits que le titre de celui-ci rappelle (deals.py review) : [(id, ressemblance)]."""
+        p = self.s.q("SELECT title, brand FROM products WHERE id=?", (product_id,), one=True)
+        return self._similar(p, exclude=product_id) if p else []
 
     def other_product(self, offer, ex):
         if not offer["product_id"]:
@@ -133,13 +154,15 @@ class Market:
             return "suspect"
         self.s.x("UPDATE offers SET pending_price=NULL WHERE id=?", (offer["id"],))
         if prev and prev["price"] == price and prev["availability"] == avail and (prev["was"] or None) == (was or None):
-            self.s.x("UPDATE prices SET last_seen=?, seller=?, valid_until=?, lowest_30d=COALESCE(?, lowest_30d) WHERE id=?",
-                     (now, ex.get("seller"), ex.get("valid_until"), ex.get("lowest_30d"), prev["id"]))
+            self.s.x("UPDATE prices SET last_seen=?, seller=?, valid_until=?, lowest_30d=COALESCE(?, lowest_30d), "
+                     "shipping=COALESCE(?, shipping) WHERE id=?",
+                     (now, ex.get("seller"), ex.get("valid_until"), ex.get("lowest_30d"), ex.get("shipping"), prev["id"]))
             return "unchanged"
         self.s.x("INSERT INTO prices(offer_id, first_seen, last_seen, price, was, availability, seller, valid_until, lowest_30d, "
-                 "source, was_source) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                 "source, was_source, batch_id, shipping) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                  (offer["id"], now, now, price, was, avail, ex.get("seller"), ex.get("valid_until"), ex.get("lowest_30d"),
-                  ex.get("method"), ex.get("was_method")))
+                  ex.get("method"), ex.get("was_method"), ex.get("batch_id") or self.batch_of.get(offer["retailer"]),
+                  ex.get("shipping")))
         return "changed"
 
     def touch(self, offer_id):

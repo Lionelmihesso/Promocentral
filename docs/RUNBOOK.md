@@ -52,9 +52,12 @@ avec `estimate` que la nuit tient dans son budget. Mieux : demander le flux prod
 si la relance passe, rien n'est signalé. Si elle échoue, l'incident est ouvert ; il ne vous est écrit qu'à la deuxième
 nuit (ce peut être passager). Après 3 nuits ratées, la source est mise de côté.
 
-**Vérifier.** `sudo deals diagnose <enseigne>` ; le site répond-il depuis le serveur (`curl -I https://…`) ?
+**Vérifier.** Une enseigne lue par ses fiches : `sudo deals diagnose <enseigne>` ; le site répond-il depuis le serveur
+(`curl -I https://…`) ? Une enseigne lue par son flux : `sudo deals batches --source <clé>` (l'erreur du lot : flux
+injoignable, illisible, ou aucune offre retenue) ; les identifiants du réseau dans `/etc/deals/deals.env` ont-ils changé ?
 
-**Corriger.** Rien si le site est en panne chez lui : la page témoin dira quand il revient. Si seul votre serveur est
+**Corriger.** Rien si le site ou le réseau est en panne chez lui : la page témoin (ou le flux, relu tous les 3 jours) dira
+quand il revient. Si seul votre serveur est
 refusé, c'est peut-être un blocage : voir [source bloquée](#source-bloquee).
 
 **Revenir à la normale.** Automatique tant qu'elle n'est pas mise de côté ; sinon `sudo deals sources enable <enseigne>`.
@@ -67,7 +70,9 @@ refusé, c'est peut-être un blocage : voir [source bloquée](#source-bloquee).
 « Plus de prix barré » n'est signalé que si les prix, eux, n'ont pas bougé : une fin de promotion fait remonter les prix
 et n'est pas une alerte.
 
-**Vérifier.** `sudo deals explain <adresse d'une fiche>` : ce que l'extraction voit (sources de prix, raisons).
+**Vérifier.** `sudo deals explain <adresse d'une fiche>` : ce que l'extraction voit (sources de prix, raisons). Une
+enseigne lue par son flux : c'est la colonne du prix barré (ou du prix promotionnel) qui a changé de nom ou de format ;
+`sudo deals batches --source <clé>`, puis la correspondance (voir [brancher un flux](#brancher-un-flux)).
 
 **Corriger.** Écrire la règle de lecture du site : `sudo deals rules <site> '{"price": "<sélecteur>", "list_price": "<sélecteur>"}'`,
 puis `sudo deals diagnose <enseigne>` (au moins 80 % des pages avec un prix pour garder l'enseigne).
@@ -190,6 +195,62 @@ de l'étape est l'entité) et la nuit est marquée « en erreur » (la sonde ext
 **Vérifier.** `sudo deals events --cid <corrélation>` (l'erreur et son message), `journalctl -u deals-daily`.
 
 **Corriger.** La cause (disque plein, base verrouillée, bogue), puis relancer : `sudo systemctl start deals-daily`.
+
+<a id="brancher-un-flux"></a>
+## Brancher ou régler le flux d'une enseigne
+
+Pas un incident : le geste courant. Le détail pas à pas est dans `deploy/README.md` (« Brancher les flux »).
+```
+sudo deals probe <échantillon>              # format, colonnes, correspondance proposée (à relire)
+sudoedit /etc/deals/feeds/<enseigne>.json   # la correspondance, corrigée
+sudo deals ingest <enseigne> --dry-run      # tout lu et contrôlé, rien écrit : retenues, refus et raisons
+sudo deals ingest <enseigne>                # un lot réel ; sudo deals batches pour le voir
+sudo deals replay <enseigne>                # après une correction : relire le dernier fichier gardé, sans attendre la nuit
+```
+Une source flux se met de côté et se reprend comme une autre (`sudo deals sources disable|enable <clé>`). Les adresses
+des flux portent les identifiants du réseau : elles vivent dans `/etc/deals/deals.env` (`DEALS_FEED_<ENSEIGNE>`), jamais
+dans `sources.json`, et ne sont jamais écrites dans un message, un lot ou un rapport.
+
+<a id="flux-lignes-refusees"></a>
+## Flux : trop de lignes refusées
+
+**Ce que l'agent a fait.** Rien de plus que le dire : le flux a été lu et ses offres valides écrites ; au moins 20 % des
+lignes dans le périmètre ont été refusées (prix manquant, devise, occasion, adresse invalide). Les lignes refusées ne sont
+ni publiées ni comptées ; le lot passe en « partial ».
+
+**Vérifier.** `sudo deals batches --source <clé>` (le lot et ses comptes), puis `sudo deals batches --rejects <lot>` :
+chaque ligne refusée, sa raison et un extrait de la ligne. Les raisons sont aussi dans le rapport du matin.
+
+**Corriger.** Si une colonne a changé de nom ou de format dans le flux : la correspondance de la source
+(`/etc/deals/feeds/<clé>.json`), vérifiée sur le fichier gardé (`sudo deals ingest <clé> --file <fichier> --dry-run`, ou
+`sudo deals probe <fichier>`), puis `sudo deals replay <clé>` relit le dernier fichier sans attendre la nuit. Si ce sont
+de vraies offres sans prix (produits épuisés, hors ligne) : rien à corriger.
+
+<a id="flux-en-baisse"></a>
+## Flux : deux fois moins d'offres que la veille
+
+**Ce que l'agent a fait.** Constaté que le lot retient moins de la moitié des offres du lot précédent. Rien n'est supprimé :
+les offres absentes vieillissent (au-delà de 3 jours, plus montrées) ; si le catalogue perd plus de 20 % de ses offres, la
+publication est retenue (voir [publication retenue](#catalogue-retenu)).
+
+**Vérifier.** `sudo deals batches --source <clé>` : le nombre de lignes reçues a-t-il chuté (flux tronqué chez le réseau,
+téléchargement coupé) ou est-ce le nombre de lignes refusées qui monte (voir ci-dessus) ?
+
+**Corriger.** Un flux tronqué : relancer `sudo deals ingest <clé>` quand le réseau le sert en entier, ou attendre la nuit.
+Un changement voulu de l'enseigne (catalogue réduit) : rien, l'incident se résout quand les lots se stabilisent.
+
+<a id="mise-a-jour"></a>
+## Une mise à jour ratée
+
+**Ce qui s'est passé seul.** `deploy/release.sh install` a sauvegardé la base, basculé sur la nouvelle version, puis ses
+tests de fumée ont échoué : la version d'avant est revenue d'elle-même (et la base d'avant, si la nouvelle l'avait
+migrée). La sortie de la commande dit quel contrôle a échoué.
+
+**Vérifier.** `sudo sh /opt/deals/current/deploy/release.sh list` (la version en service) ; `python3
+/opt/deals/current/deploy/smoke.py` (les contrôles, un par ligne) ; `journalctl -u deals-web --since "-10 min"`.
+
+**Corriger.** Le défaut dans le code, un nouveau commit, une nouvelle archive, répétée d'abord en préproduction. Une
+version qui passe ses tests mais se révèle mauvaise ensuite : `sudo sh /opt/deals/current/deploy/release.sh rollback`.
 
 <a id="nuit-absente"></a>
 ## Pas de nuit depuis plus de 36 h

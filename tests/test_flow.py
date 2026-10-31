@@ -19,11 +19,11 @@ from pathlib import Path
 
 from deals import config
 from deals.api import Api
-from deals.collect import report
-from deals.collect.crawl import Crawler
-from deals.collect.diagnose import diagnose
-from deals.collect.discover import discover
-from deals.fetch import Fetcher
+from deals.ingest import report
+from deals.ingest.pages.crawl import Crawler
+from deals.ingest.pages.diagnose import diagnose
+from deals.ingest.pages.discover import discover
+from deals.ingest.pages.fetch import Fetcher
 from deals.market import Market
 from deals.publish import publish
 from deals.store import Store

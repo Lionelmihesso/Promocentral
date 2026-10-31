@@ -1,28 +1,48 @@
-# Architecture de DEALS
+# Architecture de Promo Central
 
-DEALS montre chaque jour les bonnes affaires qui existent. Le marché est relu une fois par nuit ; tout le reste en
-découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcule, une app de jour qui lit**.
+Promo Central (nom de code technique : `deals`) montre chaque jour les bonnes affaires des enseignes partenaires. Le
+marché est relu une fois par nuit ; tout le reste en découle : **une chaîne de nuit qui calcule, une app de jour qui
+lit**. C'est un **monolithe modulaire** : un seul processus par rôle (l'app, la nuit), une seule base SQLite, et des
+couches qui se parlent par des contrats écrits — pas des services. Les frontières sont vérifiées par un test
+(`tests/test_architecture.py`), pas par la bonne volonté.
 
 ```
-                    NUIT (deals.py nightly → night.py, une fois par jour)                   JOUR (deals.py serve)
-
- sites des enseignes ─► fetch ─► extract ─► market ─────► publish ─► catalog ◄── catalog ◄── api ◄── web ◄── app (v59)
-                        politesse  page HTML   produits,    deals,     tables       lectures    routes  HTTP
-                        robots.txt → offre     offres,      fausses    publiées     indexées    /api/r/ statique
-                        blocages   (pur)       prix         remises,   (une seule
-                                               (écrit)      moins cher transaction,             accounts, activity,
-                                                            comparable  garde)                  missions, profile,
-                                                            (purs)        │                     query (phrase comprise),
-                                       ontology (données versionnées) ────┼──────────────────►  catalog, query, missions
-                                       relue par extract et publish       │                     (le type, sans fil, sans sac)
-                                       agent : relance, mise de côté,     ▼                     (comptes invités, e-mail,
-                                       page témoin, quarantaine ─►  missions ─► e-mails         favoris, marques, clics,
-                                                                                                recherches, goûts)
-                                       (sources, quarantine)        prix atteints : un par personne
-                                                │
-                       health : contrôles ─► agent : incidents, conseils, propositions ─► rapport, e-mail au responsable
-                       ops : journal (events), corrélation de la nuit                      deals.py status | approve | …
+ SOURCES                  INGESTION (deals/ingest)                 MARCHÉ            PUBLICATION          APP (le jour)
+ flux produits ─────► feeds.py : lire, traduire ─┐                                                                       
+ (CSV, XML, JSON,         contract.py : contrôler ├─► lot ─────► market.py ─────► publish.py ─► catalogue ◄─ catalog.py ◄─ api.py ◄─ web.py ◄─ app
+  Google Shopping)                               │   batches.py  produits,         deals, verdicts,  publié      query, funnel    /api/r/     React
+ fiches (dernier ─────► pages/ : fetch, extract ─┘   (brut gardé, offres, prix      alternatives,     (1 tx)      profile          /robot
+ recours)                 (robots.txt, 5 s/site)      rejouable)  (seul écrivain)   moins cher (purs)             missions, accounts, activity
+ registry.py : quelles sources, comment les lire   collector.py : toutes derrière une interface (la nuit, l'agent)
+ night.py orchestre : ingestion → agent (relance, mise de côté, quarantaine) → publication (garde) → missions → contrôles
+ → incidents → rapport du matin → e-mail au responsable s'il y a lieu
 ```
+
+## Les couches et leurs contrats
+
+| Couche | Modules | Contrat d'entrée | Contrat de sortie |
+|---|---|---|---|
+| Sources | `ingest/registry.py`, `DEALS_SOURCES` | une entrée par enseigne : `kind` (`feed` ou `site`), adresse, correspondance des colonnes, familles | une source lisible, ou un arrêt au démarrage qui nomme le champ fautif |
+| Ingestion | `ingest/feeds.py` (pur), `ingest/contract.py` (pur), `ingest/pages/`, `ingest/batches.py`, `ingest/collector.py` | un fichier de flux, ou une fiche | l'**offre normalisée** (`contract.py` : url, titre, marque, EAN vérifié, référence, catégorie déclarée, prix, prix barré, plus bas 30 jours, fin de promotion, disponibilité, livraison, caractéristiques, provenance) ; un **lot** par lecture |
+| Marché | `market.py` (seul écrivain), `quarantine.py` | une offre normalisée | produits (rapprochés sur preuve : EAN, ou marque et référence), offres (adresse, source, lien de suivi), prix (un par changement, avec son lot) |
+| Moteurs | `extract/`, `ontology/`, `judge.py`, `alternatives.py`, `query.py`, `funnel.py`, `profile.py` (règles) | des données | des verdicts : catégorie, type, attributs, vraie remise, alternatives, phrase comprise, entonnoir, ordre |
+| Publication | `publish.py` (seul écrivain du catalogue) | le marché de la nuit | le catalogue du jour, écrit d'un bloc (une transaction, une garde) |
+| App | `api.py`, `web.py`, `catalog.py`, `missions.py`, `accounts.py`, `activity.py` | le catalogue publié | `/api/r/` (contrat de l'app, documenté dans `api.py`), la page, `/robot` |
+| Exploitation | `night.py`, `agent.py`, `health.py`, `ops.py`, `sources.py`, `backup.py`, `cli.py` | l'état de la nuit | lots, incidents, actions auditées, rapport, e-mail, `deals.py status` |
+
+**Frontières vérifiées** (`tests/test_architecture.py`, chaque règle cassée volontairement est détectée) :
+- les moteurs sont purs : ni base, ni réseau (`extract/`, `ontology/`, `judge`, `alternatives`, `query`, `funnel`,
+  `labels`, `ingest/feeds`, `ingest/contract`, `ingest/retailers`) ;
+- l'app ne lit jamais l'ingestion : elle lit le catalogue publié ;
+- l'ingestion ne dépend jamais de l'app ;
+- chaque table a ses écrivains : produits et offres, `market.py` seul ; prix, `market.py` (et `quarantine.py`, qui ne
+  fait que marquer un prix écarté) ; catalogue publié, `publish.py` seul ; lots, `ingest/batches.py` seul.
+
+Ajouter une enseigne qui donne un flux ne demande **aucun code** : une entrée dans `DEALS_SOURCES` et la
+correspondance de ses colonnes, écrite sur un échantillon (`deals.py probe`). Le même flux relu ne crée ni doublon ni
+ligne de prix ; un lot se rejoue ; une enseigne qui passe de ses fiches à son flux garde son historique (même adresse
+de fiche, même offre). La démo en est la preuve : nourrie par les flux de ses enseignes (deux en XML Google Shopping,
+deux en CSV), elle publie exactement le catalogue qu'elle publiait en lisant leurs fiches (`tests/test_demo.py`).
 
 ## Principes (ce qui rend le système juste par construction)
 
@@ -59,11 +79,16 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 |---|---|---|---|
 | `deals/config.py` | réglages (environnement `DEALS_*`), validés au chargement | — | — |
 | `deals/store.py` | connexion SQLite (WAL, une par fil), **schéma complet**, version | — | — |
-| `deals/fetch.py` | HTTP poli : robots.txt RFC 9309 (Protego), délais, blocages reconnus | vendor | — |
 | `deals/extract/` | **pur** : page HTML → offre (prix, prix barré, disponibilité, identité, provenance) ; taxonomie (catégories, familles suivies) ; caractéristiques d'un produit (`attributes`, `product_attributes` : la catégorie déclarée gardée, relue sous l'ontologie du jour) | ontology | — |
 | `deals/ontology/` | **données versionnées** (un fichier JSON par famille : `electromenager.json`, `electronique.json`, `ameublement.json`, `literie.json` ; un domaine par rayon, deux pour les aspirateurs) et leur lecteur, **pur** : trois niveaux — la catégorie, la sous-catégorie (le type et sa règle, ce qu'il est par définition), un ou deux attributs (oui/non et comment une alternative s'y compare, ou une mesure) —, lus dans le titre et la catégorie déclarée d'une offre (`sub_of`, `read`, `facts` ; un niveau qui en nomme plusieurs n'est pas lu), la langue de chaque rayon (`understand`, `detect`) ; relu au chargement (`check`) : une faute arrête le démarrage (`docs/ONTOLOGIE.md`) | extract (texte simple, mesures) | — |
-| `deals/market.py` | rapprochement produit (EAN → marque + référence → titre), prix au changement seulement | store, extract | products, offers, prices, site_rules |
-| `deals/collect/` | découverte (plans de site), passe de nuit (un fil par site, coupe-circuit, budget), diagnostic, rapport | fetch, extract, market | runs |
+| `deals/market.py` | rapprochement produit sur preuve (EAN, sinon marque + référence fabricant ; un titre semblable n'est qu'un candidat à revoir, jamais une fusion), prix au changement seulement (avec son lot et la livraison), provenance de l'offre (source, identifiant dans le flux, lien de suivi) | store, extract | products, offers, prices, site_rules |
+| `deals/ingest/registry.py` | le registre des sources : les enseignes du code (leurs fiches) et `DEALS_SOURCES` (leurs flux) ; `${NOM}` résolu dans l'environnement (identifiants des réseaux) ; vérifié au démarrage | feeds, retailers | — |
+| `deals/ingest/feeds.py` | **pur** : un flux (CSV, TSV, XML, JSON, JSONL ; gzip, zip) lu produit par produit, traduit en offre normalisée par sa correspondance (préréglage Google Shopping) ; `probe` propose la correspondance d'un échantillon | extract | — |
+| `deals/ingest/contract.py` | **pur** : l'offre normalisée et ses contrôles (`check` : rejet motivé ; `in_scope` : périmètre à la première lecture) | extract, labels, retailers | — |
+| `deals/ingest/batches.py` | les lots : quoi, quand, combien, empreinte SHA-256, fichier brut gardé 14 jours, lignes refusées | — | batches, batch_rejects |
+| `deals/ingest/collector.py` | toutes les sources derrière une interface (la nuit, l'agent) : un flux de bout en bout (acquérir → garder → lire → contrôler → une offre par fiche → écrire par `market`), rejeu du dernier lot, sonde d'une source mise de côté | feeds, contract, batches, market, report, pages | (par market, batches) |
+| `deals/ingest/pages/` | le dernier recours : découverte (plans de site), passe de nuit des fiches (un fil par site, coupe-circuit, budget), diagnostic ; `fetch.py` : HTTP poli (robots.txt RFC 9309, délais, blocages reconnus, jamais contournés) | extract, market, report | runs |
+| `deals/ingest/report.py`, `retailers.py` | bilan de la passe et rapport du matin (fiches et flux) ; enseignes connues du code, familles et seuils | — | — |
 | `deals/judge.py` | **pur** : vraie remise ou fausse remise, à partir des preuves disponibles | — | — |
 | `deals/alternatives.py` | **pur** : ce qui remplace un produit (même type, ses attributs selon l'ontologie, même usage, pas moins bien) et coûte au moins 10 % de moins ; les produits qui peuvent se remplacer, ensemble (`groups` : même rayon, même type) | ontology | — |
 | `deals/affiliate.py` | **pur** : enseignes partenaires (fichier `DEALS_AFFILIATE`) et lien affilié d'un clic (gabarit du réseau avec `{url}` et `{subid}`, ou paramètres ajoutés à la fiche) | — | — |
@@ -84,7 +109,7 @@ découle. L'architecture suit cette réalité : **une chaîne de nuit qui calcul
 | `deals/health.py` | contrôles de santé de la nuit : `snapshot` lit l'état, `findings` (**pur**) en tire les constats d'après des seuils versionnés ; `cause` dit pourquoi une source va mal | store, sources | — |
 | `deals/agent.py` | l'agent opérateur : politiques (auto, alert, approval, recommend, forbidden), actions auditées et idempotentes, incidents, conseils, propositions, e-mail au responsable ; gestes humains (`approve`, `reject`, gestes manuels) | health, sources, quarantine, ops | incidents, actions |
 | `deals/night.py` | la nuit de bout en bout : sources, collecte, agent, publication (garde), missions (garde contre l'envoi massif), comptes invités expirés, contrôles, incidents, rapport, e-mail ; une étape qui casse n'arrête pas les suivantes | tout ce qui précède | runs (bilan complet) |
-| `deals/sim.py`, `deals/demo.py` | marché simulé à vérité connue (une source par enseigne simulée) ; démo par la vraie nuit | collect, market, night | — |
+| `deals/sim.py`, `deals/demo.py` | marché simulé à vérité connue (une source par enseigne simulée, qui donne ses fiches et son flux : XML Google Shopping ou CSV) ; démo par la vraie nuit, nourrie par les flux | ingest, market, night | — |
 | `deals/cli.py` (`deals.py`) | une seule ligne de commande ; centre de commande (`status`, `incidents`, `actions`, `events`, `approve`, `reject`, `sources`, `quarantine`, `partners`) | tout | — |
 
 Lectures croisées autorisées, et seulement celles-ci : `publish` lit `products/offers/prices` (pour calculer) ;
@@ -152,6 +177,13 @@ actions    (at, actor, action, entity, incident_id, policy, status, justificatio
             expected_effect, idempotency_key unique, result, verification, rollback_plan, decided_by, decided_at, cid,
             notified)        status : verified | failed | proposed | recommended | refused | executed | rejected | expired
 quarantine (offer_id, since, price, usual, rule, confirmed, checked_day, status, released_at, reason, price_id)
+batches    (source, kind, cid, started_at, ended_at, status, received, accepted, changed, rejected, ignored, checksum, bytes,
+            raw_path, connector, replay_of, fetched_at, error, reasons)      un lot par lecture d'une source (flux ou fiches)
+            status : running | succeeded | partial (trop de refus, ou aucune offre) | failed | dry_run
+batch_rejects (batch_id, line, external_id, reason, record)      les lignes refusées d'un lot, 200 au plus, avec leur raison
+offers.source, offers.external_id, offers.tracking_url, offers.batch_id   d'où vient l'offre, son identifiant dans le flux,
+            le lien de suivi du réseau (gardé à part de l'adresse de la fiche), le dernier lot qui l'a vue
+prices.batch_id, prices.shipping       le lot qui a relevé le prix, les frais de livraison quand le flux les donne
 ```
 Le schéma vit dans `store.py` et nulle part ailleurs : `SCHEMA` (version 1) puis `MIGRATIONS`, dans l'ordre, en une
 transaction. Une base neuve suit exactement le même chemin qu'une base existante : chaque migration est exécutée par
@@ -163,7 +195,8 @@ vérifié au démarrage ; version 8 : affiliation, fiches vues ; version 9 : ver
 exploitation autonome — sources, journal, incidents, actions, quarantaine ; version 11 : goûts — rayons choisis,
 apprentissage, variante des fiches vues et des clics ; version 12 : comptes sans e-mail, missions sans prix, cloche
 et nouveautés — deux tables recopiées, d'où les clés étrangères suspendues le temps de la migration, puis vérifiées
-(`PRAGMA foreign_key_check` : une référence cassée annule tout, la base reste dans sa version).
+(`PRAGMA foreign_key_check` : une référence cassée annule tout, la base reste dans sa version) ; version 13 : ingestion
+par lots — lots, lignes refusées, provenance des offres et des prix (des ajouts, sans recopie).
 
 ## La nuit (`python deals.py nightly`, `deals/night.py`)
 
@@ -172,9 +205,13 @@ et nouveautés — deux tables recopiées, d'où les clés étrangères suspendu
 1. **Plan** : toutes les offres suivies des sources lisibles (les fiches disparues sont revérifiées une nuit sur
    sept). Par site, ordre de valeur : prix en quarantaine, produit en deal, en favori, cliqué depuis 3 jours, puis le
    plus ancien relu.
-2. **Collecte** : un fil par site, à son rythme poli (5 s ou le Crawl-delay du site) ; coupe-circuit après 5 refus de
-   suite ; arrêt au budget de nuit (ce qui n'est pas relu garde son prix, qui vieillit : au-delà de 3 jours il n'est
-   plus montré). Chaque page : `fetch` → `extract` → décision → `market` dans une transaction courte.
+2. **Ingestion** (`ingest/collector.py`), un lot par source. Un **flux** : acquis (https ou fichier, taille plafonnée),
+   gardé brut avec son empreinte, lu ligne à ligne, normalisé, contrôlé (une ligne refusée l'est avec sa raison, sans
+   arrêter le lot), une offre par fiche (variantes : la moins chère en stock), périmètre à la première lecture, écrit
+   par `market` par paquets de 200 dans des transactions courtes ; une offre absente du flux n'est pas supprimée, elle
+   vieillit. Des **fiches** : un fil par site, à son rythme poli (5 s ou le Crawl-delay du site) ; coupe-circuit après
+   5 refus de suite ; arrêt au budget de nuit (ce qui n'est pas relu garde son prix, qui vieillit : au-delà de 3 jours
+   il n'est plus montré). Chaque page : `fetch` → `extract` → décision → `market` dans une transaction courte.
 3. **Confirmation** : une variation de prix énorme (÷2, ×2) est relue une fois avant d'être enregistrée.
 4. **Agent** : une source en panne passagère est relancée une fois et vérifiée ; les nuits ratées sont comptées, une
    source qui en accumule 3 est mise de côté (jamais de contournement d'un anti-robot) ; les prix suspects sont mis en
@@ -199,7 +236,7 @@ et nouveautés — deux tables recopiées, d'où les clés étrangères suspendu
 | Règle | Où |
 |---|---|
 | Lire un prix sans se tromper (prix membre, financement, produit voisin, page liste…) | `extract/offer.py` |
-| Catalogue : familles suivies (électroménager, électronique, ameublement, literie), accessoires écartés (au début du titre, pluriels compris), reconditionné et occasion écartés, produits qui ressemblent à un rayon reconnus pour n'y pas entrer, seuil de 100 € (50 € en électronique ; 30 € pour les aspirateurs, 20 € pour un casque, une enceinte, une montre) | `collect/retailers.py`, `extract/categories.py` |
+| Catalogue : familles suivies (électroménager, électronique, ameublement, literie), accessoires écartés (au début du titre, pluriels compris), reconditionné et occasion écartés, produits qui ressemblent à un rayon reconnus pour n'y pas entrer, seuil de 100 € (50 € en électronique ; 30 € pour les aspirateurs, 20 € pour un casque, une enceinte, une montre) | `ingest/retailers.py`, `extract/categories.py` |
 | L'ontologie de chaque rayon : la catégorie, le type (le premier qui convient, du plus précis au plus général ; son rayon, puis un mot du titre ou d'un niveau de la catégorie déclarée qui n'en nomme pas plusieurs), un ou deux attributs (oui/non : le premier dit l'emporte, le titre avant la catégorie ; une mesure : seulement là où elle a un sens, `ONLY`) ; ce qu'un type est par définition ne remplace jamais ce que l'offre dit ; inconnu reste inconnu, et une recherche ne le promet pas ; chaque nom montré par l'app se relit ; relu au chargement, versionné, relu à la publication sur la catégorie gardée | `ontology/*.json`, `ontology/__init__.py`, `extract/categories.py` (`attributes`, `product_attributes`) ; `docs/ONTOLOGIE.md` |
 | Affiner dans un rayon : le type (nom court, les plus fournis d'abord, ses autres critères gardés), puis les attributs du type choisi (sans type : ceux communs à plusieurs types), oui ou non, et ses mesures (les valeurs qui existent), chacun avec ce qu'il donnerait ; un choix qui ne change rien n'est pas proposé, sauf s'il est pris (et il dit alors ce qu'il donne) | `catalog.py` (`_domain_options`, `measure_values`) |
 | Alternative : même catégorie (une console : même marque) ; même type, ni plus ni moins ; ses attributs selon l'ontologie (oui est un plus : il le faut aussi ; une forme : la même ; oui est un moins : seulement à la place d'un produit qui l'est) ; même usage (taille d'écran à 5 % près, taille de literie, largeur, places) ; pas moins bien (énergie, capacité, couverts, foyers, tiroirs, volume, stockage, mémoire, fréquence, autonomie, bruit) ; moins chère = au moins 10 % de moins et disponible ; la plus forte économie d'abord, une marque par ligne | `alternatives.py` |
@@ -231,7 +268,7 @@ et nouveautés — deux tables recopiées, d'où les clés étrangères suspendu
 
 | Quoi | Commande | Mesure actuelle |
 |---|---|---|
-| Contrats (189 tests, ~55 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 ; 91 mutations des règles v58 (ontologie : code et données ; lecture des offres ; Recherche et Affiner ; phrase ; missions ; API ; marché ; publication) : toutes détectées ; 54 mutations des règles v59 (l'ontologie de chaque rayon, code et données ; l'électronique ; les alternatives ; la phrase ; Affiner ; missions ; API) : toutes détectées — sept ne l'étaient pas au premier passage, elles ont reçu un test |
+| Contrats (254 tests, ~70 s) | `python -m unittest discover -s tests -t .` | tout passe, Python 3.11 à 3.13 ; v63 : 37 mutations des règles d'ingestion et de rapprochement (rapprochement, disponibilité, lecture des flux, contrat, lots, rejeu, collecteur, registre, santé, rapport) : toutes détectées — trois ne l'étaient pas au premier passage (un flux lisible sans aucune offre, le rejeu à l'heure de lecture, le rejeu du dernier lot), elles ont reçu un test, et une garde du rejeu qui ne pouvait jamais servir a été retirée ; 91 mutations des règles v58 (ontologie : code et données ; lecture des offres ; Recherche et Affiner ; phrase ; missions ; API ; marché ; publication) : toutes détectées ; 54 mutations des règles v59 (l'ontologie de chaque rayon, code et données ; l'électronique ; les alternatives ; la phrase ; Affiner ; missions ; API) : toutes détectées — sept ne l'étaient pas au premier passage, elles ont reçu un test |
 | Pannes injectées (6 scénarios × 6 nuits) | `python -m bench.autonomy` | anti-robot : mis de côté nuit 3, jamais forcé · panne passagère relancée, 100 % relu · erreur de prix ni publiée ni envoyée · catalogue qui fond retenu 2 nuits · 8 e-mails au responsable en 36 nuits (voir `docs/AUTONOMIE.md`) |
 | Extraction | `python -m bench.extraction` | 1 036/1 040 prix réels · 36/36 JSON-LD · 66/66 robots.txt · 26/26 + 8/8 pages-pièges |
 | Vraie / fausse remise, de bout en bout | `python -m bench.deals_truth` | 1er mois : rappel 89 %, précision 81 % · ensuite : 98 %, 90 % |
@@ -241,7 +278,9 @@ et nouveautés — deux tables recopiées, d'où les clés étrangères suspendu
 | Ce que la plateforme lit des offres, chaque rayon (146 produits et 41 pièges écrits comme des flux ; 64 offres inédites) | `python -m bench.ontologie [--inedites] [--code <dossier>]` | rangées 146/146, types 113/113, attributs 207/207, rien de faux ni de deviné, pièges 41/41 (v58 : 98 rangées, 0 en électronique) · inédites : 49/52 rangées à la première lecture, 52/52 après correction, attributs 75/76 ; voir `docs/ONTOLOGIE.md` |
 | Les aspirateurs comme un flux (160 à vérité connue ; 31 offres écrites comme dans les flux, variantes et pièges) | `python -m bench.aspirateurs [--code <dossier>]` | type lu juste 149/149 quand l'offre le dit (137 en v57), attributs 87/87, rien de deviné · recherches : justes parmi les 6 premières cartes 100 %, rappel de ce que l'offre dit 100 % (« aspirateur balai » : 84 % en v57) · variantes 23/23, pièges 8/8 (jeu de non-régression) ; voir `docs/ONTOLOGIE.md` |
 | Tenue en charge (3 000 produits) | `python -m bench.scale [--aspirateurs 640]` | publication ~3,1 s par nuit (2,7 s en v58 : chaque produit comparé à ceux de son rayon et de son type ; courbes de 90 jours comprises ; ~4,1 s avec 640 aspirateurs, 3,7 s en v58) · missions de la nuit : 10 000 en ~6 s, ~1,6 à 2,2 s sans changement · lectures de l'app ~2,3 ms (deals du jour) ; une phrase comprise ~2,2 ms, critères choisis ~6 à 8 ms, une pièce ~15 ms ; feed ~14 à 18 ms, ~20 à 26 ms orienté par des fiches ouvertes ou quatre recherches ; top deals et « pour vous » 8 à 10 ms ; missions d'un compte ~13 ms, d'un invité avec trois recherches ~7 ms · avec 640 aspirateurs de plus : « aspirateur balai sans fil sous 300 € » ~8 à 10 ms (un besoin ~11 ms en v57), Affiner par type ~9 ms (~11 ms en v57), une fiche 0,2 ms |
-| Cadre de mise en production (points non négociables de la chaîne de données, sauvegarde et restauration, ce qui est servi) | `python -m bench.cadre` | v24 : 8/19 respectés ; écarts P0 3 (rapprochement au titre), P1 6, P2 2 ; registre et plan : `docs/PRODUCTION.md` |
+| Cadre de mise en production (points non négociables de la chaîne de données, sauvegarde et restauration, ce qui est servi) | `python -m bench.cadre` | v24 : 8/19 respectés (écarts P0 3 : rapprochement au titre) ; v63 : 16/19, 0 écart P0 ; restent la sauvegarde hors serveur, la remise sans référence (pré-collecte), la CSP ; `docs/PRODUCTION.md` |
+| Les flux nourrissent l'app comme les fiches | `python -m unittest tests.test_demo` | la démo lue par flux (2 XML Google Shopping, 2 CSV) et par fiches, 25 nuits : catalogue, offres publiées, alternatives, similaires, produits et caractéristiques, historique des prix identiques |
+| Frontières des couches | `python -m unittest tests.test_architecture` | moteurs purs, l'app ne lit pas l'ingestion, l'ingestion ne dépend pas de l'app, chaque table a ses écrivains ; 4 violations introduites exprès : toutes détectées |
 | Personnalisation, sur des personnes simulées | `python -m bench.profiles [--scale]` | nouvelle visite : l'ordre d'avant · accueil, cartes des rayons de la personne : 19 à 22 % → 43 à 60 % (3 000 produits ; v58 : à l'identique de la v57 sur la démo) ; clics attendus × 1,5 à × 2,1 ; remise moyenne montrée 29,6 % → 28,7 à 29,1 % (voir `docs/PERSONNALISATION.md`) |
 
 ## Ce qui a été retiré, et pourquoi
@@ -250,13 +289,19 @@ Le moteur de « veille de marché » des générations précédentes : événeme
 temps réel, console interne, planification par offre toutes les 15 minutes, flux marchands, motifs saisonniers. Le
 produit n'en lit rien ; tout était calculé, stocké et testé quand même (voir `docs/AUDIT.md`). Le journal
 d'exploitation de la v54 (événements, incidents, actions) n'est pas ce moteur : il ne sert qu'à faire tourner la nuit
-sans surveillance, et chaque ligne a un lecteur (l'agent, le responsable, la sonde extérieure). Si un jour un flux
-marchand devient une source, il s'ajoute comme une source de `collect/` qui produit des offres pour `market`, sans
-toucher au reste.
+sans surveillance, et chaque ligne a un lecteur (l'agent, le responsable, la sonde extérieure). Les flux produits des
+enseignes sont revenus en v63, autrement : comme une source de l'ingestion (`ingest/`) qui produit des offres pour
+`market`, sans rien calculer ni stocker que l'app ne montre.
 
 ## Ajouter quelque chose sans rien casser
 
-- **Une enseigne** : une entrée dans `collect/retailers.py`, puis `deals.py diagnose <enseigne>`.
+- **Une enseigne par son flux** (la voie normale) : une entrée dans `DEALS_SOURCES` (`deploy/sources.example.json`),
+  la correspondance de ses colonnes écrite sur un échantillon (`deals.py probe <fichier>`), `deals.py ingest <enseigne>
+  --dry-run`, puis `deals.py ingest <enseigne>` (`deploy/README.md`). Aucun code.
+- **Un format de flux** : un cas dans `tests/test_ingest.py` (le fichier, ce qu'il doit donner), puis la lecture dans
+  `ingest/feeds.py` (pur). Un préréglage de réseau ne s'écrit que sur un flux réel, jamais de mémoire.
+- **Une enseigne par ses fiches** (dernier recours, si ses conditions le permettent) : une entrée dans
+  `ingest/retailers.py`, puis `deals.py diagnose <enseigne>`.
 - **Un format de page** : un cas dans `tests/pages.py`, puis la règle dans `extract/offer.py` ; `python -m bench.extraction`.
 - **Une règle de deal** : `judge.py` (pur), un cas dans `tests/test_judge.py`, la mesure `python -m bench.deals_truth`.
 - **Une règle d'alternative** (un critère d'usage, une famille) : l'attribut dans `extract/categories.py`, la règle dans

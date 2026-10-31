@@ -43,11 +43,11 @@ def _h(token):
 def login_message(to, link, sender, about=None):
     """Le lien de connexion ; about : la mission qui attend ce lien (« Aspirateur balai · 300 € max »)."""
     m = EmailMessage()
-    m["Subject"] = f"Confirmez votre mission : {about}" if about else "Votre lien de connexion Deals"
+    m["Subject"] = f"Confirmez votre mission : {about}" if about else "Votre lien de connexion Promo Central"
     m["From"] = sender
     m["To"] = to
     why = (f"Pour lancer votre mission « {about} », ouvrez ce lien : on guette chaque nuit et on vous prévient dès qu'un "
-           "produit est à votre prix." if about else "Pour vous connecter à Deals, ouvrez ce lien sur l'appareil où vous utilisez l'app :")
+           "produit est à votre prix." if about else "Pour vous connecter à Promo Central, ouvrez ce lien sur l'appareil où vous utilisez l'app :")
     m.set_content(f"Bonjour,\n\n{why}\n{link}\n\n"
                   "Il est valable 15 minutes et ne sert qu'une fois. Si vous n'avez rien demandé, ignorez ce message.\n")
     m.add_alternative(f"""<p>Bonjour,</p><p>{why}</p>

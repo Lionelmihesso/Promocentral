@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from deals import sim
-from deals.collect.crawl import Crawler
+from deals.ingest.pages.crawl import Crawler
 from deals.demo import retailers
 from deals.market import Market
 from deals.publish import publish

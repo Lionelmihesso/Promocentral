@@ -78,7 +78,7 @@ class Api:
         self.activity = Activity(store, clock, rules if rules is not None else affiliate.load(settings.affiliate))
         self.missions = Missions(store, self.catalog, clock)
         self.profiles = Profiles(store, clock)
-        self.store, self.clock = store, clock
+        self.store, self.clock, self.settings = store, clock, settings
         C, A, T, M, P = self.catalog, self.accounts, self.activity, self.missions, self.profiles
         uid = lambda r: A.user(r.session)
         need = self._keep                                   # garder quelque chose : un compte invité au besoin
@@ -120,6 +120,7 @@ class Api:
             ("GET", r"/api/r/auth/me", lambda r: {**A.me(r.session), "variant": "t" if control(uid(r)) else "p"}),   # 401 sans session
             ("POST", r"/api/r/auth/logout", lambda r: Response(200, {"ok": True}, cookie=A.logout(r.session))),
             ("GET", r"/api/r/health", lambda r: self._health()),
+            ("GET", r"/api/r/legal", lambda r: self._legal()),
         ]]
 
     @staticmethod
@@ -188,6 +189,14 @@ class Api:
         (80 caractères au plus chacune ; le catalogue lit les premières, catalog.RECENT_SEARCHES) ; jamais gardées par le
         serveur."""
         return [t.strip()[:80] for t in (query.get("recent") or "").split("|") if t.strip()]
+
+    def _legal(self):
+        """Les mentions légales (page « Mentions légales et données personnelles ») : l'identité de l'éditeur, lue dans la
+        configuration (DEALS_LEGAL_…) ; en production l'app ne démarre pas sans elle (config.legal_missing)."""
+        s = self.settings
+        return {"name": "Promo Central", "editor": s.legal_editor or None, "registration": s.legal_registration or None,
+                "address": s.legal_address or None, "director": s.legal_director or None, "contact": s.legal_contact or None,
+                "host": s.legal_host or None}
 
     def _health(self):
         """État pour une sonde extérieure : elle prévient le responsable par un autre chemin que nos e-mails, même quand

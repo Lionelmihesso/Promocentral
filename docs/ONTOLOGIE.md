@@ -1,9 +1,8 @@
 # L'ontologie de DEALS — chaque rayon, et l'électronique (v59)
 
 Ce que la plateforme sait d'un produit vient de ce que les enseignes déclarent de leurs offres : un titre, une marque,
-un prix, un EAN et leur propre catégorie (« TV - Vidéo > Téléviseurs > TV QLED »). Aujourd'hui, elle le lit dans les
-données structurées de leurs fiches. Les **flux affiliés et les API**, qui donnent les mêmes champs, sont à brancher
-(lot 2 de `docs/PRODUCTION.md`). L'ontologie est construite là-dessus, et sur rien d'autre : rien n'est rédigé, rien
+un prix, un EAN et leur propre catégorie (« TV - Vidéo > Téléviseurs > TV QLED »), dans leur **flux produits** (v63,
+`deals/ingest/feeds.py` : la démo en est nourrie) ou dans les données structurées de leurs fiches, le dernier recours. L'ontologie est construite là-dessus, et sur rien d'autre : rien n'est rédigé, rien
 n'est déduit d'une fiche technique que les enseignes ne donnent pas. La v58 l'avait essayée sur les aspirateurs ; la v59 la donne à **chaque rayon suivi** (31
 rayons, 30 domaines, 4 familles) et ouvre la famille **Électronique** (9 rayons : téléviseurs, smartphones, ordinateurs
 portables, tablettes, casques et écouteurs, enceintes, montres connectées, consoles de jeux, écrans PC).

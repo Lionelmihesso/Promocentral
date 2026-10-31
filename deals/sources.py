@@ -1,4 +1,4 @@
-"""Registre des sources : les enseignes lues (une par clé de deals/collect/retailers.py, ou de la démo), partenaires ou
+"""Registre des sources : les enseignes lues (une par clé de deals/ingest/retailers.py, de DEALS_SOURCES ou de la démo), partenaires ou
 non, et leur état d'exploitation, que la nuit et l'agent tiennent à jour.
 
   active       lue chaque nuit
@@ -9,7 +9,7 @@ non, et leur état d'exploitation, que la nuit et l'agent tiennent à jour.
 
 Une nuit est ratée quand moins de 80 % des pages relues donnent un prix, ou que la passe a été interrompue (coupe-circuit).
 """
-from .collect.retailers import KEEP_THRESHOLD
+from .ingest.retailers import KEEP_THRESHOLD
 
 FAIL_NIGHTS = 3
 STATUSES = ("active", "degraded", "disabled")
@@ -25,9 +25,9 @@ def sync(store, retailers, rules, now):
         for key, r in retailers.items():
             if not r.get("enabled") or (rules is not None and key not in rules):
                 continue
-            c.execute("INSERT INTO sources(key, name, partner, updated_at) VALUES (?,?,?,?) "
-                      "ON CONFLICT(key) DO UPDATE SET name=excluded.name, partner=excluded.partner",
-                      (key, r["name"], int(rules is not None), now))
+            c.execute("INSERT INTO sources(key, kind, name, partner, updated_at) VALUES (?,?,?,?,?) "
+                      "ON CONFLICT(key) DO UPDATE SET kind=excluded.kind, name=excluded.name, partner=excluded.partner",
+                      (key, r.get("kind") or "site", r["name"], int(rules is not None), now))
 
 
 def readable(store, keys):
@@ -37,7 +37,11 @@ def readable(store, keys):
 
 
 def failed(stat):
-    """Une nuit ratée pour une source, d'après le bilan de la passe (collect/report.py) ; None si rien n'était à relire."""
+    """Une nuit ratée pour une source, d'après le bilan de la passe (ingest/report.py) ; None si rien n'était à relire.
+    Un flux : raté s'il est injoignable, illisible, ou ne donne aucune offre (des lignes refusées sont un constat de
+    qualité, pas un échec : health.py)."""
+    if stat and stat.get("kind") == "feed":
+        return bool(stat.get("broken"))
     if not stat or not (stat.get("pages") or stat.get("interrupted")):
         return None
     return bool(stat.get("interrupted")) or (stat.get("success") is not None and stat["success"] < KEEP_THRESHOLD)
