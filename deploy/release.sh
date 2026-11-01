@@ -12,7 +12,8 @@
 # Disposition : $ROOT/releases/<version>/ (une version par dossier, jamais modifiée), $ROOT/current → la version en
 # service (les services systemd lancent $ROOT/current/deals.py), $ROOT/releases/<version>.backup : la sauvegarde de la
 # base prise juste avant de l'installer. Une base migrée par une version refuse le code d'avant (store.py) : revenir
-# en arrière restaure alors la sauvegarde prise avant la bascule.
+# en arrière restaure alors la sauvegarde prise avant la bascule, après avoir mis la base courante de côté
+# ($BACKUPS/abandonnee-<horodatage>.sqlite : rien n'y est perdu).
 # Réglages (pour les essais : tests/test_release.py) : DEALS_ROOT, DEALS_DATA, DEALS_BACKUPS, SYSTEMCTL, PYTHON,
 # DEALS_SMOKE_URL, DEALS_SMOKE (commande de fumée), DEALS_KEEP (versions gardées, 5).
 set -eu
@@ -41,6 +42,14 @@ restore_if_needed() {   # $1 : la version vers laquelle on revient ; $2 : la sau
         [ -n "$2" ] && [ -f "$2" ] || die "la base est au schéma v$have, la version $(basename "$1") attend v$want, et aucune sauvegarde n'est disponible"
         say "base au schéma v$have, plus récent que la version visée (v$want) : restauration de $(basename "$2")"
         $SYSTEMCTL stop deals-web deals-daily || true
+        # Les écritures faites depuis la sauvegarde (comptes, clics, missions) ne sont pas perdues : la base courante
+        # est mise de côté, intacte, avant d'être remplacée. Elle n'a pas le nom deals-*.sqlite : la rotation ne la touche pas.
+        abandoned="$BACKUPS/abandonnee-$(date -u +%Y%m%d-%H%M%S).sqlite"
+        mkdir -p "$BACKUPS"
+        "$PYTHON" -c "import sqlite3,sys; s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2]); s.backup(d); \
+assert d.execute('PRAGMA integrity_check').fetchone()[0]=='ok'" "$DB" "$abandoned" \
+            || die "impossible de mettre la base courante de côté : restauration annulée"
+        say "base courante mise de côté : $abandoned (écritures depuis la sauvegarde : à reprendre à la main si besoin)"
         rm -f "$DB-wal" "$DB-shm"
         cp "$2" "$DB"
     fi

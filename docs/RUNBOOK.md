@@ -247,7 +247,7 @@ Un changement voulu de l'enseigne (catalogue réduit) : rien, l'incident se rés
 
 **Ce qui s'est passé seul.** `deploy/release.sh install` a sauvegardé la base, basculé sur la nouvelle version, puis ses
 tests de fumée ont échoué : la version d'avant est revenue d'elle-même (et la base d'avant, si la nouvelle l'avait
-migrée). La sortie de la commande dit quel contrôle a échoué.
+migrée). La sortie de la commande dit quel contrôle a échoué. Si la nouvelle version avait migré la base, la base courante est d'abord mise de côté dans `/var/backups/deals/abandonnee-*.sqlite` : les écritures faites depuis (comptes, clics, missions) y restent, et se reprennent à la main si elles comptent.
 
 **Vérifier.** `sudo sh /opt/deals/current/deploy/release.sh list` (la version en service) ; `python3
 /opt/deals/current/deploy/smoke.py http://127.0.0.1:8000` (les contrôles, un par ligne) ; `journalctl -u deals-web --since "-10 min"`.

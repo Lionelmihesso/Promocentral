@@ -211,9 +211,11 @@ sinon marque et référence ; un titre semblable n'est qu'un candidat, à revoir
 ## 10. Sauvegardes, supervision, exploitation
 
 **Sauvegarde locale** : `deals-backup.timer`, chaque jour à 6 h (après la nuit de 3 h), à chaud et vérifiée,
-14 conservées dans `/var/backups/deals`. Restaurer une sauvegarde :
+14 conservées dans `/var/backups/deals`. Restaurer une sauvegarde — d'abord mettre de côté la base courante, qui contient
+les écritures faites depuis (comptes, clics, missions) : elle ne doit jamais être écrasée sans copie :
 ```
 sudo systemctl stop deals-web deals-daily
+sudo -u deals python3 -c "import sqlite3,sys; s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2]); s.backup(d); assert d.execute('PRAGMA integrity_check').fetchone()[0]=='ok'" /var/lib/deals/deals.sqlite /var/backups/deals/abandonnee-$(date -u +%Y%m%d-%H%M%S).sqlite
 sudo rm -f /var/lib/deals/deals.sqlite-wal /var/lib/deals/deals.sqlite-shm   # un journal resté là s'appliquerait à la copie
 sudo -u deals cp /var/backups/deals/deals-AAAA-MM-JJ_HHMMSS.sqlite /var/lib/deals/deals.sqlite
 sudo systemctl start deals-web

@@ -95,6 +95,25 @@ class Release(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("pas de version précédente", out)
 
+    def test_rollback_keeps_what_was_written_since_the_backup(self):
+        """deploy/README.md § 10 : revenir à une base d'avant la migration ne perd rien — la base courante est mise de côté."""
+        self.run_("install", str(archive(self.tmp, "promocentral-20261031-110000-aaaaaaa")))
+        Store(str(self.db)).close()
+        self.run_("install", str(archive(self.tmp, "promocentral-20261031-120000-bbbbbbb", migrating)),
+                  smoke=f"python3 {self.tmp}/opt/current/deals.py --db {self.db} status >/dev/null")
+        with closing(sqlite3.connect(self.db)) as c:                    # une écriture après la migration
+            c.execute("INSERT INTO users(email, created_at) VALUES ('a@b.c', 0)")
+            c.commit()
+        code, out = self.run_("rollback")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.schema(), SCHEMA_VERSION)
+        kept = list((self.tmp / "bk").glob("abandonnee-*.sqlite"))
+        self.assertEqual(len(kept), 1, out)
+        with closing(sqlite3.connect(kept[0])) as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM users WHERE email='a@b.c'").fetchone()[0], 1)
+        with closing(sqlite3.connect(self.db)) as c:                    # la base en service : celle d'avant
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM users").fetchone()[0], 0)
+
     def test_package_comes_from_a_commit_and_can_be_run_again(self):
         """deploy/README.md § 5 et § 11 : l'archive vient d'un commit ; celle d'avant, restée à la racine du dépôt, ne
         bloque pas la suivante (elle est ignorée par git), une vraie modification si."""
