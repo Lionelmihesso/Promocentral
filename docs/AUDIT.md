@@ -36,6 +36,7 @@ déploiement (vérifié par recherche dans tout le dépôt). Tout reste dans l'h
 | `docs/AUDIT.md` (audit d'octobre) | contredit par le code (rapprochement au titre, 35 tests) ; remplacé par ce compte rendu |
 | `docs/PRODUCTION.md` : la baseline v24, la cartographie, l'hypothèse des flux, les plans des lots faits, 338 → 94 lignes | constat d'un état dépassé ; la page dit les décisions, les risques ouverts, le chemin jusqu'à l'ouverture et le go/no-go |
 | Objets git en vrac (`git gc`) | le dépôt passe de 18 à 9 Mo, historique intact (`git fsck` sans erreur) |
+| Artefacts générés par les tests | chaque passe laissait ~130 dossiers et ~90 Mo dans le dossier temporaire du système (mesuré) ; les tests écrivent désormais dans un dossier propre à la passe, effacé à la fin (`tests/__init__.py`) : 0 fichier laissé |
 
 ## 3. Gardé, et pourquoi
 
@@ -121,5 +122,6 @@ l'ouverture).
   que le compte `deals` n'avait rien écrit hors de ses dossiers.
 - Le SMTP réel (SPF, DKIM, DMARC) et la sonde extérieure dépendent de vos comptes (D4).
 - Aucun flux réel n'a encore été lu (D1) : la correspondance de chaque flux s'écrit sur son échantillon.
-- Le parcours e2e, l'audit d'accessibilité, le harnais de mutations et le rejeu du déploiement sont des outils de
-  vérification gardés hors du dépôt (ils modifient le système ou dépendent d'un navigateur) ; leurs résultats sont ici.
+- Le parcours e2e et l'audit d'accessibilité (Chromium), le harnais de mutations et le rejeu du déploiement sont des
+  outils de vérification de cette session, hors du dépôt (ils modifient le système ou dépendent d'un navigateur) ;
+  leurs résultats sont consignés ici.

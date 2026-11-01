@@ -100,7 +100,8 @@ class Release(unittest.TestCase):
         bloque pas la suivante (elle est ignorée par git), une vraie modification si."""
         repo = Path(tempfile.mkdtemp()) / "depot"
         shutil.copytree(CODE, repo, ignore=lambda d, names: [n for n in names if n in SKIP or n.endswith((".sqlite", ".sqlite-wal", ".sqlite-shm"))])
-        git = lambda *a: subprocess.run(["git", "-c", "user.name=essai", "-c", "user.email=essai@example.invalid", *a], cwd=repo,
+        git = lambda *a: subprocess.run(["git", "-c", "user.name=essai", "-c", "user.email=essai@example.invalid",
+                                         "-c", "commit.gpgsign=false", *a], cwd=repo,
                                         capture_output=True, text=True, check=True)
         git("init", "-q")
         git("add", "-A")
