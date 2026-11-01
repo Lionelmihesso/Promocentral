@@ -12,7 +12,7 @@ Pur : la Recherche (catalog.search) lui donne ce qu'elle a compté.
             chips : les puces de la recherche (query.chips) qu'elle montre déjà
   question  {level, key, title, options: [{label, count, set}]}   set : ce que la réponse ajoute aux critères
 
-Les questions sont dans l'ordre de l'entonnoir : l'app pose la première, sauf celles qu'on a passées (« Peu importe » :
+Les questions sont dans l'ordre de l'entonnoir : l'app pose la première, sauf celles qu'on a passées (« Passer » :
 c'est l'app qui s'en souvient). Les critères (set, back) sont ceux de l'app (web/src/App.jsx) et de l'API de la
 Recherche : category, room, domain, sub, min, max ; props et attrs sont des dictionnaires — None les vide, un
 dictionnaire s'y ajoute (une valeur None retire la clé). Revenir avant une étape retire aussi les étapes du rayon qui la

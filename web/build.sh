@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Reconstruit web/app.html : une page autonome (React et les polices incluses), servie à /.
 # Aucune requête vers un tiers à l'ouverture de l'app (pas de Google Fonts : RGPD, rapidité, rendu garanti).
-# Dépendances de BUILD uniquement (pas à l'exécution) : esbuild, react, react-dom.
+# Dépendances de BUILD uniquement (pas à l'exécution) : esbuild, react, react-dom. app.html a été construit avec
+# esbuild 0.28.2, react et react-dom 19.2.8 : ces versions le redonnent à l'octet près. Le serveur n'a besoin ni de
+# Node ni de ces outils : app.html est versionné.
 #   ESBUILD=/chemin/vers/esbuild REACT_DIR=/chemin/vers/node_modules ./web/build.sh
 set -euo pipefail
 cd "$(dirname "$0")"

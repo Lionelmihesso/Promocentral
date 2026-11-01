@@ -73,7 +73,7 @@ class Funnel(unittest.TestCase):
         path, qs = self.said()                                                   # rien demandé : l'univers d'abord
         self.assertEqual((path, qs[0]), ([], ("Quel univers ?", [("High-tech", 8), ("Entretien", 4), ("Buanderie", 2), ("Salon", 2),
                                                                   ("Chambre", 1), ("Cuisine", 1)])))
-        self.assertEqual([q[0] for q in qs], ["Quel univers ?", "Quel rayon ?", "Votre budget ?"])   # « Peu importe » : la suivante
+        self.assertEqual([q[0] for q in qs], ["Quel univers ?", "Quel rayon ?", "Votre budget ?"])   # « Passer » : la suivante
         self.assertEqual(self.said(room="high_tech")[1][0],
                          ("Quel rayon ?", [("Téléviseurs", 6), ("Casques et écouteurs", 1), ("Smartphones", 1)]))
         path, qs = self.said(category="televiseur")

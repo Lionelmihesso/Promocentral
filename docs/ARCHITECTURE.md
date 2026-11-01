@@ -317,7 +317,7 @@ enseignes sont revenus en v63, autrement : comme une source de l'ingestion (`ing
 ## Ajouter quelque chose sans rien casser
 
 - **Une enseigne par son flux** (la voie normale) : une entrée dans `DEALS_SOURCES` (`deploy/sources.example.json`),
-  la correspondance de ses colonnes écrite sur un échantillon (`deals.py probe <fichier>`), `deals.py ingest <enseigne>
+  la correspondance de ses colonnes écrite sur un échantillon (`deals.py probe --source <enseigne>`, ou un fichier), `deals.py ingest <enseigne>
   --dry-run`, puis `deals.py ingest <enseigne>` (`deploy/README.md`). Aucun code.
 - **Un format de flux** : un cas dans `tests/test_ingest.py` (le fichier, ce qu'il doit donner), puis la lecture dans
   `ingest/feeds.py` (pur). Un préréglage de réseau ne s'écrit que sur un flux réel, jamais de mémoire.

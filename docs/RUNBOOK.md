@@ -201,12 +201,13 @@ de l'étape est l'entité) et la nuit est marquée « en erreur » (la sonde ext
 <a id="brancher-un-flux"></a>
 ## Brancher ou régler le flux d'une enseigne
 
-Pas un incident : le geste courant. Le détail pas à pas est dans `deploy/README.md` (« Brancher les flux »).
+Pas un incident : le geste courant. Le détail pas à pas est dans `deploy/README.md` (§ 9).
 ```
-sudo deals probe <échantillon>              # format, colonnes, correspondance proposée (à relire)
+sudo deals probe --source <enseigne>        # l'échantillon, lu à l'adresse de la source : format, colonnes, correspondance proposée
 sudoedit /etc/deals/feeds/<enseigne>.json   # la correspondance, corrigée
 sudo deals ingest <enseigne> --dry-run      # tout lu et contrôlé, rien écrit : retenues, refus et raisons
 sudo deals ingest <enseigne>                # un lot réel ; sudo deals batches pour le voir
+sudo systemctl restart deals-web            # après une modification de affiliate.json ou de deals.env (lus au démarrage de l'app)
 sudo deals replay <enseigne>                # après une correction : relire le dernier fichier gardé, sans attendre la nuit
 ```
 Une source flux se met de côté et se reprend comme une autre (`sudo deals sources disable|enable <clé>`). Les adresses
