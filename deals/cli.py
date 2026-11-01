@@ -134,7 +134,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("serve", "demo"):
         sub.add_parser(name).add_argument("--port", type=int, default=settings.port)
-    for name in ("nightly", "publish", "missions", "status", "partners"):
+    for name in ("nightly", "publish", "missions", "status", "partners", "check", "seed-demo"):
         sub.add_parser(name)
     sub.add_parser("incidents").add_argument("--all", action="store_true", help="aussi les incidents résolus (30 derniers)")
     sub.add_parser("actions").add_argument("--n", type=int, default=30)
@@ -180,6 +180,8 @@ def main(argv=None):
     pr.add_argument("--format", choices=F.FORMATS)
     a = ap.parse_args(argv)
     settings = replace(settings, db=a.db)
+    if config.is_demo(settings) and a.cmd in config.DEMO_REFUSED:
+        sys.exit(f"« {a.cmd} » est indisponible en mode démo (DEALS_ENV=demo) : pas de lecture de sites ni d'e-mails réels")
     if a.cmd in NETWORK and settings.user_agent == config.Settings.user_agent:
         sys.exit("Avant de lire les sites, réglez DEALS_USER_AGENT : nom du robot, page qui le décrit, contact "
                  "(voir deploy/deals.env.example). Les enseignes doivent savoir qui les lit.")
@@ -190,10 +192,35 @@ def main(argv=None):
         print(f"Marché simulé : {(LAST_NIGHT - FIRST_NIGHT).days + 1} nuits de collecte et de publication…")
         build(store, partners=set(RULES))                    # enseignes simulées, toutes partenaires (liens simulés)
         return _serve(store, settings, a.port, RULES)
+    if a.cmd == "check":
+        todo = config.problems(settings)
+        mode = settings.env if settings.env != "dev" else "développement"
+        if config.is_demo(settings):
+            print("mode démo : données simulées et fictives, aucune mention légale, aucun e-mail, aucun flux réel.")
+        print(f"mode {mode} : " + ("prêt." if not todo else f"{len(todo)} point(s) à régler :"))
+        for line in todo:
+            print("  - " + line)
+        return 1 if todo else 0
+    if a.cmd == "seed-demo":
+        from .demo import RULES as DEMO_RULES, build as build_demo
+        if not config.is_demo(settings):
+            sys.exit("seed-demo : réservé au mode démo (DEALS_ENV=demo)")
+        store = Store(settings.db)
+        if store.q("SELECT COUNT(*) n FROM products", one=True)["n"]:
+            store.close()
+            print("seed-demo : la base contient déjà le marché simulé ; rien à faire")
+            return 0
+        print("Marché simulé : nuits de collecte et de publication…")
+        build_demo(store, partners=set(DEMO_RULES), settings=settings)
+        print(f"{store.q('SELECT COUNT(*) n FROM catalog', one=True)['n']} offres publiées (données simulées)")
+        store.close()
+        return 0
     if a.cmd == "backup":
         print(backup(settings.db, a.dest, a.keep))
         return 0
     if a.cmd == "probe":
+        if a.source and config.is_demo(settings):
+            sys.exit("probe --source : indisponible en mode démo (aucun flux réel n'est lu)")
         if bool(a.file) == bool(a.source):
             sys.exit("probe : un fichier, ou --source <clé> (l'échantillon est lu à l'adresse du flux de la source)")
         where = {}
@@ -215,6 +242,9 @@ def main(argv=None):
         return 0
     if a.cmd == "serve" and settings.env == "prod" and (missing := config.legal_missing(settings)):
         sys.exit("Mentions légales incomplètes en production : " + ", ".join(missing) + " (deploy/deals.env.example)")
+    if a.cmd == "serve" and config.is_demo(settings) and rules is None:
+        from .demo import RULES as DEMO_RULES
+        rules = DEMO_RULES                                    # enseignes simulées : leurs liens ne mènent nulle part
     store = Store(settings.db)
     if a.cmd == "serve":
         return _serve(store, settings, a.port, rules)

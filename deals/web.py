@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl
 
+from . import config
 from .accounts import COOKIE
 from .api import Request
 
@@ -21,6 +22,19 @@ HSTS = "max-age=31536000"
 MAX_BODY = 16 * 1024
 IDLE_S = 30                    # un client lent ou muet ne garde pas un fil indéfiniment
 HEADERS = {"X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin"}
+
+
+DEMO_BANNER = (b'<div id="demo-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'
+               b'background:#FF6A3D;color:#141414;font:600 13px/1.3 system-ui,sans-serif;padding:8px 12px;text-align:center">'
+               b'D\xc3\xa9monstration : donn\xc3\xa9es simul\xc3\xa9es et fictives. Aucune offre r\xc3\xa9elle, aucun achat.</div>')
+
+
+def app_page(demo=False):
+    """La page de l'app telle quelle ; en mode démo, un bandeau qui dit que les données sont fictives (le front n'est pas modifié)."""
+    page = APP.read_bytes()
+    if demo and page.count(b"</body>") == 1:
+        page = page.replace(b"</body>", DEMO_BANNER + b"</body>")
+    return page
 
 
 def make_server(api, store, settings, host="127.0.0.1", port=8000):
@@ -76,7 +90,7 @@ def make_server(api, store, settings, host="127.0.0.1", port=8000):
                     return self.send(404, {"error": "Introuvable"})
                 if method != "GET":
                     return self.send(405, {"error": "Méthode non permise"})
-                return self.send(200, APP.read_bytes(), "text/html; charset=utf-8", cache="no-cache")
+                return self.send(200, app_page(config.is_demo(settings)), "text/html; charset=utf-8", cache="no-cache")
             raw_len = self.headers.get("Content-Length") or "0"
             if not raw_len.isdigit():
                 self.close_connection = True

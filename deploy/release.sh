@@ -15,7 +15,7 @@
 # en arrière restaure alors la sauvegarde prise avant la bascule, après avoir mis la base courante de côté
 # ($BACKUPS/abandonnee-<horodatage>.sqlite : rien n'y est perdu).
 # Réglages (pour les essais : tests/test_release.py) : DEALS_ROOT, DEALS_DATA, DEALS_BACKUPS, SYSTEMCTL, PYTHON,
-# DEALS_SMOKE_URL, DEALS_SMOKE (commande de fumée), DEALS_KEEP (versions gardées, 5).
+# DEALS_SMOKE_URL, DEALS_SMOKE (commande de fumée), DEALS_KEEP (versions gardées, 5), DEALS_ENVFILE, DEALS_RUN_AS.
 set -eu
 ROOT=${DEALS_ROOT:-/opt/deals}
 DATA=${DEALS_DATA:-/var/lib/deals}
@@ -25,6 +25,9 @@ PYTHON=${PYTHON:-/usr/bin/python3}
 SMOKE_URL=${DEALS_SMOKE_URL:-http://127.0.0.1:8000}
 KEEP=${DEALS_KEEP:-5}
 DB="$DATA/deals.sqlite"
+ENVFILE=${DEALS_ENVFILE:-/etc/deals/deals.env}
+# Commande qui lance Python comme le font les services : utilisateur deals, réglages de deals.env (vide : directement)
+RUN_AS=${DEALS_RUN_AS-"systemd-run --quiet --wait --pipe --collect --uid=deals --gid=deals -p WorkingDirectory=$DATA -p EnvironmentFile=$ENVFILE"}
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ÉCHEC : %s\n' "$*" >&2; exit 1; }
@@ -55,6 +58,10 @@ assert d.execute('PRAGMA integrity_check').fetchone()[0]=='ok'" "$DB" "$abandone
     fi
 }
 
+preflight() {   # $1 : le dossier de la version à installer : sa configuration est contrôlée avant toute bascule
+    $RUN_AS "$PYTHON" "$1/deals.py" --db "$DB" check
+}
+
 smoke() {
     if [ -n "${DEALS_SMOKE:-}" ]; then sh -c "$DEALS_SMOKE"; else "$PYTHON" "$ROOT/current/deploy/smoke.py" "$SMOKE_URL"; fi
 }
@@ -79,6 +86,10 @@ install)
     mkdir -p "$dest" "$BACKUPS"
     tar -xzf "$archive" -C "$dest"
     [ -f "$dest/deals.py" ] || die "archive sans deals.py"
+    if ! preflight "$dest"; then                  # configuration incomplète : rien n'est basculé
+        rm -rf "$dest"
+        die "configuration à régler avant d'installer $version (voir ci-dessus, deals.py check)"
+    fi
     "$PYTHON" -m compileall -q "$dest/deals" >/dev/null 2>&1 || true   # le code précompilé : le service n'écrit rien ici
     prev=$(readlink "$ROOT/current" 2>/dev/null || true)
     backup=""

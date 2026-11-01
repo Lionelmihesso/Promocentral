@@ -36,7 +36,7 @@ import traceback
 from dataclasses import dataclass, field
 from urllib.parse import unquote
 
-from . import affiliate, ontology
+from . import affiliate, config, ontology
 from .accounts import Accounts
 from .activity import Activity
 from .catalog import SORTS, Catalog
@@ -194,6 +194,9 @@ class Api:
         """Les mentions légales (page « Mentions légales et données personnelles ») : l'identité de l'éditeur, lue dans la
         configuration (DEALS_LEGAL_…) ; en production l'app ne démarre pas sans elle (config.legal_missing)."""
         s = self.settings
+        if config.is_demo(s):                                  # démo : aucune entité, aucune mention, quelle que soit la config
+            return {"name": "Promo Central", "demo": True, "editor": None, "registration": None, "address": None,
+                    "director": None, "contact": None, "host": None}
         return {"name": "Promo Central", "editor": s.legal_editor or None, "registration": s.legal_registration or None,
                 "address": s.legal_address or None, "director": s.legal_director or None, "contact": s.legal_contact or None,
                 "host": s.legal_host or None}
@@ -205,11 +208,14 @@ class Api:
                             "ORDER BY id DESC LIMIT 1", one=True)
         open_ = {r["severity"]: r["n"] for r in self.store.q("SELECT severity, COUNT(*) n FROM incidents WHERE status='open' "
                                                               "GROUP BY severity")}
-        late = last is None or self.clock() - last["ended"] > STALE_S
-        state = "critical" if late or open_.get("critical") or last["status"] == "failed" else \
+        catalog = self.store.q("SELECT COUNT(*) n FROM catalog", one=True)["n"]
+        demo = config.is_demo(self.settings)                 # démo : données simulées, datées ; la nuit ne tourne pas
+        late = (not demo and (last is None or self.clock() - last["ended"] > STALE_S)) or (demo and catalog == 0)
+        state = "critical" if late or open_.get("critical") or (last is not None and last["status"] == "failed") else \
             "degraded" if open_.get("warning") else "ok"
-        body = {"status": state, "last_night": utc(last["ended"]) if last else None,
-                "catalog": self.store.q("SELECT COUNT(*) n FROM catalog", one=True)["n"]}
+        body = {"status": state, "last_night": utc(last["ended"]) if last else None, "catalog": catalog}
+        if demo:
+            body["demo"] = True
         return Response(503 if state == "critical" else 200, body)
 
     def _profile(self, r):

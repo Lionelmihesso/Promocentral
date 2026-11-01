@@ -35,10 +35,11 @@ Règles de conception :
 ## 3. Commandes
 
 ```
-python -m unittest discover -s tests -t .      # 264 tests, environ 60 s — à lancer avant tout commit
+python -m unittest discover -s tests -t .      # 285 tests, environ 100 s — à lancer avant tout commit
 python -m unittest tests.test_release -v        # release et rollback seuls
 python -m bench.cadre                           # cadre de mise en production (17/19 ; aucun point P0 ouvert)
 python deals.py demo                            # app sur un marché simulé, base temporaire (jamais la base de production)
+python -m unittest tests.test_demo_mode tests.test_install -v   # mode démo et installation en une commande
 sh web/build.sh                                 # reconstruit web/app.html (esbuild et react requis, voir web/build.sh)
 ```
 
@@ -62,6 +63,23 @@ multiprocessing) et tolère 0,5 s pour la pire écriture. Un échec de ce test d
 ## 5. Processus de release
 
 Une version vient toujours d'un commit propre.
+
+Première installation et mises à jour, en une commande depuis un clone propre sur le serveur :
+
+```
+sudo sh deploy/install.sh demo                      # démonstration : marché simulé, aucun e-mail, aucun flux réel
+sudo sh deploy/install.sh prod                      # production : refusée tant que deals.py check signale un manque
+sudo sh /opt/deals/current/deploy/verify.sh         # vérification : configuration, service, écoute, tests de fumée
+```
+
+Modes : `DEALS_ENV` vaut `dev`, `demo` ou `prod`. En `demo`, les commandes qui lisent des sites ou envoient des
+e-mails (`config.DEMO_REFUSED`) refusent de tourner, la page affiche un bandeau « données fictives », la page
+« Mentions légales » ne publie aucune identité, et la santé ne dépend pas de la date des nuits. En `prod`, les
+mentions légales restent obligatoires : aucun mode démo ne relâche ce contrôle, et `demo` et `prod` ne partagent
+jamais un `deals.env` (`install.sh` le vérifie).
+
+Une version est aussi contrôlée avant d'être basculée : `release.sh install` lance `deals.py check` avec la
+configuration réelle, et refuse la bascule si elle échoue.
 
 ```
 sh deploy/release.sh package                        # archive du commit courant (refusée s'il reste des modifications)

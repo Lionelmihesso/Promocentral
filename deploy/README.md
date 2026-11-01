@@ -25,6 +25,56 @@ Services                                deals-web (l'app), deals-daily.timer (la
 La base, les fichiers bruts des flux et les réglages ne sont jamais dans le dossier du code : une version s'installe
 et se retire sans y toucher.
 
+## Démonstration : démarrer en une commande
+
+Le mode démo (`DEALS_ENV=demo`) montre la plateforme avec un marché **simulé et fictif** : aucune mention légale, aucun
+e-mail, aucun flux ni partenaire réel, aucune nuit qui lit des sites. Il ne relâche aucun contrôle de production : la
+production (`DEALS_ENV=prod`) refuse toujours une configuration incomplète.
+
+Prérequis sur le serveur (testé avec Python 3.13 et 3.14, SQLite 3.45 ; Ubuntu 26.04 à valider sur le VPS) : accès SSH avec
+`sudo`, systemd, Python 3.11 ou plus récent, SQLite 3.35 ou plus récent, git.
+
+```
+sudo apt update && sudo apt install -y git python3 sqlite3 ufw
+git clone https://github.com/Lionelmihesso/Promocentral.git ~/promocentral
+cd ~/promocentral
+sudo sh deploy/install.sh demo                      # installe, initialise la base, remplit le marché simulé, démarre l'app
+sudo sh /opt/deals/current/deploy/verify.sh         # vérifie : configuration, service, écoute locale, tests de fumée
+```
+
+`install.sh` ne lance que `deals-web` : aucune nuit réelle, aucune sauvegarde externe, aucun e-mail. Il crée le compte
+`deals`, les dossiers (`/opt/deals`, `/var/lib/deals`, `/var/backups/deals`), `/etc/deals/deals.env` (droits 600, modèle
+`deploy/deals.demo.env.example`) et les unités systemd, puis passe par `release.sh` : une version qui échoue ses tests
+de fumée ou dont la configuration est refusée n'est jamais basculée.
+
+**Voir la démo** : le port 8000 n'est jamais ouvert sur Internet. Depuis votre ordinateur :
+```
+ssh -L 8000:127.0.0.1:8000 <utilisateur>@<IPv4 du VPS>
+```
+puis http://127.0.0.1:8000/ dans votre navigateur. Un bandeau indique que les données sont fictives.
+
+**Mettre à jour depuis GitHub** (sur le VPS, dans le clone) :
+```
+cd ~/promocentral
+git status --short                          # doit être vide : sinon l'installation est refusée
+git pull --ff-only origin main
+sudo sh deploy/install.sh demo              # même commande qu'à l'installation : la base est conservée
+sudo sh /opt/deals/current/deploy/verify.sh
+```
+Une sauvegarde de la base est prise avant chaque bascule, la nouvelle version passe ses tests de fumée avant d'être
+gardée, et une version refusée ou en échec ramène la précédente. **Revenir en arrière** à la main :
+`sudo sh /opt/deals/current/deploy/release.sh rollback`.
+
+**Compatibilité** : testé ici avec Python 3.13 et 3.14 (la suite de 285 tests passe sur les deux). Ubuntu 26.04 n'était
+pas accessible depuis l'environnement de développement : `install.sh` vérifie la version de Python et de SQLite avant
+toute installation et s'arrête avec la cause ; à confirmer sur le serveur avec `python3 -V`.
+
+**Arrêter** : `sudo systemctl disable --now deals-web`.
+
+Ce que la démo ne fait pas, par construction : la page « Mentions légales » ne publie aucune identité ; les liens de
+connexion s'écrivent dans `/var/lib/deals/outbox.log` (lisible par `deals` seul) au lieu de partir par e-mail ; les
+commandes qui lisent des sites ou envoient des e-mails répondent « indisponible en mode démo ».
+
 ## 1. Commander le VPS
 
 Un VPS d'entrée de gamme suffit (VPS-1 : 2 vCore, 4 Go, 40 Go ; la plateforme publie 3 000 produits en ~3 s par nuit).
@@ -48,11 +98,11 @@ getent ahostsv4 promocentral.fr            # doit donner l'IPv4 du VPS
 Connecté en SSH avec l'utilisateur et la clé donnés à la commande (il a `sudo`) :
 ```
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3 sqlite3 curl ca-certificates gnupg ufw restic
+sudo apt install -y git python3 sqlite3 curl ca-certificates gnupg ufw restic
 python3 --version                                                    # 3.11 ou plus récent
 python3 -c "import sqlite3; print(sqlite3.sqlite_version)"           # 3.35 ou plus récent (c'est celle qu'utilise l'app)
 ```
-Rien d'autre : ni `git` (une version arrive en archive), ni `pip`, ni environnement virtuel. `restic` sert à la copie
+Rien d'autre : ni `pip`, ni environnement virtuel. `restic` sert à la copie
 chiffrée des sauvegardes hors du serveur (§ 10), seule dépendance externe, prise dans les dépôts du système.
 
 ## 4. Sécuriser le serveur, installer Caddy
@@ -86,62 +136,43 @@ sudo apt update
 sudo apt install caddy
 ```
 
-## 5. Installer Promo Central
+## 5. Installer et mettre à jour la production
 
-Sur votre machine, depuis le dépôt (une version vient d'un commit : rien de non commité) :
+Depuis un clone propre du dépôt sur le serveur (`install.sh` n'installe que le commit courant ; il refuse un dépôt
+modifié) :
 ```
-git status --short                          # rien
-sh deploy/release.sh package                # → promocentral-<AAAAMMJJ-HHMMSS>-<commit>.tar.gz
-scp promocentral-<…>.tar.gz <utilisateur>@<IPv4 du VPS>:
+git clone https://github.com/Lionelmihesso/Promocentral.git ~/promocentral
+cd ~/promocentral
+sudo sh deploy/install.sh prod
 ```
-Sur le serveur, la première fois (les services n'existent pas encore : `SYSTEMCTL=true` et `DEALS_SMOKE=true` les
-sautent ; les tests de fumée se passent au § 8) :
-```
-sudo useradd --system --home /var/lib/deals --shell /usr/sbin/nologin deals
-sudo mkdir -p /opt/deals/releases /var/lib/deals /var/backups/deals /etc/deals
-sudo chown -R deals:deals /var/lib/deals /var/backups/deals
-sudo chmod 750 /var/lib/deals /var/backups/deals
-tar -xzf promocentral-<…>.tar.gz deploy/release.sh          # le script d'installation, sorti de l'archive
-sudo SYSTEMCTL=true DEALS_SMOKE=true sh deploy/release.sh install promocentral-<…>.tar.gz
-rm -r deploy
-```
-`install` vérifie Python, installe la version dans `/opt/deals/releases/<version>/` (jamais modifiée ensuite), la
-précompile et bascule `/opt/deals/current` dessus.
+`install.sh prod` crée le compte et les dossiers, copie `/etc/deals/deals.env` depuis son modèle (droits 600) et les
+enseignes et sources d'exemple (inactives), installe les services et les timers, vérifie la configuration (`deals.py
+check` liste ce qui manque et refuse de basculer tant que ce n'est pas réglé), installe la version et lance les tests de
+fumée. Il ne démarre aucune enseigne : le § 9 le fait, une enseigne à la fois.
+
+Pour mettre à jour : `git pull` puis la même commande. Pour revenir en arrière : `release.sh rollback` (§ 11).
 
 ## 6. Configurer
 
 ```
-sudo cp /opt/deals/current/deploy/deals.env.example /etc/deals/deals.env
-sudo chmod 600 /etc/deals/deals.env
 sudoedit /etc/deals/deals.env
+sudo deals check                            # ce qui manque, en clair ; « prêt » quand tout est réglé
 ```
-À renseigner au minimum (une valeur par ligne, sans commentaire en fin de ligne : systemd le garderait dans la valeur,
-et l'app refuserait de démarrer en nommant la variable) :
+À renseigner (une valeur par ligne, sans commentaire en fin de ligne : systemd le garderait dans la valeur) :
 - `DEALS_USER_AGENT` : nom du robot, adresse publique de `/robot`, adresse de contact réelle ;
 - `DEALS_PUBLIC_URL` : l'adresse HTTPS définitive (`https://promocentral.fr`) ;
 - `DEALS_LEGAL_EDITOR`, `DEALS_LEGAL_REGISTRATION`, `DEALS_LEGAL_ADDRESS`, `DEALS_LEGAL_DIRECTOR`,
-  `DEALS_LEGAL_CONTACT`, `DEALS_LEGAL_HOST` : les mentions légales exactes (`DEALS_ENV=prod` : l'app ne démarre pas
-  sans elles) ;
+  `DEALS_LEGAL_CONTACT`, `DEALS_LEGAL_HOST` : les mentions légales exactes (la production ne démarre pas sans elles) ;
 - SMTP : `DEALS_SMTP_HOST`, `DEALS_SMTP_PORT`, `DEALS_SMTP_TLS` (`starttls` sur 587, `ssl` sur 465),
   `DEALS_SMTP_USER`, `DEALS_SMTP_PASSWORD`, `DEALS_MAIL_FROM` ;
 - `DEALS_OPERATOR_EMAIL` : une adresse réellement lue (l'agent de nuit y écrit s'il y a lieu) ;
 - `DEALS_FEED_<ENSEIGNE>` : l'adresse du flux de chaque enseigne partenaire, identifiants du réseau compris (§ 9) ;
   ces adresses ne vivent qu'ici.
 
-Les partenaires et les sources, depuis les modèles. Ni l'un ni l'autre n'active rien : les clés du modèle de
-partenaires ne désignent aucune enseigne, et toutes les sources d'exemple sont désactivées. Une enseigne ne devient
-active qu'au § 9, une fois son programme d'affiliation, son flux et son lien de suivi confirmés.
-```
-sudo cp /opt/deals/current/deploy/affiliate.example.json /etc/deals/affiliate.json
-sudo cp /opt/deals/current/deploy/sources.example.json /etc/deals/sources.json
-sudo mkdir -p /etc/deals/feeds
-sudo cp /opt/deals/current/deploy/feeds/*.json /etc/deals/feeds/
-sudo chgrp -R deals /etc/deals/affiliate.json /etc/deals/sources.json /etc/deals/feeds
-sudo chmod 640 /etc/deals/affiliate.json /etc/deals/sources.json /etc/deals/feeds/*.json
-sudo chmod 750 /etc/deals/feeds
-sudo install -m 755 /opt/deals/current/deploy/deals /usr/local/bin/deals
-sudo deals partners                         # les deux clés d'exemple : « clé absente des sources » ; aucun partenaire
-```
+`/etc/deals/affiliate.json` (enseignes partenaires) et `/etc/deals/sources.json` (sources) sont créés depuis leurs
+modèles, qui n'activent rien : les clés du modèle de partenaires ne désignent aucune enseigne, et toutes les sources
+d'exemple sont désactivées. Une enseigne ne devient active qu'au § 9.
+
 `sudo deals <commande>` lance `deals.py` comme les services : compte `deals`, dossier `/var/lib/deals`, réglages de
 `/etc/deals/deals.env` ; vos gestes sont journalisés à votre nom. Gardez le nom du robot (`PromoCentralBot`) dans
 `DEALS_USER_AGENT` : les tests de fumée le cherchent sur `/robot`.
@@ -149,21 +180,21 @@ sudo deals partners                         # les deux clés d'exemple : « clé
 **Après toute modification** de `/etc/deals/deals.env` ou de `/etc/deals/affiliate.json` : `sudo systemctl restart
 deals-web` (l'app les lit à son démarrage ; la nuit et `sudo deals` les relisent à chaque lancement).
 
-## 7. Activer les services et le HTTPS
+## 7. Activer le HTTPS
 
+`install.sh` a déjà installé et activé les services. Reste Caddy, qui reçoit le HTTPS et relaie vers l'app :
 ```
-sudo cp /opt/deals/current/deploy/*.service /opt/deals/current/deploy/*.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now deals-web.service deals-backup.timer
 sudo cp /opt/deals/current/deploy/Caddyfile /etc/caddy/Caddyfile
 sudoedit /etc/caddy/Caddyfile               # promocentral.example.fr → votre domaine (et le bloc www, si besoin)
 sudo systemctl reload caddy
 systemctl status deals-web caddy --no-pager
 systemctl list-timers 'deals-*' --no-pager
 ```
-La nuit (`deals-daily.timer`) s'active au § 9, avec le premier partenaire : avant, elle n'aurait rien à lire et
-s'arrêterait en erreur (« aucune des enseignes déclarées n'est suivie »). La copie hors du serveur
-(`deals-offsite.timer`) s'active au § 10.
+La nuit (`deals-daily.timer`) n'a rien à lire tant qu'aucun partenaire n'est branché : elle s'active au § 9, avec le
+premier partenaire. La copie hors du serveur (`deals-offsite.timer`) s'active au § 10.
+
+**Vérifier** : `sudo sh /opt/deals/current/deploy/verify.sh https://VOTRE-DOMAINE` (configuration, service, écoute sur
+127.0.0.1 seulement, tests de fumée).
 
 ## 8. Contrôles de mise en production
 

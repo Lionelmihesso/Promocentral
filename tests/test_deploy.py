@@ -37,6 +37,31 @@ def unit(name):
     return sections
 
 
+class Demo(unittest.TestCase):
+    def test_the_demo_template_loads_with_nothing_real_in_it(self):
+        env = env_file(DEPLOY / "deals.demo.env.example")
+        self.assertEqual(set(env) - {k for f in fields(config.Settings) for k in ["DEALS_" + f.name.upper()]}, set(),
+                         "variables que le code ne lit pas")
+        s = config.load(env)
+        self.assertEqual(s.env, "demo")
+        self.assertEqual(config.problems(s), [], "la démo se lance sans rien de réel")
+        self.assertFalse(s.smtp_host or s.affiliate or s.sources, "pas de SMTP, de partenaire ni de flux en démo")
+
+    def test_install_and_verify_are_executable_scripts_and_documented(self):
+        for name in ("install.sh", "verify.sh"):
+            path = DEPLOY / name
+            self.assertTrue(path.stat().st_mode & 0o111, f"{name} n'est pas exécutable")
+        readme = (DEPLOY / "README.md").read_text(encoding="utf-8")
+        self.assertTrue("deploy/install.sh demo" in readme, "le README ne donne pas la commande d'installation de la démo")
+        self.assertTrue("deploy/verify.sh" in readme, "le README ne donne pas la commande de vérification")
+
+    def test_demo_install_enables_only_the_web_service(self):
+        text = (DEPLOY / "install.sh").read_text(encoding="utf-8")
+        demo_line = next(line for line in text.splitlines() if line.startswith('    UNIT_LIST="deals-web.service"'))
+        self.assertNotIn("timer", demo_line)
+        self.assertNotIn("daily", demo_line)
+
+
 class Examples(unittest.TestCase):
     def test_every_variable_of_the_env_example_is_read_by_the_code(self):
         env = env_file(DEPLOY / "deals.env.example")

@@ -44,7 +44,8 @@ class Release(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.env = {**os.environ, "DEALS_ROOT": str(self.tmp / "opt"), "DEALS_DATA": str(self.tmp / "data"),
-                    "DEALS_BACKUPS": str(self.tmp / "bk"), "SYSTEMCTL": "true", "PYTHON": "python3", "DEALS_SMOKE": "true"}
+                    "DEALS_BACKUPS": str(self.tmp / "bk"), "SYSTEMCTL": "true", "PYTHON": "python3", "DEALS_SMOKE": "true",
+                    "DEALS_RUN_AS": "env"}
         (self.tmp / "data").mkdir()
         self.db = self.tmp / "data" / "deals.sqlite"
 
@@ -137,6 +138,18 @@ class Release(unittest.TestCase):
         third = pack()
         self.assertNotEqual(third.returncode, 0)
         self.assertIn("ne sont pas commitées", third.stderr)
+
+    def test_a_version_whose_configuration_is_incomplete_is_never_switched_to(self):
+        """deals.py check refuse (ici : une configuration de production sans mentions légales) : rien n'est basculé."""
+        self.run_("install", str(archive(self.tmp, "promocentral-20261031-110000-aaaaaaa")))
+        env = {**self.env, "DEALS_ENV": "prod"}                  # sans mentions légales : deals.py check refuse
+        r = subprocess.run(["sh", str(CODE / "deploy" / "release.sh"), "install",
+                            str(archive(self.tmp, "promocentral-20261031-120000-bbbbbbb"))],
+                           env=env, capture_output=True, text=True, timeout=120)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("configuration à régler", r.stdout + r.stderr)
+        self.assertEqual(self.current(), "promocentral-20261031-110000-aaaaaaa")
+        self.assertFalse((self.tmp / "opt" / "releases" / "promocentral-20261031-120000-bbbbbbb").exists())
 
     def test_an_installed_version_is_never_overwritten(self):
         a = archive(self.tmp, "promocentral-20261031-110000-aaaaaaa")
