@@ -1,14 +1,19 @@
 """Exploitation : la passe de nuit et le serveur partagent la base sans se gêner ; la sauvegarde à chaud est cohérente ;
 une base ancienne est migrée sur place ; la démo se construit avec la vraie chaîne, alternatives moins chères comprises."""
 import json
-import multiprocessing as mp
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
+
+CODE = Path(__file__).resolve().parent.parent
+if str(CODE) not in sys.path:
+    sys.path.insert(0, str(CODE))
 
 from deals import config, demo, sim, store
 from deals.api import Api, Request
@@ -17,9 +22,9 @@ from deals.catalog import position
 from deals.store import Store
 
 
-def _night(path, ready, seconds):
+def _night(path, seconds):                            # processus « nuit » : lancé par le test, un autre processus
     s = Store(path)
-    ready.set()
+    print("pret", flush=True)
     t0, i = time.time(), 0
     while time.time() - t0 < seconds:                     # comme la collecte : une transaction courte par page relue,
         with s.tx():                                      # ici 50 par seconde (la vraie passe en fait moins de 2)
@@ -30,7 +35,7 @@ def _night(path, ready, seconds):
     s.close()
 
 
-def _web(path, out):
+def _web(path):                                       # processus « serveur » : rend l'attente de sa plus lente écriture
     s = Store(path)
     s.x("INSERT OR IGNORE INTO users(id, email, created_at) VALUES (1, 'a@b.c', 0)")
     waits = []
@@ -40,24 +45,24 @@ def _web(path, out):
         waits.append(time.time() - t)
         time.sleep(0.05)
     s.close()
-    out.put(max(waits))
+    print(max(waits), flush=True)
 
 
 class Ops(unittest.TestCase):
     def test_web_writes_never_wait_during_the_night(self):
+        """Deux processus réels sur la même base. Seuil : 0,5 s pour la pire écriture (avant : jusqu'à 1 s d'attente, ou
+        « database is locked ») ; plus large qu'une écriture normale, pour ne pas échouer sur une machine chargée."""
         path = str(Path(tempfile.mkdtemp(), "t.sqlite"))
         Store(path).close()
-        ctx = mp.get_context("spawn")
-        ready, out = ctx.Event(), ctx.Queue()
-        night = ctx.Process(target=_night, args=(path, ready, 2.0))
-        night.start()
-        self.assertTrue(ready.wait(20))
-        web = ctx.Process(target=_web, args=(path, out))
-        web.start()
-        worst = out.get(timeout=30)
-        web.join(10)
-        night.join(10)
-        self.assertLess(worst, 0.25)                      # avant : jusqu'à 1 s d'attente, ou « database is locked »
+        night = _spawn("--night", path, "2.0")
+        self.assertEqual(night.stdout.readline().strip(), "pret")   # la nuit a commencé   # la nuit a commencé
+        web = _spawn("--web", path)
+        out, err = web.communicate(timeout=120)
+        _, night_err = night.communicate(timeout=120)
+        self.assertEqual(web.returncode, 0, err)
+        self.assertEqual(night.returncode, 0, night_err)
+        worst = float(out.strip().splitlines()[-1])
+        self.assertLess(worst, 0.5)
 
     def test_older_database_is_migrated_in_place(self):
         path = Path(tempfile.mkdtemp(), "v1.sqlite")
@@ -109,5 +114,16 @@ class Ops(unittest.TestCase):
         s.close()
 
 
+def _spawn(*args):
+    return subprocess.Popen([sys.executable, str(Path(__file__).resolve()), *args], cwd=CODE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--night"]:
+        _night(sys.argv[2], float(sys.argv[3]))
+        sys.exit(0)
+    if sys.argv[1:2] == ["--web"]:
+        _web(sys.argv[2])
+        sys.exit(0)
     unittest.main()

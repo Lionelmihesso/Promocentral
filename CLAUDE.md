@@ -42,8 +42,8 @@ python deals.py demo                            # app sur un marché simulé, ba
 sh web/build.sh                                 # reconstruit web/app.html (esbuild et react requis, voir web/build.sh)
 ```
 
-Le test de timing `test_web_writes_never_wait_during_the_night` dépend de la charge de la machine : en cas d'échec
-isolé, le relancer seul avant de conclure.
+Le test de timing `test_web_writes_never_wait_during_the_night` lance deux processus réels sur la même base (sans
+multiprocessing) et tolère 0,5 s pour la pire écriture. Un échec de ce test doit être reproduit avant d'être corrigé.
 
 ## 4. Sécurité et secrets
 
