@@ -1,5 +1,5 @@
 #!/bin/sh
-# Commande DEALS sur le serveur, dans les mêmes conditions que les services : utilisateur deals, dossier /var/lib/deals,
+# Commande Promo Central (deals) sur le serveur, dans les mêmes conditions que les services : utilisateur deals, dossier /var/lib/deals,
 # réglages de /etc/deals/deals.env (lisible par root seulement). Exemple : sudo deals diagnose all --n 20
 # Les gestes d'un responsable (approve, sources enable…) sont journalisés à son nom : DEALS_ACTOR.
 exec systemd-run --quiet --wait --pty --collect --uid=deals --gid=deals \

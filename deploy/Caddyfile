@@ -1,8 +1,15 @@
-# HTTPS automatique (Let's Encrypt) devant l'app. Seules /, /api/r/ et /robot existent en mode public ; l'app envoie
-# elle-même les en-têtes de sécurité (HSTS compris, puisque DEALS_PUBLIC_URL est en https).
+# /etc/caddy/Caddyfile — HTTPS automatique (Let's Encrypt) devant l'app, qui écoute sur 127.0.0.1:8000 seulement.
+# Remplacer promocentral.example.fr par le domaine (enregistrement A vers l'IPv4 du serveur, propagé avant le premier
+# démarrage). Seules /, /api/r/ et /robot existent ; l'app envoie elle-même les en-têtes de sécurité (HSTS compris,
+# puisque DEALS_PUBLIC_URL est en https).
 # Pas de journal d'accès (aucune directive log) : les goûts qu'envoie l'app sans compte (p, i, recent, dans l'adresse)
 # ne sont gardés nulle part. Pour en ajouter un, ne pas y écrire la chaîne de requête des adresses.
 promocentral.example.fr {
 	encode gzip
 	reverse_proxy 127.0.0.1:8000
 }
+
+# Si www est aussi déclaré dans la zone DNS (enregistrement A), décommenter : www renvoie vers l'adresse principale.
+# www.promocentral.example.fr {
+# 	redir https://promocentral.example.fr{uri} permanent
+# }

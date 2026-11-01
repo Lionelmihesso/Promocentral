@@ -207,7 +207,7 @@ class Store:
             version = c.execute("PRAGMA user_version").fetchone()[0]
             if version == 0:
                 if c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]:
-                    raise RuntimeError(f"{self.path} : base d'une version antérieure de DEALS (sans numéro de schéma) ; "
+                    raise RuntimeError(f"{self.path} : base d'une version antérieure de Promo Central (sans numéro de schéma) ; "
                                        "repartir d'une base neuve")
                 for st in statements(SCHEMA):
                     c.execute(st)

@@ -148,11 +148,21 @@ def operations(tmp):
                for t in ("products", "offers", "prices"))
     point("Exploitation", "une sauvegarde se restaure et la base restaurée s'ouvre, identique", same,
           f"{saved.name} → restaurée, produits, offres et prix identiques : {same}", "P0")
-    dest = (CODE / "deploy" / "README.md").read_text(encoding="utf-8")
-    offsite = any(w in dest for w in ("rclone", "Storage Box", "hors du serveur", "hors serveur", "s3://"))
-    point("Exploitation", "une copie des sauvegardes vit hors du serveur", offsite,
-          "deploy/README.md décrit la copie hors du serveur" if offsite else
-          "deploy/ : sauvegarde dans /var/backups/deals, sur le même disque que la base", "P1")
+    # La copie hors du serveur : le code ne peut fournir que l'outil (l'activer demande un stockage et ses accès, sur le
+    # serveur ; c'est un point de la liste go/no-go). Outillée = une unité qui copie chaque jour, chiffré, et une
+    # restauration écrite pas à pas — pas un mot dans une page.
+    unit = CODE / "deploy" / "deals-offsite.service"
+    timer = CODE / "deploy" / "deals-offsite.timer"
+    guide = (CODE / "deploy" / "README.md").read_text(encoding="utf-8")
+    copies = unit.exists() and "restic backup" in unit.read_text(encoding="utf-8")
+    drill = "restic" in guide and "restore" in guide
+    offsite = copies and timer.exists() and drill
+    point("Exploitation", "la copie chiffrée des sauvegardes hors du serveur est outillée (copie chaque jour, restauration "
+          "écrite)", offsite,
+          "deploy/deals-offsite.service et .timer : chaque jour après la sauvegarde, copie chiffrée (restic) vers un stockage "
+          "objet ; restauration écrite pas à pas (deploy/README.md § 10) ; à activer et à essayer sur le serveur, avec vos "
+          "accès (go/no-go)"
+          if offsite else "deploy/ : sauvegarde dans /var/backups/deals, sur le même disque que la base", "P1")
     # Le déploiement par versions, essayé pour de vrai : le script, des archives et une base réelles, services simulés.
     if (CODE / "deploy" / "release.sh").exists() and (CODE / "tests" / "test_release.py").exists():
         r = subprocess.run([sys.executable, "-m", "unittest", "tests.test_release.Release"], cwd=CODE,

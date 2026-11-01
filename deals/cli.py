@@ -13,7 +13,8 @@
   python deals.py ingest <source|all> [--file F] [--dry-run]   lire un flux maintenant (nightly le fait pour toutes)
   python deals.py batches [--source <clé>] [--n 20] [--rejects <lot>]   les lots lus : quoi, quand, combien, refus
   python deals.py replay <source>                    relire le fichier gardé du dernier lot (correspondance corrigée)
-  python deals.py probe <fichier> [--format csv|xml|…]   ce qu'est un échantillon de flux et la correspondance proposée
+  python deals.py probe <fichier> | --source <clé> [--format csv|xml|…]   ce qu'est un échantillon de flux (un
+                                                     fichier, ou lu à l'adresse de la source) et la correspondance proposée
   python deals.py missions                           e-mails des missions arrivées à leur prix (fait par nightly)
   python deals.py publish                            republier le catalogue sans relire le web
   python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
@@ -47,7 +48,7 @@ from .backup import backup
 from .ingest import batches as B
 from .ingest import feeds as F
 from .ingest import registry
-from .ingest.collector import Collector
+from .ingest.collector import Collector, download
 from .ingest.pages import diagnose as D
 from .ingest.pages.crawl import Crawler
 from .ingest.pages.discover import discover
@@ -173,7 +174,9 @@ def main(argv=None):
     ba.add_argument("--rejects", type=int, help="les lignes refusées d'un lot")
     sub.add_parser("replay").add_argument("source")
     pr = sub.add_parser("probe")
-    pr.add_argument("file")
+    pr.add_argument("file", nargs="?", help="un échantillon de flux (fichier)")
+    pr.add_argument("--source", help="lire l'échantillon à l'adresse du flux de cette source (DEALS_SOURCES), même "
+                                     "désactivée : les identifiants restent dans l'environnement, jamais affichés")
     pr.add_argument("--format", choices=F.FORMATS)
     a = ap.parse_args(argv)
     settings = replace(settings, db=a.db)
@@ -191,10 +194,21 @@ def main(argv=None):
         print(backup(settings.db, a.dest, a.keep))
         return 0
     if a.cmd == "probe":
+        if bool(a.file) == bool(a.source):
+            sys.exit("probe : un fichier, ou --source <clé> (l'échantillon est lu à l'adresse du flux de la source)")
+        where = {}
         try:
-            info = F.probe(Path(a.file).read_bytes(), a.format)
-        except (OSError, F.FeedError) as e:
-            sys.exit(f"{a.file} : {e}")
+            if a.source:
+                spec = specs.get(a.source)
+                if not spec or spec["kind"] != "feed":
+                    sys.exit(f"probe --source : « {a.source} » n'est pas une source « feed » de DEALS_SOURCES")
+                where = {**spec, **registry.address(spec)}
+                raw = download(where, settings.feed_max_mb * 1024 * 1024, settings.user_agent)
+            else:
+                raw = Path(a.file).read_bytes()
+            info = F.probe(raw, a.format)
+        except (OSError, ValueError) as e:            # FeedError, variable absente, flux injoignable ou illisible
+            sys.exit(f"{a.source or a.file} : {Collector._scrub(str(e), where)}")
         print(json.dumps(info, ensure_ascii=False, indent=2, default=str))
         print("\nCorrespondance proposée (à relire, puis à enregistrer pour la source dans DEALS_SOURCES) :")
         print(json.dumps(info["proposed"], ensure_ascii=False, indent=2))

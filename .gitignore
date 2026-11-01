@@ -1,9 +1,20 @@
+# Caches et sorties locales : jamais dans le dépôt
+promocentral-*.tar.gz
 __pycache__/
 *.pyc
+*.log
+logs/
+node_modules/
+.DS_Store
+Thumbs.db
+# Données : bases, sauvegardes, fichiers bruts des flux, lectures de fiches, rapports — elles vivent dans /var/lib/deals
 *.sqlite
 *.sqlite-*
-logs/
 backups/
+raw/
 urls/
 reports/
 samples/
+# Réglages réels et secrets : ils vivent dans /etc/deals, jamais ici
+.env
+*.env

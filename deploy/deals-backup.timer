@@ -1,5 +1,5 @@
 [Unit]
-Description=DEALS — sauvegarde chaque jour à 6 h (après la passe de nuit)
+Description=Promo Central — sauvegarde chaque jour à 6 h (après la passe de nuit)
 
 [Timer]
 OnCalendar=*-*-* 06:00:00

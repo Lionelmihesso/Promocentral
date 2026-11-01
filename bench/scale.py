@@ -1,6 +1,6 @@
 """Tenue en charge : publication de nuit, missions de la nuit et lectures de l'app sur un catalogue de 3 000 produits.
 
-Données synthétiques du volume mesuré sur l'ancien moteur (docs/AUDIT.md) : 3 000 produits (120 marques, 8 catégories),
+Données synthétiques du volume mesuré sur l'ancien moteur (audit d'octobre 2026, git show 2ca25aa:docs/AUDIT.md) : 3 000 produits (120 marques, 8 catégories),
 4 200 offres, ~40 000 lignes de prix sur 90 jours (un changement tous les 9 jours environ, prix barré sur une partie
 des lignes). Elles sont écrites directement en base : on mesure la publication et les lectures, pas la collecte.
 Missions : 2 000 personnes × 5 missions (catégorie, taille ou capacité, prix voulu), évaluées la nuit après la publication.

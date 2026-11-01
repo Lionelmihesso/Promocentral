@@ -1,4 +1,4 @@
-# L'ontologie de DEALS — chaque rayon, et l'électronique (v59)
+# L'ontologie de Promo Central — chaque rayon, et l'électronique
 
 Ce que la plateforme sait d'un produit vient de ce que les enseignes déclarent de leurs offres : un titre, une marque,
 un prix, un EAN et leur propre catégorie (« TV - Vidéo > Téléviseurs > TV QLED »), dans leur **flux produits** (v63,

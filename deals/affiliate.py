@@ -1,4 +1,4 @@
-"""Affiliation : DEALS ne montre que les offres d'enseignes partenaires, et chaque clic part avec son identifiant.
+"""Affiliation : Promo Central ne montre que les offres d'enseignes partenaires, et chaque clic part avec son identifiant.
 
 Règles (réglage DEALS_AFFILIATE : un fichier JSON, clé d'enseigne → règle) ; deux formes :
 - le gabarit de lien du réseau, avec {url} (l'adresse de la fiche, encodée) et {subid} (l'identifiant du clic) :

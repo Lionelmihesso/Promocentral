@@ -1,0 +1,21 @@
+[Unit]
+Description=Promo Central — copie chiffrée des sauvegardes hors du serveur (restic, stockage objet S3)
+After=network-online.target deals-backup.service
+Wants=network-online.target
+# Inerte tant que la copie n'est pas configurée (deploy/README.md, § 10)
+ConditionPathExists=/etc/deals/offsite.env
+
+[Service]
+Type=oneshot
+# root : les accès au stockage et le mot de passe du dépôt restent hors de portée du compte deals (celui de l'app)
+EnvironmentFile=/etc/deals/offsite.env
+Environment=RESTIC_CACHE_DIR=/var/cache/deals-offsite
+CacheDirectory=deals-offsite
+ExecStart=/usr/bin/restic backup --tag deals /var/backups/deals
+ExecStart=/usr/bin/restic forget --tag deals --keep-daily 30 --keep-monthly 12 --prune
+ExecStart=/usr/bin/restic check
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/var/backups/deals

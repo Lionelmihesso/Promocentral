@@ -65,6 +65,8 @@ install)
     version=$(basename "$archive" .tar.gz)
     dest="$ROOT/releases/$version"
     [ ! -e "$dest" ] || die "la version $version est déjà installée"
+    "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null \
+        || die "Python 3.11 ou plus récent est nécessaire ($PYTHON : $("$PYTHON" -V 2>&1))"
     mkdir -p "$dest" "$BACKUPS"
     tar -xzf "$archive" -C "$dest"
     [ -f "$dest/deals.py" ] || die "archive sans deals.py"
@@ -100,7 +102,7 @@ rollback)
     restore_if_needed "$prev" "$cur.backup"
     switch_to "$prev"
     $SYSTEMCTL restart deals-web
-    smoke || die "la version précédente ne passe pas les tests de fumée non plus : voir docs/RUNBOOK.md#nuit-en-erreur"
+    smoke || die "la version précédente ne passe pas les tests de fumée non plus : voir docs/RUNBOOK.md#mise-a-jour"
     say "retour à $(basename "$prev")"
     ;;
 list)

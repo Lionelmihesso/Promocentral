@@ -237,6 +237,27 @@ class Accounts(unittest.TestCase):
         st, h, _ = self.raw("GET", "/api/r/categories")
         self.assertEqual((st, h["X-Content-Type-Options"], h["Cache-Control"]), (200, "nosniff", "no-store"))
 
+    def test_head_answers_like_get_without_body_and_never_replays_a_click(self):
+        """curl -I et les sondes extérieures (souvent en HEAD) : la page, /robot et l'état répondent comme un GET, sans
+        corps ; un clic sortant ou un lien de connexion ne se rejouent pas (405, rien d'enregistré)."""
+        for path in ("/", "/robot", "/api/r/health"):
+            g, gh, gbody = self.raw("GET", path)
+            st, h, body = self.raw("HEAD", path)
+            self.assertEqual((st, body, h["Content-Length"], h["Content-Type"]), (g, b"", str(len(gbody)), gh["Content-Type"]), path)
+        clicks = self.store.q("SELECT COUNT(*) n FROM clicks", one=True)["n"]
+        for path in ("/api/r/out/1?from=item", "/api/r/auth/verify?token=x", "/api/r/categories"):
+            self.assertEqual(self.raw("HEAD", path)[0], 405, path)
+        self.assertEqual(self.store.q("SELECT COUNT(*) n FROM clicks", one=True)["n"], clicks)
+        with socket.create_connection(("127.0.0.1", self.srv.server_port), timeout=5) as c:   # puis un GET, même connexion
+            c.sendall(b"HEAD / HTTP/1.1\r\nHost: x\r\n\r\nGET /robot HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+            data = b""
+            while chunk := c.recv(65536):
+                data += chunk
+        head, _, rest = data.partition(b"\r\n\r\n")
+        self.assertTrue(head.startswith(b"HTTP/1.1 200"))
+        self.assertTrue(rest.startswith(b"HTTP/1.1 200"), rest[:40])   # aucun corps après les en-têtes du HEAD
+        self.assertIn(b"PromoCentralBot", rest)                    # puis la réponse entière au GET
+
 
 
 class FakeSMTP:

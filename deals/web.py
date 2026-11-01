@@ -26,8 +26,9 @@ HEADERS = {"X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Refe
 def make_server(api, store, settings, host="127.0.0.1", port=8000):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
-        server_version, sys_version = "DEALS", ""
+        server_version, sys_version = "PromoCentral", ""
         timeout = IDLE_S
+        head = False                   # requête HEAD : les en-têtes d'un GET, sans le corps
 
         def log_message(self, *a):
             pass
@@ -47,7 +48,8 @@ def make_server(api, store, settings, host="127.0.0.1", port=8000):
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            self.wfile.write(data)
+            if not self.head:
+                self.wfile.write(data)
 
         def client_ip(self):
             peer = self.client_address[0]
@@ -93,10 +95,21 @@ def make_server(api, store, settings, host="127.0.0.1", port=8000):
             self.send(res.status, b"" if res.body is None else res.body, location=res.location, cookie=res.cookie)
 
         def do_GET(self):
+            self.head = False
             self.handle_any("GET")
 
         def do_POST(self):
+            self.head = False
             self.handle_any("POST")
+
+        def do_HEAD(self):
+            """HEAD (RFC 9110 : tout serveur le doit ; curl -I, sondes extérieures) : les en-têtes d'un GET, sans le corps,
+            là où un GET ne change rien — la page, /robot, l'état pour la sonde. Ailleurs 405 : un clic sortant ou un lien
+            de connexion ne se rejouent pas sur un HEAD (aperçus de liens, robots)."""
+            self.head = True
+            if self.path.partition("?")[0] in ("/", "/index.html", "/robot", "/api/r/health"):
+                return self.handle_any("GET")
+            return self.send(405, {"error": "Méthode non permise"})
 
         def finish(self):
             try:

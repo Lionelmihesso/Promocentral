@@ -1,0 +1,10 @@
+[Unit]
+Description=Promo Central — copie chiffrée hors du serveur chaque jour à 6 h 30 (après la sauvegarde de 6 h)
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

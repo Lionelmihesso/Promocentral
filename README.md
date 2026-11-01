@@ -15,7 +15,7 @@ recherches, alertes de prix) ; l'e-mail, facultatif, sert aux alertes et à retr
 Quatre familles chères, où une remise compte : **électroménager (aspirateurs compris), électronique (téléviseurs,
 smartphones, ordinateurs, tablettes, casques, enceintes, montres, consoles, écrans), ameublement, literie**. Une lecture
 par nuit des **flux produits** des enseignes partenaires (leurs fiches en dernier recours), aucune IA, un seul petit
-serveur (Python, bibliothèque standard, SQLite) : environ 6 € HT par mois.
+serveur (Python, bibliothèque standard, SQLite) : un VPS d'entrée de gamme (voir « Coût de fonctionnement »).
 
 **Modèle d'affiliation** : seules les offres d'enseignes partenaires sont montrées ; chaque clic part par leur lien
 affilié avec son identifiant, qui revient dans les rapports du réseau (la vente se rattache à l'écran, à la mission, à
@@ -34,8 +34,8 @@ Modèle, vie privée et mesures : [`docs/PERSONNALISATION.md`](docs/PERSONNALISA
 **Trouver vite, sans bazar de bons plans** : on vient chercher quelque chose, on doit le trouver vite. La Recherche
 comprend une phrase (rayon, pièce, marque, fonctions, taille ou capacité, budget de… à…, promo, prix bas, et les mots
 qui restent), la montre en puces modifiables, affine d'un geste (chaque choix dit ce qu'il donnerait), et ne mène jamais
-dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 41 phrases tapées comme on parle, plus aucune
-impasse (15 avant) et la première carte juste 24 fois sur 24 (9 avant). **Affiner en entonnoir (v60)** : une question
+dans une impasse (rien sous le budget : les plus proches au-dessus). Sur 62 phrases tapées comme on parle, aucune
+impasse, et la première carte juste 43 fois sur 43 quand le catalogue a la réponse (`bench.search`). **Affiner en entonnoir (v60)** : une question
 à la fois — l'univers (High-tech, Entretien, Chambre…), le rayon, le type, un attribut (4K, une taille d'écran), le
 budget —, chaque réponse avec ce qu'elle donne, « Passer » pour passer, et une fin : votre sélection ; de la
 Recherche vide à des téléviseurs OLED, 3 gestes et une fin (5 gestes et aucune fin avec la feuille de la v59, qui
@@ -61,10 +61,10 @@ ou zip), décrit par une entrée de configuration et la correspondance de ses co
 aucun code ; chaque lecture est un lot tracé (empreinte, fichier brut gardé, lignes refusées et leur raison) et
 rejouable ; le même fichier relu ne crée ni doublon ni ligne de prix ; un flux tronqué ne supprime rien. La démo est
 nourrie par les flux de ses enseignes simulées et publie exactement le catalogue de la lecture de leurs fiches.
-Modules, contrats et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Audit et refonte
-d'octobre 2026, mesures avant / après : [`docs/AUDIT.md`](docs/AUDIT.md). Mise en production à J+30 (audit J1–3,
-registre des risques, décisions, plan par lots, go/no-go) : [`docs/PRODUCTION.md`](docs/PRODUCTION.md), vérifié par
-`python -m bench.cadre`.
+Modules, contrats et données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Mise en production : décisions,
+risques ouverts et liste go/no-go dans [`docs/PRODUCTION.md`](docs/PRODUCTION.md) (vérifiée par `python -m bench.cadre`) ;
+installation sur un VPS OVHcloud, pas à pas, dans [`deploy/README.md`](deploy/README.md). Audit et nettoyage du dépôt
+avant la mise en production : [`docs/AUDIT.md`](docs/AUDIT.md).
 
 **Exploitation quasi autonome** : un agent de nuit (des règles écrites, pas d'IA) relance une source en panne passagère,
 met de côté celle qui échoue trop sans jamais forcer un anti-robot, retient un prix suspect, garde le catalogue de la
@@ -89,18 +89,20 @@ python deals.py missions                     envoyer les e-mails des missions su
 python deals.py ingest <source|all> [--file F] [--dry-run]   lire le flux d'une enseigne (la nuit le fait pour toutes)
 python deals.py batches [--source <clé>] [--rejects <lot>]  les lots : quoi, quand, combien, lignes refusées
 python deals.py replay <source>              relire le fichier gardé du dernier lot (correspondance corrigée)
-python deals.py probe <fichier>              un échantillon de flux : format, colonnes, correspondance proposée
+python deals.py probe <fichier>|--source <clé>   un échantillon de flux (un fichier, ou lu à l'adresse de la source) :
+                                             format, colonnes, correspondance proposée
 python deals.py discover|diagnose|sample|build <enseigne|all>     lire les fiches d'une enseigne sans flux
 python deals.py explain <adresse>            ce que l'extraction voit sur une page, et pourquoi
 python deals.py rules <site> '<json>'        règle de lecture d'un site (sélecteurs)
 python deals.py review|estimate|metrics      rapprochements à vérifier, durée de la nuit, mesures de conversion
 python deals.py backup <dossier>             sauvegarde à chaud vérifiée (14 conservées)
-python -m unittest discover -s tests -t .    tests (254, ~70 s)
+python -m unittest discover -s tests -t .    tests (263, ~70 s)
 python -m bench.extraction | bench.deals_truth | bench.alternatives | bench.missions | bench.scale [--aspirateurs N]
-          | bench.autonomy | bench.profiles [--scale] | bench.search [--scale] | bench.aspirateurs     mesures
+          | bench.autonomy | bench.profiles [--scale] | bench.search [--scale] | bench.aspirateurs | bench.ontologie
+                                             mesures (docs/ARCHITECTURE.md, « Vérifier »)
 python -m bench.cadre                        le cadre de mise en production : points non négociables, sauvegarde,
                                              en-têtes (docs/PRODUCTION.md)
-ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html
+ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire web/app.html (outils : web/build.sh)
 ```
 `--db` (avant la commande) choisit la base ; réglages par variables `DEALS_*` (`deals/config.py`,
 `deploy/deals.env.example`). Les commandes qui lisent les sites exigent `DEALS_USER_AGENT` (nom du robot, contact).
@@ -269,13 +271,13 @@ des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des
 que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
 immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Trois onglets :
-Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise, l'entonnoir — une question à la fois, jusqu'à votre sélection —, Promo et
-Trier, Sauvegarder ; vos recherches sauvegardées et récentes ; un feed qui s'adapte ; le même entonnoir sur les pages
-d'une marque, d'une catégorie, d'une pièce), Profil, le centre de commande (vos recherches et alertes, favoris,
+Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise,
+l'entonnoir — une question à la fois, « Passer », jusqu'à votre sélection —, Promo et Trier, Sauvegarder ; vos
+recherches récentes ou des exemples ; un feed qui s'adapte ; le même entonnoir sur les pages d'une marque, d'une
+catégorie, d'une pièce), Profil, le centre de commande (vos recherches et alertes, favoris,
 marques, rayons — repliés, ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres
-seuls, beaucoup d'air) ; « Comment ça marche » au pied de chaque écran ; espaces insécables du français dans les
-textes.
-Principe, écrans et mesures v41 à v60 : [`docs/UX.md`](docs/UX.md).
+seuls, beaucoup d'air) ; « Comment ça marche » et « Mentions légales » au pied de chaque écran ; espaces insécables
+du français dans les textes. Principe et écrans : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 
@@ -307,8 +309,9 @@ financement, éco-participation, ODR, « autres offres dès … » jamais pris p
 
 `DEALS_AFFILIATE` désigne un fichier JSON : clé d'enseigne (`deals/ingest/retailers.py` ou `DEALS_SOURCES`) → règle de lien. Deux formes :
 le gabarit du réseau, avec `{url}` (l'adresse de la fiche, encodée) et `{subid}` (l'identifiant du clic), ou des
-paramètres ajoutés à l'adresse de la fiche (`tag=…&sub={subid}`) ; exemple : `deploy/affiliate.example.json`, gabarits
-exacts dans l'espace affilié de chaque réseau. Seules ces enseignes sont lues la nuit et publiées ; un fichier mal formé
+paramètres ajoutés à l'adresse de la fiche (`tag=…&sub={subid}`) ; modèle : `deploy/affiliate.example.json`, dont les
+clés ne désignent aucune enseigne (le copier ne déclare aucun partenaire) ; gabarits exacts dans l'espace affilié de
+chaque réseau, `sudo deals partners` pour vérifier. Seules ces enseignes sont lues la nuit et publiées ; un fichier mal formé
 arrête le démarrage. Sans ce fichier (développement), tout est publié et les liens partent tels quels ; la démo simule
 des enseignes partenaires.
 
@@ -328,7 +331,8 @@ hottes, cuisinières, aspirateurs, robots aspirateurs), **ameublement** (canapé
 **literie** (matelas, sommiers). Un titre qui commence par un accessoire ou un prix sous 100 € (30 € pour les
 aspirateurs : un aspirateur à main coûte souvent moins) n'entre pas au catalogue.
 
-Enseignes actives : Boulanger, Electro Dépôt, Ubaldi, Cdiscount, But, IKEA, Maisons du Monde, La Redoute, Vente-unique.
+Enseignes dont le code sait lire les fiches (le dernier recours ; en production, seules les enseignes partenaires sont
+lues) : Boulanger, Electro Dépôt, Ubaldi, Cdiscount, But, IKEA, Maisons du Monde, La Redoute, Vente-unique.
 Désactivées, avec la raison dans `deals/ingest/retailers.py` : Conforama (défi Cloudflare, prix chargés par le
 navigateur), Darty (anti-robot signalé contre les centres de données, à vérifier avec `diagnose darty`), Amazon
 (conditions d'utilisation). Un site qui bloque est signalé, jamais forcé.
@@ -343,12 +347,15 @@ même site, les sites en parallèle ; requêtes conditionnelles (ETag / Last-Mod
 sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapport du matin avec alertes.
 
 ## Coût de fonctionnement
-- ~4 600 fiches (40 par catégorie et par enseigne) ; le site le plus chargé (~840 fiches × 5 s) fixe la passe : ~70 min
-  par nuit. Publication, alternatives et courbes de 90 jours comprises : ~3 s pour 3 000 produits (~1 ms par produit,
+- Par les flux (la voie normale) : un fichier par enseigne et par nuit. Par les fiches (dernier recours) : ~4 600
+  fiches (40 par catégorie et par enseigne) ; le site le plus chargé (~840 fiches × 5 s) fixe la passe : ~70 min. Publication, alternatives et courbes de 90 jours comprises : ~3 s pour 3 000 produits (~1 ms par produit,
   aspirateurs compris, dont l'ontologie relit la catégorie gardée).
 - Base : quelques dizaines de Mo par an (seuls les changements sont écrits).
 - Missions de la nuit : ~6 s pour 10 000 missions sur 3 000 produits (~1,6 à 2,2 s une nuit sans changement).
-- Serveur : Hetzner CX23, 5,49 € HT + 0,50 € d'IPv4 = **5,99 € HT par mois** (tarifs d'août 2026).
+- Serveur : un VPS OVHcloud d'entrée de gamme suffit ; VPS-1 (2 vCore, 4 Go, 40 Go NVMe) affiché **3,81 € HT par
+  mois** le 1er novembre 2026 (à confirmer à la commande selon l'engagement), sauvegarde quotidienne de la machine
+  sur 7 jours comprise. Copie chiffrée des sauvegardes hors du serveur : un bucket OVHcloud Object Storage, facturé au
+  volume (quelques Go).
 - E-mails (connexion, et missions : au plus un par personne et par nuit) : Brevo gratuit jusqu'à 300 par jour, partagés
   par les deux plafonds (`DEALS_MAILS_PER_DAY` 250, `DEALS_MISSION_MAILS` 50) ; au-delà, une offre payante. Nom de
   domaine : quelques euros par an. Aucun proxy, aucune API payante, aucune IA.
@@ -361,7 +368,8 @@ sont enregistrés ; les fortes variations sont relues avant d'être crues ; rapp
 - Les taux de lecture réels par enseigne restent à mesurer depuis le serveur (`diagnose`) : l'environnement de
   développement n'a pas accès au web ; tout est vérifié sur faux sites locaux, corpus publics et pages-pièges.
 - Pas de navigateur : un site dont les prix n'existent qu'après exécution du JavaScript reste illisible (Conforama).
-- Une baisse sans prix barré n'est pas montrée (choix produit et juridique, voir `docs/AUDIT.md`).
+- Une baisse sans prix barré n'est pas montrée : choix produit et juridique, les règles françaises sur les annonces de
+  réduction (prix de référence : le plus bas des 30 derniers jours) sont à valider avant tout affichage.
 - Sans e-mail, ce qu'on garde tient à l'appareil et à son cookie : effacer les données du navigateur le perd ; un
   compte invité ne se retrouve pas sur un autre appareil. 100 comptes invités au plus par adresse IP et par heure : un
   très grand réseau derrière une seule adresse (opérateur mobile) pourrait l'atteindre aux heures de pointe.

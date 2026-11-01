@@ -72,7 +72,7 @@ elle devient caduque quand son incident se résout ou qu'un responsable a tranch
 ## L'e-mail du matin (exemple réel, banc de pannes, troisième nuit d'un anti-robot)
 
 ```
-Objet : Deals · nuit du 2025-11-22 : 1 incident ouvert
+Objet : Promo Central · nuit du 2025-11-22 : 1 incident ouvert
 
 Nuit du 2025-11-22 — état : critique
 

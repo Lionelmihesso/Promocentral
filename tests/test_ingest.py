@@ -188,6 +188,43 @@ class Registry(unittest.TestCase):
                                                       "mapping": {"preset": "google_shopping"}}}), env={})
         self.assertFalse(disabled["fnac"]["enabled"])                              # désactivée : rien à résoudre
 
+    def test_probe_reads_a_sample_at_the_source_address_without_ever_showing_it(self):
+        """deploy/README.md : l'échantillon d'un flux se lit par sa source, même désactivée (on écrit sa correspondance
+        avant de l'activer) ; l'adresse, qui porte les identifiants du réseau, ne passe ni par la ligne de commande ni
+        par l'historique du shell, et n'apparaît dans aucun message, même d'erreur."""
+        import io
+        import os
+        from contextlib import redirect_stdout
+        from unittest import mock
+
+        from deals import cli
+        secret = self.dir / "jeton-s3cr3t"
+        secret.mkdir()
+        (secret / "flux.xml").write_bytes(rss(LAVE, TV))
+        path = self.write({"fnac": {"kind": "feed", "name": "Fnac", "enabled": False, "url": "${DEALS_FEED_FNAC}/flux.xml",
+                                    "mapping": "feeds/fnac.json"}})              # la correspondance n'existe pas encore
+
+        def run(env):
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {"DEALS_SOURCES": path, **env}), redirect_stdout(out):
+                try:
+                    cli.main(["--db", str(self.dir / "p.sqlite"), "probe", "--source", "fnac"])
+                    return 0, out.getvalue()
+                except SystemExit as e:
+                    return e.code, out.getvalue()
+        code, out = run({"DEALS_FEED_FNAC": str(secret)})
+        self.assertEqual(code, 0, out)
+        self.assertIn('"preset": "google_shopping"', out)
+        self.assertNotIn("s3cr3t", out)
+        code, out = run({"DEALS_FEED_FNAC": str(self.dir / "autre-s3cr3t")})   # introuvable : l'erreur ne le dit pas
+        self.assertIn("${DEALS_FEED_FNAC}", str(code))
+        self.assertNotIn("s3cr3t", str(code) + out)
+        code, _ = run({})
+        self.assertIn("variable d'environnement DEALS_FEED_FNAC absente", str(code))
+        with mock.patch.dict(os.environ, {"DEALS_SOURCES": path}), self.assertRaises(SystemExit) as e:
+            cli.main(["--db", str(self.dir / "p.sqlite"), "probe", "--source", "ikea"])   # une source « site »
+        self.assertIn("n'est pas une source « feed »", str(e.exception.code))
+
 
 class Ingestion(unittest.TestCase):
     def setUp(self):

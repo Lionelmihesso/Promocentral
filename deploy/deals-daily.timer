@@ -1,5 +1,5 @@
 [Unit]
-Description=DEALS — passe de nuit chaque jour à 3 h
+Description=Promo Central — passe de nuit chaque jour à 3 h
 
 [Timer]
 OnCalendar=*-*-* 03:00:00

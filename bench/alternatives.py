@@ -1,4 +1,4 @@
-"""Alternatives moins chères, mesurées contre une grille indépendante du code de DEALS.
+"""Alternatives moins chères, mesurées contre une grille indépendante du code de Promo Central.
 
 La grille dit ce qu'un acheteur attend d'un remplaçant ; elle a été écrite avant le moteur (deals/alternatives.py) et
 ne partage rien avec lui : ni l'extraction des attributs (ici, des expressions régulières sur le titre), ni les règles.

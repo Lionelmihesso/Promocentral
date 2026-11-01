@@ -95,6 +95,29 @@ class Release(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("pas de version précédente", out)
 
+    def test_package_comes_from_a_commit_and_can_be_run_again(self):
+        """deploy/README.md § 5 et § 11 : l'archive vient d'un commit ; celle d'avant, restée à la racine du dépôt, ne
+        bloque pas la suivante (elle est ignorée par git), une vraie modification si."""
+        repo = Path(tempfile.mkdtemp()) / "depot"
+        shutil.copytree(CODE, repo, ignore=lambda d, names: [n for n in names if n in SKIP or n.endswith((".sqlite", ".sqlite-wal", ".sqlite-shm"))])
+        git = lambda *a: subprocess.run(["git", "-c", "user.name=essai", "-c", "user.email=essai@example.invalid", *a], cwd=repo,
+                                        capture_output=True, text=True, check=True)
+        git("init", "-q")
+        git("add", "-A")
+        git("commit", "-qm", "essai")
+        pack = lambda: subprocess.run(["sh", "deploy/release.sh", "package"], cwd=repo, capture_output=True, text=True, timeout=120)
+        first = pack()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertTrue(Path(first.stdout.strip().splitlines()[-1]).name.startswith("promocentral-"))
+        import time
+        time.sleep(1.1)                                              # un autre nom (à la seconde)
+        second = pack()
+        self.assertEqual(second.returncode, 0, second.stderr)
+        (repo / "README.md").write_text("modifié", encoding="utf-8")
+        third = pack()
+        self.assertNotEqual(third.returncode, 0)
+        self.assertIn("ne sont pas commitées", third.stderr)
+
     def test_an_installed_version_is_never_overwritten(self):
         a = archive(self.tmp, "promocentral-20261031-110000-aaaaaaa")
         self.run_("install", str(a))

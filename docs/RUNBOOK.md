@@ -116,7 +116,8 @@ publier quand même. Sans décision, la garde relâche au bout de deux nuits (le
 **Vérifier.** `sudo deals partners` (le fichier des partenaires a-t-il changé ? une clé mal écrite ?) et
 `sudo deals sources` (une source à l'arrêt ?) ; le rapport du matin, enseigne par enseigne.
 
-**Corriger.** Si la baisse est une erreur : corriger `/etc/deals/affiliate.json` ou la source, puis `sudo deals publish`.
+**Corriger.** Si la baisse est une erreur : corriger `/etc/deals/affiliate.json` ou la source, puis `sudo deals publish`
+(et `sudo systemctl restart deals-web` après une modification de `affiliate.json` : l'app le lit à son démarrage).
 Si elle est voulue (partenaire retiré) : `sudo deals approve <n°>` (publier malgré la garde) ; mettez aussi de côté les
 sources qui ne sont plus partenaires (`sudo deals sources disable <clé> --reason "plus partenaire"`) pour que le contrôle
 de taille du catalogue ne les attende plus.
@@ -184,7 +185,8 @@ la cause ; la nuit suivante recalcule.
 **Vérifier.** `sudo deals metrics` ; l'app s'ouvre-t-elle, la route `/api/r/out/<offre>` redirige-t-elle (un clic sur
 « Voir l'offre ») ? Le lien affilié du réseau a-t-il changé ?
 
-**Corriger.** Le gabarit du lien dans `/etc/deals/affiliate.json`, ou l'app (`deals-web`).
+**Corriger.** Le gabarit du lien dans `/etc/deals/affiliate.json`, puis `sudo systemctl restart deals-web` (l'app lit les
+partenaires à son démarrage) ; ou l'app elle-même (`journalctl -u deals-web`).
 
 <a id="nuit-en-erreur"></a>
 ## Étape de la nuit en erreur
@@ -247,9 +249,10 @@ tests de fumée ont échoué : la version d'avant est revenue d'elle-même (et l
 migrée). La sortie de la commande dit quel contrôle a échoué.
 
 **Vérifier.** `sudo sh /opt/deals/current/deploy/release.sh list` (la version en service) ; `python3
-/opt/deals/current/deploy/smoke.py` (les contrôles, un par ligne) ; `journalctl -u deals-web --since "-10 min"`.
+/opt/deals/current/deploy/smoke.py http://127.0.0.1:8000` (les contrôles, un par ligne) ; `journalctl -u deals-web --since "-10 min"`.
 
-**Corriger.** Le défaut dans le code, un nouveau commit, une nouvelle archive, répétée d'abord en préproduction. Une
+**Corriger.** Le défaut dans le code, un nouveau commit, une nouvelle archive, essayée d'abord hors production. Si les
+services ont changé (`deploy/*.service`, `*.timer`), les recopier et `sudo systemctl daemon-reload` (`deploy/README.md` § 11). Une
 version qui passe ses tests mais se révèle mauvaise ensuite : `sudo sh /opt/deals/current/deploy/release.sh rollback`.
 
 <a id="nuit-absente"></a>
@@ -265,6 +268,6 @@ L'agent ne peut pas signaler une nuit qui n'a pas lieu : c'est `deals.py status`
 ## Sonde extérieure (`/api/r/health`)
 
 Une sonde HTTP extérieure (UptimeRobot, Healthchecks, Better Stack…) sur `https://<domaine>/api/r/health` prévient par
-un autre chemin que le SMTP de la plateforme. Réponse 200 (`ok`, ou `degraded` : un incident sérieux ouvert) ou 503
+un autre chemin que le SMTP de la plateforme, en GET ou en HEAD. Réponse 200 (`ok`, ou `degraded` : un incident sérieux ouvert) ou 503
 (`critical` : aucune nuit depuis 36 h, dernière nuit en erreur, ou incident critique ouvert). Rien d'autre n'est exposé
 que l'état, l'heure de la dernière nuit et la taille du catalogue.

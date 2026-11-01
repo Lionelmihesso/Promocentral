@@ -1,9 +1,9 @@
-# La Recherche de DEALS — trouver vite, garder sans e-mail (v56 à v60)
+# La Recherche de Promo Central — trouver vite, garder sans e-mail
 
-DEALS n'est pas un fil de bons plans à faire défiler : on vient chercher quelque chose et on doit le trouver vite. Deux
+Promo Central n'est pas un fil de bons plans à faire défiler : on vient chercher quelque chose et on doit le trouver vite. Deux
 leviers : **on vous recommande** (l'accueil et le feed suivent vos goûts, `docs/PERSONNALISATION.md`) et **vous
 cherchez** — une phrase comme on la dit, comprise en critères qu'on modifie d'un geste, une recherche qu'on garde et que
-DEALS surveille ; dans chaque rayon et son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise), le
+la plateforme surveille ; dans chaque rayon et son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise), le
 **type** et un ou deux **attributs** lus dans les offres ; v60 : **Affiner en entonnoir**, une question à la fois, dans
 la Recherche et sur les pages d'une marque, d'une catégorie, d'une pièce. Le tout sans IA (des règles écrites, testées)
 et sans e-mail.
@@ -94,9 +94,9 @@ Promo et Trier (pertinence, prix croissant ou décroissant, remise) restent des 
 
 ## Sauvegarder une recherche (les missions)
 
-Une recherche sauvegardée est une **mission** : DEALS la surveille. Le prix est facultatif. « Sauvegarder » sur les
+Une recherche sauvegardée est une **mission** : la plateforme la surveille. Le prix est facultatif. « Sauvegarder » sur les
 résultats ; la même recherche, retapée, se sait sauvegardée (« Sauvegardée », un geste pour la retirer). Elles sont
-dans la Recherche (une ligne, avant toute saisie) et dans le Profil, avec ce qui y répond et **ce qui est nouveau depuis
+dans le Profil (depuis la v61, plus dans la Recherche, qui dit où les retrouver), avec ce qui y répond et **ce qui est nouveau depuis
 qu'on l'a ouverte** (« 5 NOUVEAUX » ; la cloche et l'onglet Profil comptent les recherches qui ont du nouveau). L'ouvrir
 remet ses critères et oublie ses nouveautés. Une alerte de prix (« Me prévenir sous un prix », depuis la fiche) est une
 mission sur un produit ou ses comparables. Les recherches sauvegardées nourrissent le profil : leur rayon et leur marque

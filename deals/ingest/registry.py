@@ -81,8 +81,9 @@ def _feed(src, spec, root, env, w):
         raise ValueError(f"{w} : url du flux manquante")
     if not src.get("mapping"):
         raise ValueError(f"{w} : mapping manquant (un objet, un fichier, ou {{\"preset\": \"google_shopping\"}})")
+    headers = dict(src.get("headers") or {})
     if not spec["enabled"]:                   # désactivée : rien à lire ni à résoudre ; vérifiée le jour où elle s'active
-        return {"mapping": None, "url_template": src["url"], "headers": {}}
+        return {"mapping": None, "url_template": src["url"], "headers": {}, "headers_template": headers}
     m = src["mapping"]
     if isinstance(m, str):
         f = Path(m) if Path(m).is_absolute() else root / m
@@ -95,7 +96,17 @@ def _feed(src, spec, root, env, w):
     except FeedError as e:
         raise ValueError(str(e)) from None
     return {"mapping": mapping, "url_template": src["url"], "url": resolve(src["url"], env, w),
-            "headers": {k: resolve(str(v), env, w) for k, v in dict(src.get("headers") or {}).items()}}
+            "headers": {k: resolve(str(v), env, w) for k, v in headers.items()}, "headers_template": headers}
+
+
+def address(spec, env=None):
+    """L'adresse et les en-têtes d'une source « feed », résolus dans l'environnement, qu'elle soit activée ou non : pour
+    lire un échantillon avant de l'activer (deals.py probe --source). Ils portent les identifiants du réseau : à ne
+    jamais montrer ni journaliser."""
+    env = os.environ if env is None else env
+    w = f"DEALS_SOURCES : {spec['key']}"
+    return {"url": resolve(spec["url_template"], env, w),
+            "headers": {k: resolve(str(v), env, w) for k, v in (spec.get("headers_template") or {}).items()}}
 
 
 def sites(specs):
@@ -110,4 +121,4 @@ def feeds(specs):
 def public(spec):
     """Ce qu'on peut montrer d'une source (journal, deals.py sources) : jamais l'adresse résolue ni les en-têtes, qui
     portent les identifiants du réseau."""
-    return {k: v for k, v in spec.items() if k not in ("url", "headers", "mapping")}
+    return {k: v for k, v in spec.items() if k not in ("url", "headers", "mapping", "headers_template")}
