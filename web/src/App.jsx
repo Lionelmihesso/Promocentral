@@ -40,6 +40,11 @@
    c'est votre sélection. Le même entonnoir dans la Recherche et sur la page d'une marque, d'une catégorie, d'une pièce.
    La fiche n'a plus la jauge du prix des derniers mois : le prix, la remise, l'offre.
 
+   v64 : quatre onglets. Top deals (les plus fortes remises réelles et les prix parmi les plus bas, à tour de rôle)
+   devient un onglet, le premier, ouvert au lancement ; l'Accueil devient Explorer, le même sans les top deals (le
+   bandeau, « Pour vous », les inspirations du moment, les marques en promo, notre sélection) ; « Pour vous » y montre
+   tous vos deals, top deals compris. Recherche et Profil ne changent pas.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
@@ -60,6 +65,8 @@ const UI = {
   heart: [HEART],
   bell: ["M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z", "M10 20.5a2.2 2.2 0 0 0 4 0"],
   home: ["M4.5 10.5L12 4.5l7.5 6V19a1 1 0 0 1-1 1h-4v-5.5h-5V20h-4a1 1 0 0 1-1-1z"],
+  flame: ["M12 20.5c-3.5 0-6-2.5-6-5.8 0-2.6 1.4-4.3 2.8-5.9.2 1.5.9 2.6 2 3.2-.1-3.3 1.4-6.1 4-8 .2 3 1.8 4.9 3 6.6.9 1.3 1.5 2.6 1.5 4.3 0 3.1-2.6 5.6-6.3 5.6z"],
+  compass: ["M15.2 8.8l-1.9 4.5-4.5 1.9 1.9-4.5z", C(12, 12, 8.2)],   // l'aiguille d'abord : c'est elle que l'onglet ouvert remplit
   user: [C(12, 8.5, 3.8), "M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"],
   share: ["M12 15V4.5", "M8 8l4-4 4 4", "M6 12.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6.5"],
   cal: ["M5.5 6h13a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M4.5 10h15", "M8.5 4v4", "M15.5 4v4"],
@@ -485,7 +492,7 @@ const CSS = `
 .d .confirm .ghost{margin:0}
 .d .danger{border:0;background:var(--accent-ink);color:#fff;border-radius:999px;min-height:44px;padding:0 18px;font-size:14px;font-weight:800}
 .d .toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:700;z-index:11;white-space:nowrap}
-nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:5;padding:6px 8px calc(10px + env(safe-area-inset-bottom))}
+nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:5;padding:6px 8px calc(10px + env(safe-area-inset-bottom))}
 .d-nav button{position:relative;border:0;background:none;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:700;color:var(--soft);border-radius:16px}
 .d-nav button.on{color:var(--ink);font-weight:800}
 .d-nav .ic{position:relative}
@@ -716,13 +723,13 @@ function Funnel({ at, total, onAnswer, onBack, onSkip, onRestart, keep }) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("tops");          // tops (Top deals, au lancement) | home (Explorer) | search | me
   const [view, setView] = useState(null);          // null | item | brand | category | room | about — chacune garde `from` (« Retour »)
   const [q, setQ] = useState("");                  // Recherche : la phrase tapée
   const [crit, setCrit] = useState(NO_CRIT);       // Recherche : les critères choisis dans l'app (puces, entonnoir), qui l'emportent
   const [skip, setSkip] = useState([]);            // Recherche : les questions de l'entonnoir passées (« Passer »)
   const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
-  const [top, setTop] = useState(null);            // top deals (accueil, en premier)
+  const [top, setTop] = useState(null);            // top deals (leur onglet)
   const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)
   const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
   const [picking, setPicking] = useState(null);    // feuille ouverte : off | sort | brands
@@ -731,7 +738,7 @@ export default function App() {
   const [feed, setFeed] = useState(null);          // Recherche : le feed d'avant toute saisie
   const [recent, setRecent] = useState(() => recents.get());
   const [seen, setSeen] = useState([]);            // fiches ouvertes et clics de la visite (le serveur n'en garde rien)
-  const [you, setYou] = useState(null);            // accueil : « pour vous »
+  const [you, setYou] = useState(null);            // Explorer : « pour vous »
   const [taste, setTaste] = useState(null);        // Profil : ce que l'app retient et a compris
   const [guestVariant] = useState(() => Math.random() < 0.1 ? "t" : "p"); // sans compte : une visite sur dix est témoin
   const seq = useRef(0);                           // seule la réponse à la dernière saisie compte
@@ -842,7 +849,7 @@ export default function App() {
     api("brands?all=1").then(setAllBrands).catch(() => {});
   }, [version]);
 
-  useEffect(() => {                                                         // accueil : top deals, pour vous, sélection — selon vos goûts
+  useEffect(() => {                                                         // top deals ; Explorer : pour vous, sélection — selon vos goûts
     if (!session.checked) return;
     const ok = latest("home");
     api(`today${tq}`).then(ok(d => { setAll(d); setError(null); })).catch(() => setError("Impossible de charger les remises."));
@@ -1089,7 +1096,8 @@ export default function App() {
     <input value={q} onChange={e => { setQ(e.target.value); setSkip([]); }} placeholder="« aspirateur balai sous 300 € », une marque…" aria-label="Rechercher" enterKeyHint="search" />
     {q && <button type="button" className="sx" aria-label="Effacer le texte" onClick={() => { setQ(""); setSkip([]); }}><Icon d={UI.x} size={18} /></button>}</label></form>;
   const back = <button className="back" onClick={goBack}><Icon d={UI.back} size={18} sw={2.2} />Retour</button>;
-  const tabsList = [["home", "Accueil", UI.home], ["search", "Recherche", UI.search], ["me", "Profil", UI.user]];   // vos recherches et missions sont dans le Profil
+  const tabsList = [["tops", "Top deals", UI.flame], ["home", "Explorer", UI.compass], ["search", "Recherche", UI.search],
+    ["me", "Profil", UI.user]];                                                      // vos recherches et missions sont dans le Profil
   const fresh = missions?.fresh || 0;
   const badge = { me: fresh + drops };
   const freshSaid = fresh > 1 ? `${fresh} recherches avec du nouveau` : fresh === 1 ? "1 recherche avec du nouveau" : "";
@@ -1185,9 +1193,10 @@ export default function App() {
         pas affichée.</p>
       <h2>Dans quel ordre ?</h2>
       <ul>
-        <li><b>Accueil, top deals</b> : les plus fortes remises réelles et les produits dont le prix est parmi les plus bas depuis
-          au moins deux mois (au moins 10 % sous leur prix habituel), à tour de rôle. <b>Pour vous</b> : les remises et les prix
-          bas de vos rayons et de vos marques. <b>Notre sélection</b> : les autres remises, les plus fortes d'abord.</li>
+        <li><b>Top deals</b> : les plus fortes remises réelles et les produits dont le prix est parmi les plus bas depuis
+          au moins deux mois (au moins 10 % sous leur prix habituel), à tour de rôle. <b>Explorer</b> : <b>Pour vous</b>, les
+          remises et les prix bas de vos rayons et de vos marques ; <b>Notre sélection</b>, les autres remises, les plus fortes
+          d'abord.</li>
         <li><b>Vos goûts</b> : vos rayons (choisis, ou ceux des fiches que vous ouvrez), vos marques suivies, vos favoris et vos
           recherches sauvegardées font passer un deal devant, au plus une fois et demie : l'intérêt du deal reste premier, et un emplacement
           sur quatre revient au meilleur deal du moment, quels que soient vos goûts. Une visite sur dix (un compte sur dix,
@@ -1286,19 +1295,25 @@ export default function App() {
       {res && <div className={`flow ${stale ? "dim" : ""}`}>{grid(res.products, view.kind)}</div>}
       {res && res.total === 0 && <div className="empty">{view.kind === "room" ? "Aucune remise dans cette pièce aujourd'hui." : "Aucun produit pour l'instant."}</div>}
     </>;
-  } else if (tab === "home") {                    // éditorial : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
+  } else if (tab === "tops") {                    // Top deals : les plus fortes remises réelles et les prix bas, à tour de rôle
+    const tops = top?.products || [];
+    body = <>
+      <div className="pagehead"><div><h1>Top deals</h1><div className="sub">Remises et prix bas</div></div></div>
+      <div style={{ height: 16 }} />
+      {top && tops.length === 0 && <div className="empty">Aucun top deal aujourd'hui.</div>}
+      {grid(tops, "top")}
+    </>;
+  } else if (tab === "home") {                    // Explorer : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
     const items = all?.products || [];
-    const tops = top?.products || [], inTop = new Set(tops.map(p => p.id));
-    const yours = (you?.products || []).filter(p => !inTop.has(p.id));   // pour vous : sans répéter les top deals
+    // Pour vous : tous vos deals, top deals compris : ils ne sont plus sur cet écran, et ils suivent vos goûts eux aussi
+    // (les en retirer vidait la section). Notre sélection : les autres remises, ni top deals ni « pour vous ».
+    const inTop = new Set((top?.products || []).map(p => p.id));
+    const yours = you?.products || [];
     const shown = new Set([...inTop, ...yours.map(p => p.id)]);
-    const rest = items.filter(p => !shown.has(p.id));              // notre sélection : sans répéter ce qui est au-dessus
+    const rest = items.filter(p => !shown.has(p.id));
     body = <>
       <Ticker items={items} publishedAt={all?.published_at} />
       <div className="intro"><h1>De bonnes affaires, pour vos envies.</h1></div>
-      {tops.length > 0 && <>
-        <div className="sechead"><h2>Top deals</h2><span className="n">Remises et prix bas</span></div>
-        <div className="scroller tops">{tops.map(card("top"))}</div>
-      </>}
       {yours.length > 0 && <>
         <div className="sechead"><div><h2>Pour vous</h2><span className="n">{tasteLine(you?.taste, picks)}</span></div>
           <button className="forget" onClick={() => goTab("me")} aria-label="Modifier vos goûts, dans Profil">Modifier</button></div>
@@ -1444,7 +1459,7 @@ export default function App() {
 
   return <div className="d"><style>{CSS}</style><div className="app">
     {!(view?.kind === "item" && width < 1000) && <header className="top">
-      <button className="logo" onClick={() => goTab("home")} aria-label="Promo Central, accueil">Promo Central<b>.</b></button>
+      <button className="logo" onClick={() => goTab("tops")} aria-label="Promo Central, top deals">Promo Central<b>.</b></button>
       <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k && !view ? "on" : ""} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <Icon d={d} size={18} />{l}{badge[k] > 0 && <span className="dot">{badge[k]}</span>}</button>)}</div>
       <button className="ibtn" aria-label={fresh ? freshSaid : "Vos recherches"} onClick={() => goTab("me")}>

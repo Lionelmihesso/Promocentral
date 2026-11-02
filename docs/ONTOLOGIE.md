@@ -104,7 +104,7 @@ autre qui l'est).
   relit dans une recherche : une puce gardée en mots redonne la même recherche (`tests/test_ontology.py`).
 - **Affiner** : le rayon (celui que la phrase a dit est coché), le type, les caractéristiques (oui ou non), les mesures
   qui existent (taille d'écran, stockage, mémoire, fréquence, tiroirs…), chacune avec ce qu'elle donnerait.
-- **Accueil** : la pièce **High-tech** ouvre les inspirations ; les exemples de la Recherche disent « TV OLED 55
+- **Explorer** : la pièce **High-tech** ouvre les inspirations ; les exemples de la Recherche disent « TV OLED 55
   pouces », « smartphone 5G ». Chaque rayon d'électronique a son illustration originale (`web/src/art.jsx`).
 - **Moins cher, comparable** (la fiche) : le même type, ni plus ni moins — un produit dont l'offre ne dit pas le type
   n'est comparé qu'à d'autres qui ne le disent pas (un canapé convertible n'est pas remplacé par un canapé d'angle) ;

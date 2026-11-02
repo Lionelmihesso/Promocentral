@@ -108,7 +108,7 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 `deploy/deals.env.example`). Les commandes qui lisent les sites exigent `DEALS_USER_AGENT` (nom du robot, contact).
 
 ## API `/api/r/` (contrat de l'app)
-Lecture ouverte : `today?category=&q=` (remises du jour), `top` (top deals de l'accueil ; `why` : la remise, le prix
+Lecture ouverte : `today?category=&q=` (remises du jour), `top` (l'onglet Top deals ; `why` : la remise, le prix
 bas et depuis quand), `search?q=&category=&room=&brand=&feat=&attr=&min=&max=&off=&low=&sort=&recent=` (tout le
 catalogue suivi ; `q` est une phrase comprise, les autres paramètres sont les critères choisis dans l'app et l'emportent
 sur elle : `feat` des fonctions séparées par des virgules, `attr` des `clé:valeur` (`capacity_kg:9`, `bed_size:160x200`,
@@ -270,8 +270,8 @@ avec l'heure de mise à jour ; la jauge du prix sur la fiche, de la v49 à la v5
 des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant
 que la question des droits n'est pas tranchée.
 Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
-immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Trois onglets :
-Accueil (les top deals, « Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise,
+immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Quatre onglets :
+Top deals (ouvert au lancement), Explorer (« Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise,
 l'entonnoir — une question à la fois, « Passer », jusqu'à votre sélection —, Promo et Trier, Sauvegarder ; vos
 recherches récentes ou des exemples ; un feed qui s'adapte ; le même entonnoir sur les pages d'une marque, d'une
 catégorie, d'une pièce), Profil, le centre de commande (vos recherches et alertes, favoris,

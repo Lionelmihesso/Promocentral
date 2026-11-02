@@ -25,7 +25,7 @@ CATEGORY_ONE = {
 FEATURE_LABEL = {"sans_fil": "Sans fil", "balai": "Balai", "traineau": "Traîneau", "laveur": "Laveur", "convertible": "Convertible",
                  "angle": "D'angle", "induction": "Induction", "encastrable": "Encastrable", "americain": "Américain",
                  "electrique": "Électrique"}
-# Les pièces de la maison, et le high-tech (accueil, « Inspirations du moment » ; une recherche « pour le salon ») → leurs rayons
+# Les pièces de la maison, et le high-tech (Explorer, « Inspirations du moment » ; une recherche « pour le salon ») → leurs rayons
 ROOMS = {"chambre": ("Chambre", ("lit", "matelas", "sommier", "armoire", "commode")),
          "salon": ("Salon", ("canape", "fauteuil", "table", "buffet", "meuble_tv", "luminaire")),
          "cuisine": ("Cuisine", ("refrigerateur", "congelateur", "four", "plaque_cuisson", "hotte", "lave_vaisselle", "cuisiniere",

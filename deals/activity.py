@@ -11,11 +11,11 @@ from . import affiliate
 from .errors import BadRequest, NotFound
 from .market import utc_day
 
-# d'où vient le clic : la fiche (item), ou une fiche ouverte depuis les top deals de l'accueil (top), les favoris du profil
+# d'où vient le clic : la fiche (item), ou une fiche ouverte depuis l'onglet Top deals (top), les favoris du profil
 # (saved), « Moins cher, comparable » (alternative), les produits
 # similaires (similar), une mission dans l'app (mission) ou son e-mail (mail), la page d'une marque (brand) ou d'une
 # catégorie (category), les résultats d'une recherche (search) ou le feed de la Recherche avant toute recherche (feed) :
-# la part de « search » dit si l'on cherche vraiment ; « home » : notre sélection sur l'accueil, « foryou » : « pour vous »,
+# la part de « search » dit si l'on cherche vraiment ; « home » : notre sélection sur Explorer, « foryou » : « pour vous »,
 # « room » : une pièce ; les autres valeurs viennent des versions précédentes de l'app
 CLICK_SOURCES = {"item", "top", "alternative", "similar", "mission", "mail", "brand", "category", "search", "feed", "saved",
                  "home", "foryou", "room", "hero", "today", "explore"}

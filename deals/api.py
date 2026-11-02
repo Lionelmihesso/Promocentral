@@ -1,6 +1,6 @@
 """Contrat de l'app : /api/r/.
 
-Lecture ouverte : today?category=&q= (remises du jour), top (top deals de l'accueil : remises et prix bas, why dit
+Lecture ouverte : today?category=&q= (remises du jour), top (l'onglet Top deals : remises et prix bas, why dit
 pourquoi), search (tout le catalogue suivi ; voir plus bas), categories et brands (celles qui ont des remises ; ?all=1 :
 toutes), brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id>, view {product_id, from, m, v}
 (fiche vue : le taux de clic), out/<offer_id>?from=&m=&v= (clic tracé → lien affilié de l'enseigne partenaire, avec

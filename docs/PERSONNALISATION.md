@@ -47,8 +47,8 @@ plus dans les top deals).
 
 | Écran | Avec des goûts connus |
 |---|---|
-| Top deals (accueil, en premier) | dans l'ordre du profil ; la plus forte remise du jour y reste |
-| « Pour vous » (accueil, sous les top deals) | les deals et les prix bas de vos rayons et de vos marques (affinité directe ≥ 0,3, pas la seule famille), dix au plus, sans répéter les top deals ; « Vos rayons : Canapés, Matelas » (ceux que vous avez choisis), « D'après vos recherches : Aspirateurs » (vos recherches sauvegardées, vos alertes) ou « D'après vos visites : Canapés » dit pourquoi ; « Modifier » mène au Profil |
+| Top deals (leur onglet, ouvert au lancement) | dans l'ordre du profil ; la plus forte remise du jour y reste |
+| « Pour vous » (Explorer, en premier) | les deals et les prix bas de vos rayons et de vos marques (affinité directe ≥ 0,3, pas la seule famille), dix au plus, top deals compris (ils ont leur onglet ; les en retirer vidait la section : sur la démo, après « aspirateur balai », 4 cartes → 1) ; « Vos rayons : Canapés, Matelas » (ceux que vous avez choisis), « D'après vos recherches : Aspirateurs » (vos recherches sauvegardées, vos alertes) ou « D'après vos visites : Canapés » dit pourquoi ; « Modifier » mène au Profil |
 | Inspirations du moment | les pièces de vos rayons d'abord |
 | Notre sélection | le reste des remises, dans l'ordre du profil |
 | Recherche, avant toute saisie | « Pour vous » (« D'après vos recherches », ou « D'après vos goûts ») : les produits de vos dernières recherches, puis ceux de vos rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue |

@@ -1,7 +1,8 @@
-# L'interface de Promo Central (v63)
+# L'interface de Promo Central (v64)
 
 Une page (`web/src/App.jsx` → `web/app.html`, polices incluses, aucune requête vers un tiers), téléphone d'abord,
-trois onglets : **Accueil**, **Recherche**, **Profil**. Ce document décrit l'interface telle qu'elle est ; son
+quatre onglets : **Top deals** (ouvert au lancement), **Explorer**, **Recherche**, **Profil**. Ce document décrit
+l'interface telle qu'elle est ; son
 historique (mesures version par version, de la v41 à la v63, et leurs captures) est dans git :
 `git log -p -- docs/UX.md`, et `git show 2ca25aa:docs/UX.md` pour la dernière version qui le contenait.
 
@@ -9,7 +10,7 @@ historique (mesures version par version, de la v41 à la v63, et leurs captures)
 
 **Peu de choses, et justes.** Rien de plus que ce qui aide à décider vite : pas d'encadré, pas de raisons sur les
 cartes, rien d'ajouté sur la fiche. La qualité reste implicite : seulement des remises réelles, aucune mention
-« vérifiée ». Deux entrées : **les belles remises du moment** (l'accueil) et **le produit qu'on regarde** (la
+« vérifiée ». Deux entrées : **les belles remises du moment** (Top deals, Explorer) et **le produit qu'on regarde** (la
 Recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins cher, et aussi bien ? ».
 
 **Pinterest × Bloomberg.** Pinterest pour donner envie : des visuels, une mosaïque, l'inspiration par pièce.
@@ -57,7 +58,8 @@ bandeau immobile si l'appareil demande moins d'animations, espaces insécables d
 
 | Écran | Contenu |
 |---|---|
-| Accueil | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix), « De bonnes affaires, pour vos envies. », **top deals** (« Remises et prix bas » : jusqu'à dix cartes à faire défiler, la plus forte remise d'abord, puis un prix bas, et ainsi de suite), **pour vous** (les deals et prix bas de vos rayons et de vos marques, sans répéter les top deals, avec pourquoi : « Vos rayons : Canapés, Matelas » ; « Modifier » mène au Profil), **inspirations du moment** par pièce (les pièces de vos rayons d'abord), **les marques en promo** (même format), **notre sélection** en mosaïque. Pas de recherche sur l'accueil : elle est dans son onglet |
+| Top deals | le premier onglet, ouvert au lancement : « Top deals », « Remises et prix bas », puis les top deals en mosaïque (dix au plus, la plus forte remise d'abord, puis un prix bas, et ainsi de suite) |
+| Explorer | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix), « De bonnes affaires, pour vos envies. », **pour vous** (les deals et prix bas de vos rayons et de vos marques, top deals compris, avec pourquoi : « Vos rayons : Canapés, Matelas » ; « Modifier » mène au Profil), **inspirations du moment** par pièce (les pièces de vos rayons d'abord), **les marques en promo** (même format), **notre sélection** en mosaïque (les autres remises : ni top deals, ni « pour vous »). Pas de recherche sur Explorer : elle est dans son onglet |
 | Carte | visuel, remise sur le visuel, cœur, marque, nom (une ligne), prix et prix barré ; « Baisse de 64 € » sur un favori ; « 481 € de moins » sur une alternative ; dans les top deals, « Au plus bas » ou « Parmi les plus bas », et « Prix bas » sur le visuel d'un produit sans remise |
 | Fiche | grand visuel, partager (lien vers la fiche), cœur, **étiquettes marque et catégorie** posées sur le visuel ; nom ; remise, prix, prix barré ; « En remise depuis 3 jours, jusqu'au ven. 19 déc. » ; « Voir l'offre chez … » (l'enseigne partenaire la moins chère et disponible, la seule montrée) et « Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous. Comment ça marche » ; **« Me prévenir sous un prix »** ; **moins cher, comparable** ; à défaut, produits similaires |
 | Me prévenir (alerte de prix) | pour ce produit, ou tous les comparables (ce qui est guetté est dit : « Lit 160 × 200 ») ; trois prix proposés (−5 %, −10 %, −20 % du prix du jour) ou le sien ; ce qui en est aujourd'hui (« Aujourd'hui 612 € : encore 62 € ») ; posée tout de suite, sans e-mail |
@@ -82,4 +84,7 @@ illustrations tiennent la place ; elles restent de toute façon le repli d'un pr
 À chaque livraison, dans un vrai navigateur (Chromium), sur la démo nourrie par flux (`python deals.py demo`) : le
 parcours complet (85 étapes : accueil, Recherche et entonnoir, pages marque, catégorie et pièce, fiche, alerte,
 sauvegarde, e-mail facultatif, Profil, témoin, ordinateur, mouvement réduit) et l'audit d'accessibilité (92 écrans,
-téléphone et ordinateur : contrastes, zones à toucher, noms). Dernier passage : v63, 85/85 et 0 défaut.
+téléphone et ordinateur : contrastes, zones à toucher, noms). Dernier passage complet : v63, 85/85 et 0 défaut. v64
+(quatre onglets) : 18 contrôles ciblés dans Chromium (les quatre onglets et leur ordre, Top deals au lancement, le
+contenu de Top deals et d'Explorer, « Pour vous » après une recherche, l'origine « top » d'un clic, Retour, le logo,
+l'ordinateur, aucune erreur), pas le parcours complet ni l'audit, dont les scripts ne sont pas dans le dépôt.

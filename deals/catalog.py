@@ -1,7 +1,7 @@
 """Lectures de l'app — sur le catalogue publié, sans aucun calcul de marché.
 
 Chaque lecture = une ou deux requêtes indexées ; l'ordre (le profil de goûts, profile.py : au plus × 1,5) et les signets
-dépendent de la personne. L'accueil sans filtre, les top deals, « pour vous » et le feed de la Recherche suivent ses goûts ;
+dépendent de la personne. Explorer sans filtre, les top deals, « pour vous » et le feed de la Recherche suivent ses goûts ;
 une recherche, un filtre, une pièce, une marque ou une catégorie répondent à ce qui est demandé (seule la marque suivie y
 compte, comme avant). La recherche est insensible aux accents, à la casse et aux tirets ; chaque mot cherché doit
 commencer un mot du produit (titre, marque, enseigne, catégorie) ; quelques synonymes du langage courant.
@@ -10,8 +10,8 @@ Une carte porte la marque et la catégorie au singulier (`kind`). La fiche dit o
 derniers mois (`position`, pur) ; les caractéristiques techniques et les autres enseignes restent chez l'enseigne.
 
 La Recherche n'est jamais vide : sans mot ni filtre, elle montre un feed (`lead` puis `breadth`, purs) que chaque mot,
-filtre ou tri resserre ou réordonne. L'accueil commence par les top deals (`top`) : les plus fortes remises et les prix
-parmi les plus bas depuis longtemps (`cheap`, pur), à tour de rôle.
+filtre ou tri resserre ou réordonne. Les top deals (`top`, leur onglet, ouvert au lancement) : les plus fortes remises
+et les prix parmi les plus bas depuis longtemps (`cheap`, pur), à tour de rôle.
 """
 import json
 import re
@@ -30,7 +30,7 @@ from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS  # noqa: 
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
 SORTS = ("relevance", "price", "price_desc", "discount")   # Recherche : pertinence, prix croissant, décroissant, remise
-TOP_LIMIT = 10                                             # accueil : top deals (et « pour vous »)
+TOP_LIMIT = 10                                             # top deals (et « pour vous »)
 TOP_SAME = 3                                               # top deals suivant les goûts : au plus trois places par rayon
 LOW_DAYS = 60                                              # « depuis longtemps » : au moins 2 mois de prix relevés
 LOW_DROP = 0.10                                            # et au moins 10 % sous le prix habituel
@@ -217,7 +217,7 @@ class Catalog:
         return {**self._page(hits, score, uid, followed, saved), "published_at": self.published_at(), "personal": prof.personal}
 
     def top(self, uid=None, prof=None):
-        """Top deals, en tête de l'accueil : les plus fortes remises réelles et les prix parmi les plus bas depuis longtemps
+        """Top deals, leur onglet : les plus fortes remises réelles et les prix parmi les plus bas depuis longtemps
         (`cheap`, ce qu'ils font économiser sur le prix habituel d'abord), à tour de rôle, sans doublon ; les goûts de la
         personne pèsent au plus × 1,5 (une marque suivie aussi) et un même rayon n'y prend pas plus de trois places.
         why : pourquoi chacun est là (la remise ; le prix bas, son verdict et depuis combien de jours)."""
@@ -468,7 +468,7 @@ class Catalog:
         return {"features": [], "attrs": attrs, "brands": brands, "subs": subs, "props": bools}
 
     def foryou(self, uid=None, prof=None):
-        """« Pour vous », sur l'accueil : les deals et les prix bas de vos rayons et de vos marques (affinité directe d'au
+        """« Pour vous », en tête d'Explorer : les deals et les prix bas de vos rayons et de vos marques (affinité directe d'au
         moins 0,3), les meilleurs d'abord selon l'intérêt du deal × vos goûts, deux au plus d'un même rayon sur quatre,
         TOP_LIMIT au plus ; rien sans goûts connus. taste : ce que l'app a compris, pour le dire."""
         followed, saved = self._personal(uid)

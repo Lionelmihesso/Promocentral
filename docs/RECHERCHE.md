@@ -1,7 +1,7 @@
 # La Recherche de Promo Central — trouver vite, garder sans e-mail
 
 Promo Central n'est pas un fil de bons plans à faire défiler : on vient chercher quelque chose et on doit le trouver vite. Deux
-leviers : **on vous recommande** (l'accueil et le feed suivent vos goûts, `docs/PERSONNALISATION.md`) et **vous
+leviers : **on vous recommande** (les top deals, Explorer et le feed suivent vos goûts, `docs/PERSONNALISATION.md`) et **vous
 cherchez** — une phrase comme on la dit, comprise en critères qu'on modifie d'un geste, une recherche qu'on garde et que
 la plateforme surveille ; dans chaque rayon et son ontologie (v58 : les aspirateurs ; v59 : tous, électronique comprise), le
 **type** et un ou deux **attributs** lus dans les offres ; v60 : **Affiner en entonnoir**, une question à la fois, dans
