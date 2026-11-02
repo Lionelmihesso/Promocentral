@@ -124,6 +124,10 @@ class Flow(unittest.TestCase):
         self.get(f"out/{item['offers'][1]['offer_id']}?from=alternative")                 # fiche ouverte depuis « moins cher »
         self.assertEqual([r["source"] for r in self.store.q("SELECT source FROM clicks ORDER BY rowid")], ["item", "alternative"])
         self.assertEqual(self.get("out/999999")[0], 404)
+        top = self.get("top?family=ameublement,literie")[1]["products"]                 # v66 : Top deals d'un univers
+        self.assertTrue(top and {p["category"] for p in top} <= {"canape", "fauteuil", "lit", "armoire", "table", "buffet",
+                                                               "meuble_tv", "commode", "matelas", "sommier"}, top)
+        self.assertEqual(self.get("top?family=jardin")[0], 400)
         self.assertEqual(self.get("brand/Bosch")[1]["brand"], "Bosch")
         self.assertEqual(self.get("brand/Inconnue")[0], 404)
         self.assertEqual([p["brand"] for p in self.get("today?q=lave%20linge")[1]["products"]], ["Bosch"])

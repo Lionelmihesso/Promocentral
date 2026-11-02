@@ -127,8 +127,9 @@ attributs oui/non exigés `clé:1` ou `clé:0`, les mesures en `attr` (`screen_i
 dit `domain` (avec ses rayons), et dans `options` (Affiner) `subs` (les types, nom court, les plus fournis
 d'abord) et `props` (sans fil, sans sac : oui ou non, avec ce que chacun donnerait)),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
-leurs produits, remises d'abord), `item/<id>`,
-`out/<offer_id>?from=`, `missions/parse` {text} et `missions/preview` {mission} (ce qui est compris, ce qui y répond
+leurs produits, remises d'abord), `item/<id>`, `top?family=` (v66 : un univers, familles séparées par des virgules :
+`electromenager`, `ameublement,literie`, `electronique`), `out/<offer_id>?from=`, `missions/parse` {text} et
+`missions/preview` {mission} (ce qui est compris, ce qui y répond
 déjà ; une mission : `category`, `brand`, `features`, `attrs`, et `max_price` ; v65 : plus d'alerte de prix,
 `product_id` et `like` sont refusés).
 Ajoutés depuis la v41 : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche), `kind` (cartes :
@@ -265,23 +266,24 @@ ouvert).
 
 ## Interface
 
-Une page (`web/src/App.jsx` → `web/app.html`, polices incluses, aucune requête vers un tiers) : un flux vivant de
-remises, à la croisée d'un Pinterest (mosaïque de visuels, inspiration par pièce) et d'un Bloomberg (bandeau défilant
-avec l'heure de mise à jour ; la jauge du prix sur la fiche, de la v49 à la v59, est retirée en v60). Les visuels sont
-des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des enseignes ne sont pas montrées tant
-que la question des droits n'est pas tranchée.
-Téléphone d'abord, mosaïque de 4 à 5 colonnes sur ordinateur, contrastes et zones à toucher aux normes WCAG AA, bandeau
-immobile si l'appareil demande moins d'animations, lien partageable vers chaque fiche (`/?p=<id>`). Quatre onglets :
-Top deals (ouvert au lancement), Explorer (« Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise,
+Une page (`web/src/App.jsx` → `web/app.html`, police incluse, aucune requête vers un tiers) : les remises du jour en
+cartes à l'horizontale (v66, d'après la maquette du responsable : le visuel à gauche ; la marque et la remise, le nom,
+le prix et le prix barré, l'économie), une seule police (Manrope), des gris, l'anthracite pour agir et le violet pour
+la remise. Les visuels sont des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des enseignes ne
+sont pas montrées tant que la question des droits n'est pas tranchée.
+Téléphone d'abord (une colonne de cartes ; deux puis trois sur ordinateur), contrastes et zones à toucher aux normes
+WCAG AA, lien partageable vers chaque fiche (`/?p=<id>`). Quatre onglets :
+Top deals (ouvert au lancement ; Tout, Électroménager, Maison, High-tech), Explorer (« Pour vous », puis pièces,
+marques en promo, sélection), Recherche (une phrase comprise,
 l'entonnoir — une question à la fois, « Passer », jusqu'à votre sélection —, Promo et Trier, Sauvegarder ; vos
 recherches récentes ou des exemples ; un feed qui s'adapte ; le même entonnoir sur les pages d'une marque, d'une
 catégorie, d'une pièce), Profil, le centre de commande (vos recherches, favoris,
 marques, rayons — repliés, ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres
 seuls, beaucoup d'air ; à son pied, et seulement là, « Comment ça marche » et « Mentions légales ») ; espaces
-insécables du français dans les textes. v65, le moins possible : pas de phrase d'explication ; deux couleurs, l'action
-(jaune : le bouton vers l'enseigne, juste sous le prix, et « Promo » dans le logo) et la remise (rouge : la remise,
-l'économie, « Central ») ; chaque carte comme une étiquette : le prix, le prix barré et la remise, l'économie en
-euros. Principe et écrans : [`docs/UX.md`](docs/UX.md).
+insécables du français dans les textes. Le moins possible (v65, v66) : pas de phrase d'explication, pas de bandeau
+défilant, pas de cloche ; ni cœur ni bouton sur les cartes, toute la carte ouvre la fiche, où l'on garde le produit (le
+cœur) et va chez l'enseigne (le bouton anthracite, sous le prix) ; la marque et la catégorie sous le visuel, avant le
+nom. Principe et écrans : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 

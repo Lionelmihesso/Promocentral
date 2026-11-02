@@ -216,14 +216,18 @@ class Catalog:
         score = lambda r: r["pct"] * prof.boost(r["category"], r["brand"])
         return {**self._page(hits, score, uid, followed, saved), "published_at": self.published_at(), "personal": prof.personal}
 
-    def top(self, uid=None, prof=None):
+    def top(self, uid=None, prof=None, families=None):
         """Top deals, leur onglet : les plus fortes remises réelles et les prix parmi les plus bas depuis longtemps
         (`cheap`, ce qu'ils font économiser sur le prix habituel d'abord), à tour de rôle, sans doublon ; les goûts de la
         personne pèsent au plus × 1,5 (une marque suivie aussi) et un même rayon n'y prend pas plus de trois places.
-        why : pourquoi chacun est là (la remise ; le prix bas, son verdict et depuis combien de jours)."""
+        why : pourquoi chacun est là (la remise ; le prix bas, son verdict et depuis combien de jours). families : un
+        univers (v66, les puces de l'onglet : électroménager ; ameublement et literie ; électronique), la même règle sur
+        ses seuls produits."""
         followed, saved = self._personal(uid)
         prof = self._profile(prof, followed)
         rows = self.s.q("SELECT product_id, pct, brand, category, price, level, span, usual FROM catalog")
+        if families:
+            rows = [r for r in rows if FAMILY_OF.get(r["category"]) in families]
         drop = lambda r: (r["usual"] - r["price"]) / r["usual"]
         if prof.personal:
             deals = P.arrange([r for r in rows if r["pct"] > 0], lambda r: r["pct"], prof)

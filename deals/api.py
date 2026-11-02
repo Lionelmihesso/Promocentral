@@ -1,7 +1,7 @@
 """Contrat de l'app : /api/r/.
 
-Lecture ouverte : today?category=&q= (remises du jour), top (l'onglet Top deals : remises et prix bas, why dit
-pourquoi), search (tout le catalogue suivi ; voir plus bas), categories et brands (celles qui ont des remises ; ?all=1 :
+Lecture ouverte : today?category=&q= (remises du jour), top?family= (l'onglet Top deals : remises et prix bas, why dit
+pourquoi ; v66 : family, un univers — familles séparées par des virgules), search (tout le catalogue suivi ; voir plus bas), categories et brands (celles qui ont des remises ; ?all=1 :
 toutes), brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id>, view {product_id, from, m, v}
 (fiche vue : le taux de clic), out/<offer_id>?from=&m=&v= (clic tracé → lien affilié de l'enseigne partenaire, avec
 l'identifiant du clic ; m : la mission d'où il part), missions/parse {text} et missions/preview {mission} (ce qui est
@@ -40,7 +40,7 @@ from urllib.parse import unquote
 from . import affiliate, config, ontology
 from .accounts import Accounts
 from .activity import Activity
-from .catalog import SORTS, Catalog
+from .catalog import FAMILY_OF, SORTS, Catalog
 from .errors import BadRequest, NotFound
 from .labels import FEATURE_LABEL, ROOMS
 from .query import WANTED
@@ -89,7 +89,7 @@ class Api:
             ("GET", r"/api/r/search", lambda r: C.search(uid(r), r.query.get("q") or None, r.query.get("category") or None,
                                                          *self._filters(r.query), recent=self._recent(r.query),
                                                          low=r.query.get("low") == "1", prof=prof(r), **self._criteria(r.query))),
-            ("GET", r"/api/r/top", lambda r: C.top(uid(r), prof(r))),
+            ("GET", r"/api/r/top", lambda r: C.top(uid(r), prof(r), self._families(r.query))),
             ("GET", r"/api/r/foryou", lambda r: C.foryou(uid(r), prof(r))),
             ("GET", r"/api/r/profile", self._profile),
             ("POST", r"/api/r/interests", lambda r: P.choose(need(r), (r.body or {}).get("categories"))),
@@ -135,6 +135,15 @@ class Api:
         if sort is not None and sort not in SORTS:
             raise BadRequest("Tri inconnu")
         return lo, hi, off, sort
+
+    @staticmethod
+    def _families(query):
+        """Top deals d'un univers (v66) : family, une ou plusieurs familles séparées par des virgules (electromenager ;
+        ameublement,literie ; electronique) ; une famille inconnue est refusée."""
+        fams = {f for f in (query.get("family") or "").split(",") if f}
+        if fams - set(FAMILY_OF.values()):
+            raise BadRequest("Univers inconnu")
+        return fams or None
 
     @staticmethod
     def _criteria(query):

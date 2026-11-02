@@ -351,6 +351,14 @@ class Top(unittest.TestCase):
         self.s.x("INSERT INTO follows(user_id, brand, created_at) VALUES (?, 'Helio', 0)", (uid,))
         self.assertEqual([p["id"] for p in self.c.top(uid)["products"]][:3], [1, 3, 2])   # une marque suivie : 12 × 1,5 > 15
 
+    def test_top_deals_of_one_universe(self):
+        """v66 : Top deals par univers (les puces de l'onglet : Électroménager ; Maison = ameublement et literie ;
+        High-tech) : la même règle, sur les seuls produits de l'univers ; sans univers, rien ne change."""
+        self.assertEqual([p["id"] for p in self.c.top(families={"electromenager"})["products"]], [1, 3, 2, 8])
+        self.assertEqual([p["id"] for p in self.c.top(families={"ameublement", "literie"})["products"]], [6])
+        self.assertEqual(self.c.top(families={"electronique"})["products"], [])
+        self.assertEqual([p["id"] for p in self.c.top(families=None)["products"]], [1, 6, 2, 3, 8])
+
     def test_promo_filter_says_what_each_choice_gives(self):
         out = self.c.search()
         self.assertEqual(out["offs"], {"1": 3, "10": 3, "20": 1, "30": 1, "40": 0, "50": 0, "low": 3})

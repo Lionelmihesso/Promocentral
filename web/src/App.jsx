@@ -52,6 +52,15 @@
    « pourquoi » des cartes, durée de la remise) ; « Comment ça marche » et « Mentions légales » dans le Profil seulement ;
    « Me prévenir sous un prix » est arrêté.
 
+   v66 : d'après la maquette du responsable. Une seule police, Manrope, lisible partout (plus de serif aux titres, plus
+   de chasse fixe) ; « Promo » gris anthracite et « Central » gris clair ; l'anthracite pour agir (le bouton vers
+   l'enseigne, la puce choisie), un violet pour la remise (celui de Pixmania, assombri pour se lire : 5 : 1 avec le
+   blanc). Des cartes à l'horizontale, une colonne au téléphone : le visuel à gauche ; la marque et la remise ; le nom ;
+   le prix et le prix barré ; l'économie ; toute la carte mène à la fiche, sans cœur ni bouton. Top deals se filtre par
+   univers (Tout, Électroménager, Maison, High-tech). Plus de bandeau défilant ni de cloche. La fiche : Retour, cœur et
+   partage au-dessus du visuel, puis la marque et la catégorie, le nom, la remise, le prix et le prix barré,
+   l'économie, le bouton, la livraison et les retours.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), « Moins cher, comparable », la recherche dans tout le
@@ -80,6 +89,8 @@ const UI = {
   target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
   down: ["M7 10l5 5 5-5"],
   bookmark: ["M7.5 4.5h9a1 1 0 0 1 1 1v14.5l-5.5-3.6-5.5 3.6V5.5a1 1 0 0 1 1-1z"],
+  truck: ["M2.8 6.8h11v9.4h-11z", "M13.8 9.8h3.7l3 3.2v3.2h-6.7", C(7, 17.4, 1.7), C(17, 17.4, 1.7)],
+  swap: ["M6.5 8.5h12.5", "M15.5 5l3.5 3.5-3.5 3.5", "M17.5 15.5H5", "M8.5 12L5 15.5 8.5 19"],
 };
 const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="i"
   fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -92,6 +103,12 @@ const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month:
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const FAMILY = { electromenager: "Électroménager", electronique: "Électronique", ameublement: "Ameublement", literie: "Literie" };
+// Top deals : un univers d'un geste (v66) ; les familles du catalogue (deals/extract/categories.py), « Maison » en réunit deux.
+const FAMS = [["", "Tout"], ["electromenager", "Électroménager"], ["ameublement,literie", "Maison"], ["electronique", "High-tech"]];
+// Le visuel d'une carte est carré : un objet haut (réfrigérateur, aspirateur) y tient entier en rapetissant un peu ; un
+// objet large (lit, téléviseur) grandit et le sol remonte, pour qu'il occupe le cadre comme sur une photo.
+const fitZoom = cat => ratioOf(cat) > 1 ? 0.8 : ratioOf(cat) < 1 ? 1.24 : 1.08;
+const fitFloor = cat => ratioOf(cat) < 1 ? 0.8 : undefined;
 // Recherche : des exemples pour démarrer, le filtre de promo et les tris (le rayon et le budget : l'entonnoir).
 const TRY = ["aspirateur balai sans fil", "TV OLED 55 pouces", "smartphone 5G", "lave-linge 9 kg", "canapé d'angle"];
 // Promo : un palier de remise, ou un prix parmi les plus bas depuis longtemps (catalog.cheap) ; seuls les choix qui
@@ -194,10 +211,10 @@ const useWidth = () => {
 };
 
 const CSS = `
-.d{--ink:#141414;--paper:#FFFFFF;--tint:#F4F2EF;--tint2:#EAE7E2;--mid:#5E6166;--soft:#6B6E73;--icon:#8A8D92;--line:#ECE9E4;
-  --accent:#D63A0D;--accent-ink:#B5300A;--accent-soft:#FCEDE6;--good:#1F7A52;--warn:#A9480A;--terminal:#121315;
-  --action:#FFD60A;--action-down:#F2C200;--deal:#D63A0D;
-  --serif:"Instrument Serif",Georgia,"Times New Roman",serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+/* v66 : l'anthracite pour agir, le violet pour la remise, des gris pour le reste ; une seule police, Manrope */
+.d{--ink:#1D1D1F;--paper:#FFFFFF;--tint:#F5F5F7;--tint2:#E8E8ED;--mid:#6E6E73;--soft:#6E6E73;--icon:#8E8E93;--line:#E8E8ED;
+  --accent:#C22EA2;--accent-ink:#8F1F77;--accent-soft:#F8E8F4;--good:#1F7A52;--warn:#A9480A;--danger:#B42318;
+  --action:#3C3C3E;--action-down:#2A2A2C;--deal:#C22EA2;--grey:#8E8E93;
   font-family:Manrope,-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);background:var(--paper);min-height:100vh;
   font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
 .d *{box-sizing:border-box}.d button{font:inherit;color:inherit;cursor:pointer}.d input{font:inherit}
@@ -205,31 +222,20 @@ const CSS = `
 .d :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:10px}
 .d .app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--paper);position:relative;padding-bottom:96px}
 .d .top{display:flex;justify-content:space-between;align-items:center;height:58px;padding:0 10px 0 16px}
-/* le logo : « Promo » surligné dans la couleur action, « Central » dans la couleur remise */
-.d .logo{display:flex;align-items:center;gap:.12em;font-family:var(--serif);font-size:32px;line-height:1;letter-spacing:-.01em;border:0;background:none;min-height:44px;padding:0 4px;margin-left:-4px;color:var(--ink)}
-.d .logo .p{background:var(--action);padding:.04em .14em .07em;border-radius:.14em}
-.d .logo .c{color:var(--deal)}
+/* le logo : « Promo » anthracite (la couleur action), « Central » gris clair */
+.d .logo{display:flex;align-items:baseline;gap:.24em;font-size:25px;font-weight:800;line-height:1;letter-spacing:-.035em;border:0;background:none;min-height:44px;padding:0 4px;margin-left:-4px;color:var(--action)}
+.d .logo .c{color:var(--grey)}
 .d .tabs{display:none}
 .d .ibtn{position:relative;flex:0 0 auto;border:0;background:none;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center}
 .d .ibtn .dot{position:absolute;top:6px;right:5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:800;line-height:18px;padding:0 5px}
-/* bandeau défilant */
-.d .ticker{display:flex;align-items:center;height:34px;background:var(--terminal);color:#E7E5E0;font-family:var(--mono);font-size:12px;letter-spacing:.02em;overflow:hidden}
-.d .ticker .live{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:0 12px;height:100%;background:#1E2023;color:#FF9A70;font-weight:700;white-space:nowrap}
-.d .ticker .live i{width:7px;height:7px;border-radius:50%;background:#FF6A3D;box-shadow:0 0 0 3px rgba(255,106,61,.2)}
-.d .tape{flex:1;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
-.d .run{display:inline-flex;white-space:nowrap;animation:tape linear infinite;will-change:transform}
-.d .ticker:hover .run{animation-play-state:paused}
-.d .tk{display:inline-flex;align-items:center;gap:7px;padding:0 16px;border-right:1px solid #2E3034}
-.d .tk .dn{color:#FF6A3D;font-weight:700}.d .tk .pc{color:#FF9A70;font-weight:700}
-@keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){.d .run{animation:none}.d .tape{overflow-x:auto}.d .flow{transition:none}}
+@media (prefers-reduced-motion:reduce){.d .flow{transition:none}}
 /* titres */
-.d h1{font-family:var(--serif);font-weight:400;font-size:42px;line-height:1;letter-spacing:-.015em;margin:0}
+.d h1{font-weight:800;font-size:30px;line-height:1.12;letter-spacing:-.03em;margin:0}
 .d .pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:12px 10px 0 16px}
 .d .sub{color:var(--mid);font-size:14.5px;margin-top:6px}
-.d h2{font-family:var(--serif);font-weight:400;font-size:26px;line-height:1.05;letter-spacing:-.01em;margin:0}
+.d h2{font-weight:800;font-size:20px;line-height:1.2;letter-spacing:-.02em;margin:0}
 .d .sechead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:26px 16px 12px}
-.d .sechead .n{font-family:var(--mono);font-size:12px;color:var(--soft)}
+.d .sechead .n{font-size:12px;color:var(--soft)}
 /* recherche, univers */
 .d .sbar{display:flex;align-items:center;gap:10px;background:var(--tint);border-radius:999px;padding:0 6px 0 16px;height:50px;margin:16px 16px 0;color:var(--mid)}
 .d .sbar input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:var(--ink);height:100%}
@@ -249,54 +255,58 @@ const CSS = `
 .d .room .rt{text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .d .room .rt span{font-size:14px;font-weight:700}
 .d .room .rt small{font-size:11.5px;font-weight:600;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* mosaïque */
-.d .masonry{display:grid;gap:12px;padding:0 16px;align-items:start}
-.d .mcol{display:flex;flex-direction:column;gap:18px;min-width:0}
-.d .card{display:block;cursor:pointer;min-width:0}
+/* Top deals : un univers d'un geste */
+.d .fams{display:flex;gap:8px;overflow-x:auto;padding:14px 16px 4px;scrollbar-width:none}
+.d .fams::-webkit-scrollbar{display:none}
+.d .fams button{flex:0 0 auto;min-height:44px;padding:0 15px;border-radius:999px;border:1px solid #D2D2D7;background:var(--paper);font-size:14px;font-weight:600;white-space:nowrap}
+.d .fams button.on{background:var(--action);border-color:var(--action);color:#fff}
+/* v66 : la liste — des cartes à l'horizontale : le visuel à gauche ; la marque et la remise ; le nom ; le prix et le prix
+   barré ; l'économie. Une colonne au téléphone, deux ou trois à l'ordinateur ; toute la carte mène à la fiche. */
+.d .list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;padding:0 16px}
+.d .card{position:relative;display:flex;gap:14px;min-width:0;padding:10px;border-radius:18px;background:var(--paper);border:1px solid #EFEFF2;box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.05);cursor:pointer;text-align:left}
 .d .vis{position:relative;border-radius:16px;overflow:hidden;background:var(--tint)}
+.d .card .vis{flex:0 0 38%;max-width:156px;aspect-ratio:1;border-radius:12px}
 .d .sechead .n.drop{color:var(--deal);font-weight:700}
-.d .heart{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;color:var(--ink)}
-.d .heart span{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.d .heart.on{color:var(--accent)}
-.d .meta{padding:9px 2px 0}
-.d .meta .brand{font-size:11px;font-weight:800;color:var(--mid);text-transform:uppercase;letter-spacing:.08em}
-.d .meta .name{font-size:14.5px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* v65 : le prix comme une étiquette — le prix ; le prix barré et la remise ; l'économie en euros (couleur remise) */
+.d .meta{flex:1;min-width:0;display:flex;flex-direction:column;padding:2px 2px 2px 0}
+.d .meta .mtop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.d .meta .brand{font-size:13px;font-weight:600;color:var(--mid);padding-top:3px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d .meta .name{font-size:15.5px;font-weight:600;line-height:1.3;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .d .now{font-weight:800;letter-spacing:-.03em}
-.d .was{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
-.d .was s{color:var(--mid)}
-.d .off{display:inline-block;background:var(--deal);color:#fff;font-weight:800;letter-spacing:-.01em;border-radius:6px;padding:1px 6px;font-size:12px;line-height:1.35;white-space:nowrap}
-.d .save{color:var(--deal);font-weight:800}
-.d .meta .now{font-size:20px;margin-top:4px;line-height:1.15}
-.d .meta .was{margin-top:3px}
-.d .meta .was s{font-size:12.5px}
-.d .meta .save{font-size:12.5px;margin-top:3px}
-.d .meta .drop{font-size:12.5px;font-weight:800;color:var(--deal);margin-top:2px}
-.d .scroller{display:flex;gap:12px;overflow-x:auto;padding:0 16px 4px;scrollbar-width:none}
+.d .pr{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px}
+.d .pr s,.d .prices s{color:var(--mid)}
+.d .off{display:inline-block;flex:0 0 auto;background:var(--deal);color:#fff;font-weight:800;letter-spacing:-.01em;border-radius:999px;padding:3px 10px;font-size:12.5px;line-height:1.3;white-space:nowrap}
+.d .save{color:var(--deal);font-weight:700}
+.d .meta .pr{margin-top:auto;padding-top:8px}
+.d .meta .now{font-size:21px;line-height:1.15}
+.d .meta .pr s{font-size:13.5px}
+.d .meta .save{font-size:13.5px;margin-top:2px}
+.d .meta .drop{font-size:13px;font-weight:700;color:var(--deal);margin-top:2px}
+.d .scroller{display:flex;gap:12px;overflow-x:auto;padding:2px 16px 12px;scrollbar-width:none}
 .d .scroller::-webkit-scrollbar{display:none}
-.d .scroller .card{flex:0 0 auto;width:158px}
+.d .scroller .card{flex:0 0 auto;width:min(330px,84vw)}
 .d .empty{padding:28px 16px;color:var(--mid)}
-.d .err{color:var(--accent);font-size:14px;font-weight:700;margin-top:10px}
+.d .err{color:var(--danger);font-size:14px;font-weight:700;margin-top:10px}
 .d .back{border:0;background:none;min-height:44px;padding:0 16px 0 10px;font-size:14px;font-weight:800;color:var(--mid);display:flex;align-items:center;gap:4px}
-/* fiche */
-.d .hero{position:relative;background:var(--tint)}
-.d .hero .vis{border-radius:0;max-height:58vh}
-.d .hero .float{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;pointer-events:none}
-.d .hero .float div{display:flex;gap:8px}
-.d .fbtn{pointer-events:auto;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.14)}
-.d .fbtn.on{color:var(--accent)}
-.d .info{padding:18px 16px 0}
-.d .info .title{font-family:inherit;font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:2px 0 0}
-/* sur la fiche, la place ne manque pas : le prix, le prix barré et la remise sur une ligne, l'économie dessous */
-.d .prices{display:flex;flex-wrap:wrap;align-items:center;column-gap:12px;margin-top:10px}
-.d .prices .now{font-size:36px;letter-spacing:-.04em;line-height:1.1}
-.d .prices .was{gap:6px 10px}
-.d .prices .was s{font-size:17px}
-.d .prices .off{font-size:15px;padding:3px 9px;border-radius:8px}
-.d .prices .save{flex-basis:100%;font-size:15.5px;margin-top:6px}
-/* le bouton vers l'enseigne : la couleur action, juste sous le prix */
-.d .buy{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:18px;min-height:58px;padding:0 16px;border-radius:16px;background:var(--action);color:var(--ink);font-size:17px;font-weight:800;letter-spacing:-.01em;text-align:center;text-decoration:none}
+/* fiche (v66) : Retour, cœur et partage au-dessus du visuel ; le visuel aux coins arrondis ; la marque et la catégorie ;
+   le nom ; la remise, le prix et le prix barré ; l'économie ; le bouton vers l'enseigne ; la livraison et les retours */
+.d .fbar{display:flex;align-items:center;gap:10px;padding:10px 16px 12px}
+.d .fbar .sp{flex:1}
+.d .fbtn{width:44px;height:44px;border:0;border-radius:50%;background:var(--paper);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.06)}
+.d .fbtn.on{color:var(--deal)}
+.d .hero{padding:0 16px}
+.d .hero .vis{border-radius:20px}
+.d .info{padding:14px 16px 0}
+.d .info .title{font-size:24px;font-weight:600;letter-spacing:-.025em;line-height:1.2;margin:0}
+.d .prices{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:14px}
+.d .prices .off{font-size:18px;padding:6px 14px}
+.d .prices .now{font-size:34px;letter-spacing:-.04em;line-height:1.1}
+.d .prices s{font-size:19px}
+.d .info > .save{font-size:16px;margin-top:8px}
+.d .buy{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:18px;min-height:56px;padding:0 16px;border-radius:16px;background:var(--action);color:#fff;font-size:17px;font-weight:700;letter-spacing:-.01em;text-align:center;text-decoration:none}
 .d .buy:active{background:var(--action-down)}
+.d .terms{list-style:none;margin:20px 0 0;padding:6px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.d .terms li{display:flex;align-items:center;gap:12px;min-height:42px;font-size:15px}
+.d .terms .i{color:var(--mid)}
 /* comptes, marques */
 .d .cta{display:block;width:100%;margin-top:16px;border:0;background:var(--ink);color:#fff;border-radius:16px;min-height:50px;font-size:15px;font-weight:800}
 .d .cta:disabled{opacity:.5}
@@ -324,19 +334,19 @@ const CSS = `
 .d .opts .aside{display:flex;align-items:center;gap:10px}
 .d .opts .aside em{font-style:normal;font-size:13.5px;font-weight:700;color:var(--mid)}
 .d .opts button.on .aside em{color:#D9D7D2}
-/* fiche : la marque et la catégorie mènent à tous leurs produits ; sous le bouton vers l'enseigne, le visuel reste nu */
-.d .crumbs{display:flex;flex-wrap:wrap;gap:0 16px;margin:8px 0 0 -2px}
-.d .crumbs button{display:flex;align-items:center;gap:2px;border:0;background:none;min-height:44px;padding:0 2px;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--mid)}
+/* fiche : la marque et la catégorie, sous le visuel et avant le nom, mènent à tous leurs produits */
+.d .crumbs{display:flex;flex-wrap:wrap;gap:0 16px;margin:0 0 0 -2px}
+.d .crumbs button{display:flex;align-items:center;gap:2px;border:0;background:none;min-height:44px;padding:0 2px;font-size:15px;font-weight:600;color:var(--mid)}
 .d .lnk{border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);text-decoration:underline;text-underline-offset:3px;min-height:44px}
 .d .legal .lnk{display:inline-block;min-height:0;line-height:18px;padding:13px 0;margin:-13px 0}
 .d .legal{padding:40px 16px 8px;font-size:12.5px;color:var(--mid);line-height:1.5}
 .d .about{padding:0 16px 8px;max-width:680px}
-.d .about h1{font-size:40px;margin:6px 0 0}
+.d .about h1{font-size:30px;margin:6px 0 0}
 .d .about .lead{font-size:17px;line-height:1.5;margin:14px 0 0}
 .d .about h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:26px 0 0}
 .d .about p,.d .about li{font-size:15px;line-height:1.55;color:#33363A}
 .d .about p{margin:8px 0 0}.d .about ul{margin:8px 0 0;padding-left:20px}.d .about li{margin-top:6px}
-.d .mbuy{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 10px 0 0;min-height:50px;padding:0 14px 0 16px;border-radius:14px;background:var(--action);color:var(--ink);text-decoration:none;font-size:14.5px;font-weight:700}
+.d .mbuy{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 10px 0 0;min-height:50px;padding:0 14px 0 16px;border-radius:14px;background:var(--action);color:#fff;text-decoration:none;font-size:14.5px;font-weight:700}
 .d .mbuy b{font-weight:800}
 /* recherche : un champ, trois filtres, des exemples ou vos recherches sur une ligne, un feed que la saisie adapte */
 .d .sbar.big{height:58px;border-radius:18px;padding-left:18px;margin-top:14px}
@@ -372,7 +382,7 @@ const CSS = `
 @media (prefers-reduced-motion:reduce){.d .sw .knob:after{transition:none}.d .fold button .i{transition:none}}
 .d .brow{display:flex;align-items:center;gap:10px;width:calc(100% - 32px);margin:16px 16px 0;min-height:56px;border:0;border-radius:16px;background:var(--tint);padding:0 14px 0 16px;text-align:left}
 .d .brow small{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mid)}
-.d .brow b{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1}
+.d .brow b{font-weight:800;font-size:20px;line-height:1.1;letter-spacing:-.02em}
 .d .brow span{flex:1;font-size:13.5px;font-weight:700;color:var(--mid)}
 .d .fchip.clear{border-color:transparent;background:none;color:var(--mid);padding:0 12px;gap:4px}
 .d .note{color:var(--mid);font-size:13.5px;margin:10px 0 0;line-height:1.45}
@@ -381,11 +391,11 @@ const CSS = `
 .d .mlist{display:flex;flex-direction:column;gap:12px;padding:0 16px}
 .d .mi{border:1px solid var(--line);border-radius:20px;padding:14px 6px 14px 16px}
 .d .mi .row{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
-.d .mi .st{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--soft);margin-top:4px}
+.d .mi .st{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--soft);margin-top:4px}
 .d .mi .st i{width:8px;height:8px;border-radius:50%;background:var(--icon)}
 .d .mi.ok .st{color:var(--good)}.d .mi.ok .st i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
 .d .mi h3{font-size:17px;font-weight:800;letter-spacing:-.02em;margin:5px 0 0;line-height:1.25}
-.d .mi .nums{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-family:var(--mono);font-size:12.5px;color:var(--mid)}
+.d .mi .nums{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12.5px;color:var(--mid)}
 .d .mi .nums b{color:var(--ink)}.d .mi .nums b.ok{color:var(--good)}
 .d .mi .scroller{padding:12px 10px 2px 0}
 /* recherche v56 : les critères compris, en puces modifiables ; sauvegarder */
@@ -402,7 +412,7 @@ const CSS = `
 /* v60 : Affiner en entonnoir — une question à la fois, chaque réponse avec son nombre de produits, une fin.
    v61 : dans les teintes de la page (fond tint, pilules et options blanches à filet), pas de bloc sombre */
 .d .funnel{margin:14px 16px 0;background:var(--tint);color:var(--ink);border-radius:20px;padding:16px}
-.d .funnel .k{display:flex;align-items:center;gap:8px;min-height:16px;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--mid)}
+.d .funnel .k{display:flex;align-items:center;gap:8px;min-height:16px;font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--mid)}
 .d .funnel .k i{width:7px;height:7px;border-radius:50%;background:var(--ink)}
 .d .funnel .prog{display:flex;gap:4px;margin-left:auto}
 .d .funnel .prog b{width:14px;height:4px;border-radius:2px;background:var(--tint2)}
@@ -412,20 +422,20 @@ const CSS = `
 .d .fstep .i{opacity:.7}
 .d .fstep.fixed{background:none;border-style:dashed;border-color:#D9D6D0;color:var(--mid);padding:0 15px}
 .d .fq{animation:fin .22s ease-out}
-.d .funnel h3{margin:14px 0 0;font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.1;letter-spacing:-.01em;color:var(--ink)}
+.d .funnel h3{margin:14px 0 0;font-weight:800;font-size:22px;line-height:1.2;letter-spacing:-.02em;color:var(--ink)}
 .d .fopts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .d .fopt{display:flex;align-items:center;gap:10px;border:1px solid #D9D6D0;background:var(--paper);color:var(--ink);border-radius:14px;min-height:48px;padding:0 14px 0 16px;font-size:15px;font-weight:800;text-align:left}
-.d .fopt em{font-style:normal;font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--mid)}
+.d .fopt em{font-style:normal;font-size:12.5px;font-weight:700;color:var(--mid)}
 .d .fskip{display:block;border:0;background:none;color:var(--mid);font-size:14px;font-weight:700;min-height:44px;padding:0 2px;margin-top:4px;text-decoration:underline;text-underline-offset:3px}
 .d .funnel .done{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:14px 0 6px}
 .d .funnel .done .ok{flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center}
-.d .funnel .done h2{flex:1;color:var(--ink);font-size:30px}
+.d .funnel .done h2{flex:1;color:var(--ink);font-size:22px}
 .d .funnel .done .fskip{flex-basis:100%;margin-top:0}
 .d .fskip.pass{display:flex;align-items:center;width:max-content;min-height:44px;margin-top:12px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);padding:0 18px;font-size:14.5px;font-weight:800;text-decoration:none}
 .d .funnel .fnone{margin:14px 0 8px;color:var(--mid);font-size:14px;font-weight:600}
 @keyframes fin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.d .fq{animation:none}}
-@media (hover:hover){.d .fskip.pass:hover{background:#F8D9CB}.d .fopt:hover{border-color:var(--ink)}.d button.fstep:hover{background:var(--tint2)}}
+@media (hover:hover){.d .fskip.pass:hover{background:#F1D3EA}.d .fopt:hover{border-color:var(--ink)}.d button.fstep:hover{background:var(--tint2)}}
 /* profil : le centre de commande */
 .d .idline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 14px;margin:14px 16px 0;padding:12px 16px;border-radius:16px;background:var(--tint);font-size:14px;color:var(--mid);font-weight:600}
 .d .idline b{color:var(--ink)}
@@ -442,12 +452,12 @@ const CSS = `
 .d .fold{margin:0;padding:0 16px}
 .d .fold button{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;border:0;background:none;padding:0;text-align:left;font:inherit;color:inherit}
 .d .fold button span{flex:1;min-width:0}
-.d .fold button small{font-family:var(--mono);font-size:12px;color:var(--soft);letter-spacing:normal}
+.d .fold button small{font-size:12px;color:var(--soft);letter-spacing:normal}
 .d .fold button .i{flex:0 0 auto;color:var(--mid);transition:transform .2s}
 .d .fold button[aria-expanded=true] .i{transform:rotate(180deg)}
 .d .confirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:12px 16px 0;padding:14px 16px;border-radius:16px;background:var(--accent-soft);font-size:14px;font-weight:700}
 .d .confirm .ghost{margin:0}
-.d .danger{border:0;background:var(--accent-ink);color:#fff;border-radius:999px;min-height:44px;padding:0 18px;font-size:14px;font-weight:800}
+.d .danger{border:0;background:var(--danger);color:#fff;border-radius:999px;min-height:44px;padding:0 18px;font-size:14px;font-weight:800}
 .d .toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:700;z-index:11;white-space:nowrap}
 nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:5;padding:6px 8px calc(10px + env(safe-area-inset-bottom))}
 .d-nav button{position:relative;border:0;background:none;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:700;color:var(--soft);border-radius:16px}
@@ -458,16 +468,15 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
 @media (min-width:1000px){
   .d .app{max-width:1240px;padding:0 32px 56px}
   .d .top{height:76px;padding:0;position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);z-index:6}
-  .d .logo{font-size:36px}
+  .d .logo{font-size:28px}
   .d .tabs{display:flex;gap:4px;margin-left:auto;margin-right:8px}
   .d .tabs button{border:0;background:none;min-height:44px;padding:0 16px;border-radius:12px;font-size:14.5px;font-weight:800;color:var(--soft);display:flex;align-items:center;gap:7px}
   .d .tabs button.on{background:var(--tint);color:var(--ink)}
   nav.d-nav{display:none}
   .d .toast{bottom:32px}
-  .d .ticker{border-radius:12px;margin-bottom:8px}
   .d .sechead,.d .pagehead{padding-left:0;padding-right:0}
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
-  .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
+  .d .chips,.d .fams,.d .rooms,.d .list,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
   .d .idline,.d .savebar,.d .confirm{margin-left:0;margin-right:0}
   .d .funnel{margin-left:0;margin-right:0;max-width:760px;padding:20px 22px 12px}
   .d .profile .psec{margin-top:48px}.d .fold{padding:0}
@@ -476,17 +485,19 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .brow{margin-left:0;margin-right:0;width:100%;max-width:640px}
   .d .ctags.row{flex-wrap:wrap;margin:0;padding:0}
   .d .legal,.d .about{padding-left:0;padding-right:0}
-  .d h1{font-size:64px}
+  .d h1{font-size:40px}
   .d .room{width:228px;height:292px}
   .d .rooms{scroll-padding-inline:0}
-  .d .masonry{gap:20px}
-  .d .item{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:44px;align-items:start;padding-top:8px}
-  .d .item .hero{position:sticky;top:96px;border-radius:24px;overflow:hidden}
-  .d .item .hero .vis{max-height:none}
+  .d .list{gap:16px}
+  .d .item .fbody{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:44px;align-items:start}
+  .d .item .fbar{padding-left:0;padding-right:0}
+  .d .item .hero{position:sticky;top:96px;padding:0}
   .d .item .info{padding-left:0;padding-right:0;padding-top:0}
   .d .sheet-wrap{align-items:center}.d .sheet{border-radius:26px}
 }
-@media (hover:hover){.d .buy:hover,.d .mbuy:hover{background:var(--action-down)}.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover,.d .ctag:hover,.d .brow:hover{background:var(--tint2)}.d .chips button.on:hover,.d .ctag.on:hover{background:var(--ink)}}
+@media (min-width:700px){.d .list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1200px){.d .list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (hover:hover){.d .buy:hover,.d .mbuy:hover{background:var(--action-down)}.d .card:hover{box-shadow:0 2px 4px rgba(0,0,0,.05),0 10px 26px rgba(0,0,0,.08)}.d .chips button:hover,.d .ctag:hover,.d .brow:hover{background:var(--tint2)}.d .chips button.on:hover,.d .ctag.on:hover{background:var(--ink)}}
 `;
 
 /* Une feuille se ferme aussi avec Échap. */
@@ -579,29 +590,6 @@ function ChoiceSheet({ title, options, value, onPick, onClose }) {
   </div>;
 }
 
-/* Bandeau : les remises du jour défilent, comme un fil de cotations. */
-function Ticker({ items, publishedAt }) {
-  if (!items.length) return null;
-  const run = items.slice(0, 24).map(p => <span className="tk" key={p.id}><b className="dn">▼</b>{p.brand.toUpperCase()} · {p.kind.toUpperCase()}
-    <b className="pc">−{p.pct} %</b>{eur(p.price)}</span>);
-  return <div className="ticker" role="marquee" aria-label={`${items.length} remises aujourd'hui`}>
-    <span className="live"><i />{publishedAt ? `MAJ ${shortDay(publishedAt).toUpperCase()} ${clock(publishedAt)}` : "AUJOURD'HUI"}</span>
-    <div className="tape"><div className="run" style={{ animationDuration: `${Math.max(28, items.length * 5)}s` }}>
-      {run}<span aria-hidden="true" style={{ display: "inline-flex" }}>{run}</span></div></div>
-  </div>;
-}
-
-/* Mosaïque : chaque carte va dans la colonne la moins haute ; l'ordre du classement se lit de gauche à droite. */
-function Masonry({ items, cols, render }) {
-  const columns = Array.from({ length: cols }, () => ({ h: 0, items: [] }));
-  for (const p of items) {
-    const c = columns.reduce((a, b) => (b.h < a.h - 0.01 ? b : a));
-    c.items.push(p); c.h += ratioOf(p.category) + 0.45;
-  }
-  return <div className="masonry" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-    {columns.map((c, i) => <div key={i} className="mcol">{c.items.map(render)}</div>)}</div>;
-}
-
 /* Affiner en entonnoir (v60, deals/funnel.py) : une question à la fois — l'univers, le rayon, le type, un attribut, le
    budget —, chaque réponse avec son nombre de produits ; « Passer » passe à la suivante (l'app s'en souvient) ;
    quand il n'y a plus de question, c'est votre sélection. Les étapes franchies, en haut, se retirent d'un geste ; un
@@ -637,7 +625,9 @@ export default function App() {
   const [crit, setCrit] = useState(NO_CRIT);       // Recherche : les critères choisis dans l'app (puces, entonnoir), qui l'emportent
   const [skip, setSkip] = useState([]);            // Recherche : les questions de l'entonnoir passées (« Passer »)
   const [all, setAll] = useState(null);            // remises du jour (bandeau, notre sélection)
-  const [top, setTop] = useState(null);            // top deals (leur onglet)
+  const [top, setTop] = useState(null);            // top deals (leur onglet ; Explorer ne les répète pas)
+  const [fam, setFam] = useState("");              // Top deals : l'univers choisi ("" : tout)
+  const [topFam, setTopFam] = useState(null);      // Top deals de cet univers
   const [allCats, setAllCats] = useState([]);      // toutes les catégories (count : remises du jour)
   const [allBrands, setAllBrands] = useState([]);  // toutes les marques (count : remises du jour)
   const [picking, setPicking] = useState(null);    // feuille ouverte : off | sort | brands
@@ -670,7 +660,6 @@ export default function App() {
   const [legal, setLegal] = useState(null);         // mentions légales : l'identité de l'éditeur, lue au serveur
   const [error, setError] = useState(null);
   const width = useWidth();
-  const cols = width >= 1200 ? 5 : width >= 1000 ? 4 : width >= 700 ? 3 : 2;
 
   const flash = t => { setToast(t); setTimeout(() => setToast(null), 2400); };
   const known = !!(session.email || session.guest);                       // un compte (invité ou avec adresse) garde vos choix
@@ -763,6 +752,11 @@ export default function App() {
     api(`top${tq}`).then(ok(setTop)).catch(() => {});
     api(`foryou${tq}`).then(ok(setYou)).catch(() => {});
   }, [version, tq, session.checked, known]);
+
+  useEffect(() => {                                                         // Top deals d'un univers
+    if (!session.checked || !fam) { setTopFam(null); return; }
+    api(`top${tq ? `${tq}&` : "?"}family=${encodeURIComponent(fam)}`).then(latest("topfam")(setTopFam)).catch(() => {});
+  }, [fam, version, tq, session.checked, known]);
 
   useEffect(() => {                                                         // le feed de la Recherche, prêt avant d'y aller
     if (!session.checked) return;
@@ -969,34 +963,28 @@ export default function App() {
   };
   const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
-  // v65 : le prix comme une étiquette (Pixmania) — le prix ; le prix barré et la remise ; l'économie en euros. Un prix
-  // bas sans remise le dit d'un mot ; sur « Moins cher, comparable », l'économie est celle faite sur le produit de la fiche.
+  // Le prix comme une étiquette (v65, Pixmania) : la remise, le prix et le prix barré, l'économie en euros ; un prix bas
+  // sans remise le dit d'un mot ; sur « Moins cher, comparable », l'économie est celle faite sur le produit de la fiche.
   const economy = p => p.pct > 0 && p.was > p.price ? Math.round(p.was - p.price) : 0;
   const said = p => `${p.brand}, ${p.name || p.title}, ${eur(p.price)}${economy(p) >= 1 ? `, au lieu de ${eur(p.was)}, moins ${p.pct} %` : ""}`;
-  const priceTag = p => <>
-    <div className="now">{eur(p.price)}</div>
-    {p.pct > 0 ? <div className="was">{economy(p) >= 1 && <s>{eur(p.was)}</s>}<span className="off">−{p.pct} %</span></div>
-      : p.why?.low && <div className="was"><span className="off">Prix bas</span></div>}
-    {p.saving >= 1 ? <div className="save">{eur(p.saving)} de moins</div>
-      : economy(p) >= 1 && <div className="save">{eur(economy(p))} d'économie</div>}
-  </>;
+  const offTag = p => p.pct > 0 ? <span className="off">−{p.pct} %</span> : p.why?.low ? <span className="off">Prix bas</span> : null;
+  const gain = p => p.saving >= 1 ? <div className="save">{eur(p.saving)} de moins</div>
+    : economy(p) >= 1 ? <div className="save">{eur(economy(p))} d'économie</div> : null;
 
+  // v66 : la carte à l'horizontale (la maquette) — le visuel ; la marque et la remise ; le nom ; le prix et le prix barré ;
+  // l'économie. Ni cœur (on garde depuis la fiche) ni bouton : toute la carte mène à la fiche.
   const card = (via, mission) => p => <article key={p.id} className="card" role="button" tabIndex={0} aria-label={said(p)}
     onClick={() => open(p.id, via, mission)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via, mission); }}>
-    <div className="vis" style={{ aspectRatio: `1 / ${ratioOf(p.category)}` }}>
-      <Vignette category={p.category} seed={p.id} />
-      <button className={`heart ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
-        aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
-        <span><Icon d={UI.heart} size={18} fill={isSaved(p.id)} /></span></button>
-    </div>
+    <div className="vis"><Vignette category={p.category} seed={p.id} ratio={1} zoom={fitZoom(p.category)} floor={fitFloor(p.category)} /></div>
     <div className="meta">
-      <div className="brand">{p.brand}</div>
+      <div className="mtop"><span className="brand">{p.brand}</span>{offTag(p)}</div>
       <div className="name">{p.name || p.title}</div>
-      {priceTag(p)}
+      <div className="pr"><span className="now">{eur(p.price)}</span>{economy(p) >= 1 && <s>{eur(p.was)}</s>}</div>
+      {gain(p)}
       {dropOf(p) >= 1 && <div className="drop">Baisse de {eur(dropOf(p))}</div>}
     </div>
   </article>;
-  const grid = (items, via) => <Masonry items={items} cols={cols} render={card(via)} />;
+  const grid = (items, via) => <div className="list">{items.map(card(via))}</div>;
 
   const searchBar = <form role="search" onSubmit={e => { e.preventDefault(); remember(intent); e.currentTarget.querySelector("input")?.blur(); }}>
     <label className="sbar big"><Icon d={UI.search} size={20} />
@@ -1132,25 +1120,34 @@ export default function App() {
   } else if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
     const source = view.via || "item";
+    const heroRatio = Math.min(1, ratioOf(item.category));                 // un objet haut tient dans un carré
     body = <div className="item">
+      <div className="fbar"><button className="fbtn" onClick={goBack} aria-label="Retour"><Icon d={UI.back} size={20} sw={2.2} /></button>
+        <span className="sp" />
+        <button className={`fbtn ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
+          aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Icon d={UI.heart} size={20} fill={isSaved(item.id)} /></button>
+        <button className="fbtn" onClick={() => share(item)} aria-label="Partager"><Icon d={UI.share} size={19} /></button></div>
+      <div className="fbody">
       <div className="hero">
-        <div className="vis" style={{ aspectRatio: `1 / ${Math.min(1.05, ratioOf(item.category))}` }}><Vignette category={item.category} seed={item.id} label={item.kind} /></div>
-        <div className="float"><button className="fbtn" onClick={goBack} aria-label="Retour"><Icon d={UI.back} size={20} sw={2.2} /></button>
-          <div><button className="fbtn" onClick={() => share(item)} aria-label="Partager"><Icon d={UI.share} size={19} /></button>
-            <button className={`fbtn ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
-              aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Icon d={UI.heart} size={20} fill={isSaved(item.id)} /></button></div></div>
+        <div className="vis" style={{ aspectRatio: `1 / ${heroRatio}` }}><Vignette category={item.category} seed={item.id} label={item.kind}
+          ratio={heroRatio} zoom={ratioOf(item.category) > 1 ? 0.8 : undefined} /></div>
       </div>
       <div>
         <div className="info">
+          <div className="crumbs">
+            {item.brand && <button onClick={() => openBrand(item.brand)} aria-label={`Voir tous les produits ${item.brand}`}>{item.brand}<Icon d={UI.next} size={14} sw={2.4} /></button>}
+            <button onClick={() => openCategory(item.category)} aria-label={`Voir la catégorie ${item.kind}`}>{item.kind}<Icon d={UI.next} size={14} sw={2.4} /></button>
+          </div>
           <h1 className="title">{item.name || item.title}</h1>
-          <div className="prices">{priceTag(item)}</div>
+          <div className="prices">{offTag(item)}<span className="now">{eur(item.price)}</span>{economy(item) >= 1 && <s>{eur(item.was)}</s>}</div>
+          {gain(item)}
           {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}${view.mission ? `&m=${view.mission}` : ""}&v=${variant}`}
             target="_blank" rel="noopener" onClick={() => note("c", item.id)}>
             Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={19} sw={2.4} /></a>}
-          <div className="crumbs">
-            {item.brand && <button onClick={() => openBrand(item.brand)} aria-label={`Voir tous les produits ${item.brand}`}>{item.brand}<Icon d={UI.next} size={13} sw={2.6} /></button>}
-            <button onClick={() => openCategory(item.category)} aria-label={`Voir la catégorie ${item.kind}`}>{item.kind}<Icon d={UI.next} size={13} sw={2.6} /></button>
-          </div>
+          <ul className="terms">
+            <li><Icon d={UI.truck} size={21} />Livraison selon le marchand</li>
+            <li><Icon d={UI.swap} size={21} />Retours selon le marchand</li>
+          </ul>
         </div>
         {item.alternatives.length > 0 && <>
           <div className="sechead"><h2>Moins cher, comparable</h2></div>
@@ -1160,6 +1157,7 @@ export default function App() {
           <div className="sechead"><h2>Produits similaires</h2></div>
           <div className="scroller">{item.similar.map(card("similar"))}</div>
         </>}
+      </div>
       </div>
     </div>;
   } else if (isPage(view)) {                     // une marque, une catégorie, une pièce : l'entonnoir, un tri, leurs produits
@@ -1188,11 +1186,13 @@ export default function App() {
       {res && res.total === 0 && <div className="empty">{view.kind === "room" ? "Aucune remise dans cette pièce aujourd'hui." : "Aucun produit pour l'instant."}</div>}
     </>;
   } else if (tab === "tops") {                    // Top deals : les plus fortes remises réelles et les prix bas, à tour de rôle
-    const tops = top?.products || [];
+    const shownTop = fam ? topFam : top, tops = shownTop?.products || [];
     body = <>
       <div className="pagehead"><div><h1>Top deals</h1></div></div>
-      <div style={{ height: 16 }} />
-      {top && tops.length === 0 && <div className="empty">Aucun top deal aujourd'hui.</div>}
+      <div className="fams" role="group" aria-label="Univers">{FAMS.map(([k, l]) =>
+        <button key={k || "all"} className={fam === k ? "on" : ""} aria-pressed={fam === k} onClick={() => setFam(k)}>{l}</button>)}</div>
+      <div style={{ height: 12 }} />
+      {shownTop && tops.length === 0 && <div className="empty">Aucun top deal aujourd'hui.</div>}
       {grid(tops, "top")}
     </>;
   } else if (tab === "home") {                    // Explorer : des pièces, des marques, une sélection ; chercher, c'est l'onglet Recherche
@@ -1204,7 +1204,7 @@ export default function App() {
     const shown = new Set([...inTop, ...yours.map(p => p.id)]);
     const rest = items.filter(p => !shown.has(p.id));
     body = <>
-      <Ticker items={items} publishedAt={all?.published_at} />
+      <div className="pagehead"><div><h1>Explorer</h1></div></div>
       {yours.length > 0 && <>
         <div className="sechead"><h2>Pour vous</h2></div>
         <div className="scroller tops">{yours.map(card("foryou"))}</div>
@@ -1220,9 +1220,7 @@ export default function App() {
       </>}
       <div className="sechead"><h2>Notre sélection</h2></div>
       {all && items.length === 0 && <div className="empty">Aucune remise aujourd'hui.</div>}
-      {grid(rest.slice(0, cols * 2), "home")}
-      {rest.length > cols * 2 && <div style={{ height: 18 }} />}
-      {grid(rest.slice(cols * 2), "home")}
+      {grid(rest, "home")}
     </>;
   } else if (tab === "search") {                  // une phrase comprise, l'entonnoir, un feed que chaque saisie adapte
     const term = q.trim(), t = norm(term), any = term || hasCrit(crit);
@@ -1345,11 +1343,9 @@ export default function App() {
 
   return <div className="d"><style>{CSS}</style><div className="app">
     {!(view?.kind === "item" && width < 1000) && <header className="top">
-      <button className="logo" onClick={() => goTab("tops")} aria-label="Promo Central, top deals"><span className="p">Promo</span><span className="c">Central</span></button>
+      <button className="logo" onClick={() => goTab("tops")} aria-label="Promo Central, top deals"><span className="p">Promo</span> <span className="c">Central</span></button>
       <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k && !view ? "on" : ""} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <Icon d={d} size={18} />{l}{badge[k] > 0 && <span className="dot">{badge[k]}</span>}</button>)}</div>
-      <button className="ibtn" aria-label={fresh ? freshSaid : "Vos recherches"} onClick={() => goTab("me")}>
-        <Icon d={UI.bell} size={22} />{fresh > 0 && <span className="dot">{fresh}</span>}</button>
     </header>}
     {error && <div className="empty">{error}</div>}
     {body}

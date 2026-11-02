@@ -12,8 +12,6 @@ et n'utilise que la bibliothèque standard.
 | price-parser (tests) | `tests/corpus/price_strings.json` | github.com/scrapinghub/price-parser, `tests/test_price_parsing.py`, révision 6718bfe (2026-10-06) | 1 040 chaînes de prix réelles (le code n'est pas repris : notre lecteur fait déjà 99,6 % sur ce corpus) |
 | Protego (tests) | `tests/corpus/robots_spec.json` | `tests/test_on_google_spec.py` | cas de la spécification robots.txt |
 | Manrope (police) | `web/fonts/manrope-latin.woff`, intégrée à `web/app.html` | github.com/google/fonts, `ofl/manrope`, révision 47d54ca (2026-10-16) ; dessin de Mikhail Sharanda | police variable 200-800 réduite aux caractères latins (licence : `web/fonts/OFL-Manrope.txt`) |
-| Instrument Serif (police) | `web/fonts/instrumentserif-regular-latin.woff`, intégrée à `web/app.html` | The Instrument Serif Project Authors (github.com/Instrument/instrument-serif), sans nom de police réservé | titres ; réduite aux caractères latins (licence : `web/fonts/OFL-InstrumentSerif.txt`) |
-| JetBrains Mono (police) | `web/fonts/jetbrainsmono-{regular,bold}-latin.woff`, intégrées à `web/app.html` | The JetBrains Mono Project Authors (github.com/JetBrains/JetBrainsMono), sans nom de police réservé | bandeau et chiffres de la courbe ; réduites aux caractères latins (licence : `web/fonts/OFL-JetBrainsMono.txt`) |
 
 Les illustrations de produits (`web/src/art.jsx`) et les pictogrammes sont des dessins originaux, sans élément de tiers.
 

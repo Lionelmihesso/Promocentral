@@ -1,6 +1,6 @@
-# L'interface de Promo Central (v65)
+# L'interface de Promo Central (v66)
 
-Une page (`web/src/App.jsx` → `web/app.html`, polices incluses, aucune requête vers un tiers), téléphone d'abord,
+Une page (`web/src/App.jsx` → `web/app.html`, police incluse, aucune requête vers un tiers), téléphone d'abord,
 quatre onglets : **Top deals** (ouvert au lancement), **Explorer**, **Recherche**, **Profil**. Ce document décrit
 l'interface telle qu'elle est ; son
 historique (mesures version par version, de la v41 à la v63, et leurs captures) est dans git :
@@ -9,23 +9,24 @@ historique (mesures version par version, de la v41 à la v63, et leurs captures)
 ## Principe
 
 **Le moins possible, pour aller vite au produit** (v65). Rien de plus que ce qui aide à décider vite : pas d'encadré,
-pas de phrase d'explication (ni sous-titre, ni accroche, ni « pourquoi » sur les cartes, ni durée de la remise), rien
-d'ajouté sur la fiche. La carte dit le produit et son prix comme une étiquette : le prix, le prix barré et la remise en
-pourcentage, l'économie en euros (« 151 € d'économie »). La qualité reste implicite : seulement des remises réelles,
-aucune mention « vérifiée ». Deux entrées : **les belles remises du moment** (Top deals, Explorer) et **le produit qu'on
-regarde** (la Recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins cher, et aussi
-bien ? ».
+pas de phrase d'explication (ni sous-titre, ni accroche, ni « pourquoi » sur les cartes, ni durée de la remise), pas de
+bandeau défilant, pas de cloche. La carte dit le produit et son prix comme une étiquette : la remise en pourcentage, le
+prix et le prix barré, l'économie en euros (« 151 € d'économie »). La qualité reste implicite : seulement des remises
+réelles, aucune mention « vérifiée ». Deux entrées : **les belles remises du moment** (Top deals, Explorer) et **le
+produit qu'on regarde** (la Recherche couvre tout le catalogue suivi) ; la fiche répond alors à « existe-t-il moins
+cher, et aussi bien ? ».
 
-**Deux couleurs** (v65). L'**action**, jaune (`#FFD60A`, texte noir) : le bouton vers l'enseigne (« Voir l'offre chez
-… », sur la fiche et sur une recherche sauvegardée atteinte) et le surlignage de « Promo » dans le logo. La **remise**,
-rouge (`#D63A0D`) : la remise en pourcentage (pastille), l'économie, « Prix bas », « Central » dans le logo. Le reste en
-noir et gris. Le logo, **Promo** surligné et **Central** en rouge, se reconnaît d'un coup d'œil ; l'icône de l'onglet
-du navigateur reprend le « P » sur le jaune.
+**D'après la maquette du responsable** (v66). Une seule police, **Manrope**, partout : les titres ne sont plus dans un
+serif étroit qui se lisait comme une italique. Des gris et deux couleurs : l'**action**, anthracite (`#3C3C3E`, texte
+blanc : le bouton vers l'enseigne, la puce d'univers choisie, « Promo » dans le logo) et la **remise**, violet (`#C22EA2`,
+le violet des remises de Pixmania assombri pour se lire : la pastille de remise, « Prix bas », l'économie). Le logo :
+**Promo** anthracite, **Central** gris clair ; l'icône de l'onglet du navigateur, le « P » blanc sur l'anthracite.
 
-**Pinterest × Bloomberg.** Pinterest pour donner envie : des visuels, une mosaïque, l'inspiration par pièce.
-Bloomberg pour la vie : un bandeau où défilent les remises du jour avec l'heure de mise à jour. Le relevé des prix
-choisit les prix bas des top deals (« Prix bas » sur la carte) ; la fiche n'a pas de jauge de prix (retirée en v60 :
-elle troublait plus qu'elle n'aidait).
+**Des cartes à l'horizontale.** Une colonne au téléphone (deux puis trois à l'ordinateur), comme sur la maquette : le
+visuel à gauche, carré ; à droite la marque et la pastille de remise, le nom (deux lignes), le prix et le prix barré,
+l'économie. Ni cœur ni bouton sur la carte : toute la carte mène à la fiche, et c'est sur la fiche qu'on garde un
+produit (le cœur) et qu'on va chez l'enseigne. Les carrousels (« Pour vous », « Moins cher, comparable ») prennent les
+mêmes cartes.
 
 **Affiner en entonnoir.** Une question à la fois, du plus large au plus précis : l'univers (High-tech, Entretien,
 Chambre, Salon, Cuisine, Buanderie), le rayon, le type, un attribut du rayon (« Taille d'écran ? », « Définition ? »),
@@ -41,12 +42,13 @@ l'on retire d'une croix. Jamais d'impasse : rien sous le budget, les plus proche
 dits, et le reste répond. Dans chaque rayon, le type et ses attributs sont lus dans ce que l'enseigne déclare de son
 offre, jamais devinés ([`ONTOLOGIE.md`](ONTOLOGIE.md)).
 
-**Garder sans e-mail.** Favoris, marques suivies, rayons et recherches sauvegardées se gardent d'un geste, sans e-mail
-(un compte invité pour l'appareil) ; l'e-mail, facultatif, sert aux nouveautés de vos recherches, la nuit, et à
-retrouver ses choix sur un autre appareil. Une recherche sauvegardée est une **mission** : la plateforme la surveille
-et dit ce qui est nouveau. Les recherches sauvegardées vivent dans le **Profil**, le centre de commande ; la Recherche
-dit où les retrouver. « Me prévenir sous un prix » (l'alerte sur un produit ou ses comparables, depuis la fiche) est
-arrêté en v65 : on ne peut plus en poser, et celles d'avant ne sont ni montrées ni envoyées (`deals/missions.py`).
+**Garder sans e-mail.** Favoris (le cœur de la fiche), marques suivies, rayons et recherches sauvegardées se gardent
+d'un geste, sans e-mail (un compte invité pour l'appareil) ; l'e-mail, facultatif, sert aux nouveautés de vos
+recherches, la nuit, et à retrouver ses choix sur un autre appareil. Une recherche sauvegardée est une **mission** : la
+plateforme la surveille et dit ce qui est nouveau. Les recherches sauvegardées vivent dans le **Profil**, le centre de
+commande ; l'onglet Profil compte celles qui ont du nouveau. « Me prévenir sous un prix » (l'alerte sur un produit ou
+ses comparables, depuis la fiche) est arrêté en v65 : on ne peut plus en poser, et celles d'avant ne sont ni montrées
+ni envoyées (`deals/missions.py`).
 
 **Vos goûts d'abord, l'intérêt du deal toujours.** Sans onboarding : vos rayons (choisis d'un geste), vos marques, ce
 que vous gardez et regardez. Vos deals passent devant, au plus × 1,5 ; une place sur quatre reste au meilleur deal du
@@ -54,33 +56,34 @@ jour ; une visite sur dix est témoin. Le Profil dit ce que l'app a compris et p
 ([`PERSONNALISATION.md`](PERSONNALISATION.md)).
 
 **La conversion d'abord.** Le modèle est l'affiliation : seules les offres d'enseignes partenaires sont montrées ; le
-geste qui rapporte est le clic vers l'offre. Sur la fiche, le bouton vers l'enseigne vient juste sous le prix, dans la
-couleur action : c'est le plus visible de l'écran. La transparence (« Offres d'enseignes partenaires, remises
+geste qui rapporte est le clic vers l'offre. Sur la fiche, le bouton vers l'enseigne vient juste sous le prix et
+l'économie, anthracite : c'est le plus visible de l'écran. La transparence (« Offres d'enseignes partenaires, remises
 vérifiées », « Comment ça marche », « Mentions légales ») est au pied du **Profil**, et seulement là (v65, choix du
 responsable) ; à faire valider par le juriste avant l'ouverture ([`PRODUCTION.md`](PRODUCTION.md), P1-10).
 
 **Les visuels** sont des **illustrations originales** par catégorie (`web/src/art.jsx`), déclinées par produit
-(couleurs, proportions de l'objet : une armoire est haute, un canapé est large, d'où la mosaïque). Aucune image
-extérieure, aucun droit de tiers. Sur la fiche, le visuel reste nu : rien n'est posé dessus que Retour, Partager et le
-cœur. Les photos des produits : voir plus bas.
+(couleurs, proportions de l'objet). Aucune image extérieure, aucun droit de tiers. Dans une carte, le cadre est carré :
+un objet haut (réfrigérateur, aspirateur) y tient entier, un objet large (lit, téléviseur) le remplit. Sur la fiche,
+le visuel aux coins arrondis reste nu : Retour, cœur et partage sont au-dessus. Les photos des produits : voir plus bas.
 
-**Accessibilité.** Contrastes WCAG AA (le texte noir sur le jaune : 13 : 1 ; la remise sur le blanc et le blanc sur la
-remise : 4,7 : 1), zones à toucher de 44 px au moins, un nom pour chaque bouton et chaque champ, bandeau immobile si
-l'appareil demande moins d'animations, espaces insécables du français.
+**Accessibilité.** Contrastes WCAG AA (le texte blanc sur l'anthracite : 11 : 1 ; le violet sur le blanc et le blanc
+sur le violet : 5 : 1 ; le texte secondaire : 5,1 : 1), zones à toucher de 44 px au moins, un nom pour chaque bouton et
+chaque champ, chaque carte nommée par sa marque, son nom, son prix et sa remise, espaces insécables du français.
 
 ## Ce que montre chaque écran
 
 | Écran | Contenu |
 |---|---|
-| Top deals | le premier onglet, ouvert au lancement : « Top deals », puis les top deals en mosaïque (dix au plus, la plus forte remise d'abord, puis un prix bas, et ainsi de suite) |
-| Explorer | bandeau défilant (« MAJ 14 déc. 11:00 », marque, catégorie, remise, prix), **pour vous** (les deals et prix bas de vos rayons et de vos marques, top deals compris), **inspirations du moment** par pièce (les pièces de vos rayons d'abord), **les marques en promo** (même format), **notre sélection** en mosaïque (les autres remises : ni top deals, ni « pour vous »). Pas de recherche sur Explorer : elle est dans son onglet |
-| Carte | visuel et cœur ; marque, nom (une ligne) ; le prix ; le prix barré et la remise (« −20 % », pastille rouge) ; l'économie (« 151 € d'économie ») ; un prix bas sans remise : « Prix bas », sans prix barré ; « 481 € de moins » sur une alternative (au lieu de l'économie : c'est ce qu'on gagne sur le produit de la fiche) ; « Baisse de 64 € » sur un favori |
-| Fiche | grand visuel nu, Retour, Partager (lien vers la fiche), cœur ; nom ; le prix, le prix barré et la remise sur une ligne, l'économie dessous ; **« Voir l'offre chez … »** (l'enseigne partenaire la moins chère et disponible, la seule montrée), jaune, 58 px, juste sous le prix ; la marque et la catégorie, qui mènent à tous leurs produits ; **moins cher, comparable** ; à défaut, produits similaires |
-| Recherche | le champ, qui comprend une phrase (« aspirateur balai sans fil sous 300 € » : les étapes « Aspirateurs », « Balai », « Sans fil », « Moins de 300 € ») ; **Promo** et **Trier** ; en puces, la marque, la promo, le tri et les mots, et « Tout effacer » ; **l'entonnoir** ; avant toute saisie, **vos recherches récentes** (« Effacer ») ou « Essayez » et cinq exemples, puis le **feed** (« À découvrir » ou « Pour vous ») ; dès qu'on tape ou choisit : « 3 produits », **« Sauvegarder »** (« Recherche sauvegardée dans votre Profil »), la mosaïque ; des mots sans produit, dits, et le reste de la recherche ; rien sous le budget : « Rien à moins de 300 € », les plus proches au-dessus, et « Sauvegarder » ; rien du tout : « Rien pour « xyzzy » » et « Sauvegarder », puis le feed ; un rayon non suivi : « Les smartphones ne sont pas encore suivis » |
+| En-tête | le logo (« Promo » anthracite, « Central » gris clair), qui ramène à Top deals ; à l'ordinateur, les quatre onglets. Pas de cloche (v66 : l'onglet Profil compte les recherches qui ont du nouveau) |
+| Top deals | le premier onglet, ouvert au lancement : « Top deals » ; les univers, **Tout**, **Électroménager**, **Maison** (ameublement et literie), **High-tech** ; puis les top deals de l'univers en cartes (dix au plus, la plus forte remise d'abord, puis un prix bas, et ainsi de suite ; la règle est la même dans un univers) |
+| Explorer | « Explorer » ; **pour vous** (les deals et prix bas de vos rayons et de vos marques, top deals compris, en carrousel), **inspirations du moment** par pièce (les pièces de vos rayons d'abord), **les marques en promo** (même format), **notre sélection** en cartes (les autres remises : ni top deals, ni « pour vous »). Ni bandeau défilant (v66) ni recherche : elle est dans son onglet |
+| Carte | le visuel carré à gauche ; à droite la marque et la pastille de remise (« −20 % », violet ; « Prix bas » pour un prix bas sans remise), le nom (deux lignes), le prix et le prix barré, l'économie (« 151 € d'économie ») ; « 28 € de moins » sur une alternative (au lieu de l'économie : c'est ce qu'on gagne sur le produit de la fiche) ; « Baisse de 64 € » sur un favori. Ni cœur ni bouton : toute la carte ouvre la fiche |
+| Fiche | Retour, cœur (garder), partager, au-dessus du visuel ; le visuel aux coins arrondis ; **la marque et la catégorie**, qui mènent à tous leurs produits ; le nom ; la remise, le prix et le prix barré ; l'économie ; **« Voir l'offre chez … »** (l'enseigne partenaire la moins chère et disponible, la seule montrée), anthracite ; « Livraison selon le marchand », « Retours selon le marchand » ; **moins cher, comparable** ; à défaut, produits similaires |
+| Recherche | le champ, qui comprend une phrase (« aspirateur balai sans fil sous 300 € » : les étapes « Aspirateurs », « Balai », « Sans fil », « Moins de 300 € ») ; **Promo** et **Trier** ; en puces, la marque, la promo, le tri et les mots, et « Tout effacer » ; **l'entonnoir** ; avant toute saisie, **vos recherches récentes** (« Effacer ») ou « Essayez » et cinq exemples, puis le **feed** (« À découvrir » ou « Pour vous ») ; dès qu'on tape ou choisit : « 3 produits », **« Sauvegarder »** (« Recherche sauvegardée dans votre Profil »), les cartes ; des mots sans produit, dits, et le reste de la recherche ; rien sous le budget : « Rien à moins de 300 € », les plus proches au-dessus, et « Sauvegarder » ; rien du tout : « Rien pour « xyzzy » » et « Sauvegarder », puis le feed ; un rayon non suivi : « Les smartphones ne sont pas encore suivis » |
 | Affiner (l'entonnoir) | « AFFINER », des traits (fait, en cours, à venir) ; les **étapes franchies** (« High-tech × », « Téléviseurs × » : la croix revient avant elle) ; **la question** (« Quel univers ? », « Quel rayon ? », « Quel type ? », « Taille d'écran ? », « Votre budget ? ») et ses réponses, chacune avec son nombre (« OLED 3 ») ; **« Passer »** ; à la fin, « VOTRE SÉLECTION », « 3 produits », « Sauvegarder » (sur une page : « Recommencer ») ; rien ici : « retirez une étape » |
-| Marque, catégorie, pièce | « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; une catégorie rejoint vos rayons ; **l'entonnoir** (une marque : « Quel rayon ? », ou « Quel univers ? » au-delà de six rayons ; une marque d'un seul rayon : ses questions d'emblée ; une catégorie : ses questions ; une pièce : « Quel rayon ? ») ; le tri (remises d'abord, prix croissant, décroissant) ; la mosaïque ; ce qu'on y a choisi reste quand on ouvre une fiche et revient |
+| Marque, catégorie, pièce | « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; une catégorie rejoint vos rayons ; **l'entonnoir** (une marque : « Quel rayon ? », ou « Quel univers ? » au-delà de six rayons ; une marque d'un seul rayon : ses questions d'emblée ; une catégorie : ses questions ; une pièce : « Quel rayon ? ») ; le tri (remises d'abord, prix croissant, décroissant) ; les cartes ; ce qu'on y a choisi reste quand on ouvre une fiche et revient |
 | Ajouter son e-mail | facultatif : « Pour recevoir par e-mail les nouveautés de vos recherches et retrouver ce que vous gardez sur un autre appareil » ; un lien, aucun mot de passe ; le lien rattache l'adresse à ce qui est gardé ici, ou verse ce qui est gardé ici dans le compte qui a déjà cette adresse |
-| Profil | le centre de commande, des titres seuls et beaucoup d'air ; « Gardé sur cet appareil, sans e-mail. Ajouter mon e-mail » (ou « Connecté avec … ») ; **vos recherches** sauvegardées (ce qui y répond, « 5 NOUVEAUX », la cloche pour l'e-mail de la nuit, la croix ; atteinte, « Voir l'offre · 175 € chez … », jaune) ; **vos favoris** ; **vos marques** ; **vos rayons**, repliés (« Vos rayons · 2 choisis ») ; **ce que l'app a compris** et « Oublier » ; « Me reconnaître à mon retour » ; « Effacer mes données », « Se déconnecter » ; au pied, et sur aucun autre écran : « Offres d'enseignes partenaires, remises vérifiées. Comment ça marche · Mentions légales » ; la cloche de l'en-tête et l'onglet comptent les recherches qui ont du nouveau |
+| Profil | le centre de commande, des titres seuls et beaucoup d'air ; « Gardé sur cet appareil, sans e-mail. Ajouter mon e-mail » (ou « Connecté avec … ») ; **vos recherches** sauvegardées (ce qui y répond, « 5 NOUVEAUX », la cloche pour l'e-mail de la nuit, la croix ; atteinte, « Voir l'offre · 175 € chez … », anthracite) ; **vos favoris** (gardés depuis la fiche) ; **vos marques** ; **vos rayons**, repliés (« Vos rayons · 2 choisis ») ; **ce que l'app a compris** et « Oublier » ; « Me reconnaître à mon retour » ; « Effacer mes données », « Se déconnecter » ; au pied, et sur aucun autre écran : « Offres d'enseignes partenaires, remises vérifiées. Comment ça marche · Mentions légales » ; l'onglet compte les recherches qui ont du nouveau |
 | Comment ça marche | depuis le Profil : quelles offres (enseignes partenaires seulement, prix relus chaque nuit, remises réelles seulement), dans quel ordre, comment Promo Central est rémunéré (une commission, sans effet sur le prix ni sur le classement), vos données |
 | Mentions légales et données personnelles | depuis le Profil : l'éditeur, le directeur de la publication, l'hébergeur, le contact (lus dans `DEALS_LEGAL_…` ; en développement, « à compléter » ; en production, l'app ne démarre pas sans eux), ce que la plateforme garde, pourquoi, combien de temps, vos droits |
 | Démonstration (`DEALS_ENV=demo`) | une ligne noire en haut de chaque page, avant l'app : « Démonstration : données fictives, aucune offre réelle. » ; dans le flux, elle ne recouvre rien (v64 : fixée en bas, elle cachait la barre d'onglets d'un téléphone et prenait ses gestes) |
@@ -91,7 +94,8 @@ Les flux des enseignes donnent l'adresse de la photo de chaque produit (`image_l
 (`products.image`) mais pas montrée. La montrer est une décision de front : la charger depuis l'enseigne (une requête
 vers un tiers à chaque ouverture, l'adresse IP des visiteurs transmise), ou la copier sur notre serveur (stockage,
 bande passante), dans tous les cas selon les conditions du programme d'affiliation. Tant que ce n'est pas décidé, les
-illustrations tiennent la place ; elles restent de toute façon le repli d'un produit sans photo.
+illustrations tiennent la place ; elles restent de toute façon le repli d'un produit sans photo. La maquette de la v66
+montre des photos : c'est là qu'elles iraient (le visuel carré des cartes, celui de la fiche).
 
 ## Vérifier
 
@@ -102,13 +106,16 @@ téléphone et ordinateur : contrastes, zones à toucher, noms). Dernier passage
 scripts ne sont pas dans le dépôt ; depuis, des contrôles ciblés :
 
 - v64 (quatre onglets) : 18 contrôles dans Chromium.
-- v65 (le moins possible) : 38 contrôles dans Chromium, téléphone (390 × 844) et ordinateur : le logo et ses deux
-  couleurs, l'étiquette de prix de chaque carte (l'économie = prix barré − prix), « Prix bas », plus de remise sur le
-  visuel ni de « pourquoi », la fiche (titre, prix, bouton, puis marque et catégorie ; bouton jaune de 58 px dans le
-  premier écran), plus de « Me prévenir », les mentions au Profil seulement (et leurs pages, Retour), le bandeau de
-  démo en haut sans recouvrir d'onglet, l'origine « top » d'un clic, Retour, le logo, l'API qui refuse une alerte,
-  aucune erreur. Mesures, téléphone de 390 × 844, avant (v64) → après (v65) : mots hors produits, Top deals 20 → 4,
-  Explorer 29 → 11 (37 → 13 avec « Pour vous ») ; premier produit d'Explorer avec « Pour vous » à 280 → 188 px ;
-  bouton vers l'enseigne sur les mêmes 22 fiches, médiane 534 → 478 px, toujours entier dans le premier écran
-  (22/22 avant et après) ; bandeau de démo sur la barre d'onglets 50 → 0 px (avant, il prenait les gestes des
-  quatre onglets).
+- v65 (le moins possible) : 38 contrôles. Mesures, téléphone de 390 × 844, v64 → v65 : mots hors produits, Top deals
+  20 → 4, Explorer 29 → 11 ; bouton vers l'enseigne sur les mêmes 22 fiches, médiane 534 → 478 px ; bandeau de démo
+  sur la barre d'onglets 50 → 0 px.
+- v66 (la maquette) : 43 contrôles dans Chromium, téléphone et ordinateur : le logo et ses gris, plus de cloche, une
+  seule police, les univers de Top deals (High-tech : seulement l'électronique), les cartes à l'horizontale (le visuel à
+  gauche, ni cœur ni bouton, l'économie = prix barré − prix, « Prix bas », le violet), Explorer sans bandeau défilant,
+  la fiche (Retour, cœur, partage au-dessus du visuel ; marque et catégorie avant le nom ; remise, prix, prix barré ;
+  économie ; bouton anthracite dans le premier écran ; livraison et retours), le cœur de la fiche qui garde le produit
+  et le Profil qui le montre, les mentions au Profil seulement, l'origine « top » d'un clic, Retour, trois cartes par
+  ligne à l'ordinateur, aucune erreur. Mesures, v65 → v66 : Top deals, premier produit 159 → 208 px (la ligne des
+  univers), 4 → 3 cartes entières au premier écran (des cartes plus larges, le nom en entier) ; bouton vers l'enseigne
+  sur les mêmes 22 fiches, médiane 478 → 568 px (la barre au-dessus du visuel, la marque et la catégorie avant le nom),
+  toujours entier dans le premier écran (22/22) ; la page passe de 403 à 341 ko (deux polices de moins).

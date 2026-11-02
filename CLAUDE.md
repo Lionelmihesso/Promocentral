@@ -35,7 +35,7 @@ Règles de conception :
 ## 3. Commandes
 
 ```
-python -m unittest discover -s tests -t .      # 287 tests, environ 100 s — à lancer avant tout commit
+python -m unittest discover -s tests -t .      # 288 tests, environ 100 s — à lancer avant tout commit
 python -m unittest tests.test_release -v        # release et rollback seuls
 python -m bench.cadre                           # cadre de mise en production (17/19 ; aucun point P0 ouvert)
 python deals.py demo                            # app sur un marché simulé, base temporaire (jamais la base de production)
