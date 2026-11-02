@@ -5,8 +5,8 @@ Ce que le produit promet : une phrase suffit ; rien n'est deviné (ce qui n'est 
 l'est) ; un produit ne remplit une mission que s'il est disponible, au prix voulu et conforme ; le prix est facultatif
 (sans lui, la mission suit les nouveautés) ; l'app dit ce qui est nouveau depuis le dernier regard ; la nuit, un e-mail par
 personne qui a donné son adresse et laissé l'alerte, jamais deux fois le même produit au même prix, rien pour ce qu'elle
-voyait déjà. Depuis une fiche, « tout produit comparable » garde la catégorie, les fonctions et la taille ; une cible,
-une mission.
+voyait déjà ; une cible, une mission. v65 : les alertes de prix (ce produit, tout produit comparable) sont arrêtées : on
+ne peut plus en poser, et celles d'avant ne sont ni montrées, ni comptées, ni envoyées.
 """
 import json
 import tempfile
@@ -16,7 +16,7 @@ from pathlib import Path
 from deals.catalog import Catalog
 from deals.errors import BadRequest, NotFound
 from deals.extract import attributes, categorize
-from deals.missions import Missions, interpret, label, like, matches, normalize
+from deals.missions import STOPPED, Missions, interpret, label, matches, normalize
 from deals.accounts import Outbox
 from deals.store import Store
 
@@ -95,28 +95,8 @@ class Matches(unittest.TestCase):
         m = interpret("Zephyr sous 400 €", BRANDS)
         self.assertTrue(matches(m, product("Aspirateur balai sans fil V8 40 min", 399, brand="Zephyr")))
         self.assertFalse(matches(m, product("Aspirateur balai sans fil V8 40 min", 399, brand="Kessler")))   # une autre marque
-        self.assertTrue(matches({"product_id": 7, "max_price": 600}, product("Lave-linge 8 kg", 599, pid=7)))
-        self.assertFalse(matches({"product_id": 7, "max_price": 600}, product("Lave-linge 8 kg", 599, pid=8)))
         flex = {**product("Aspirateur balai sans fil Flex 45 min", 242), "search": " aspirateur balai sans fil flex kessler "}
         self.assertEqual([matches({"category": "aspirateur", "words": w}, flex) for w in (["flex"], ["fle"], ["v8"])], [True, True, False])
-
-    def test_comparable_keeps_kind_functions_and_size(self):
-        self.assertEqual(like(product("Aspirateur balai sans fil Flex 45 min", 279)),
-                         {"category": "aspirateur", "features": [], "attrs": {}, "domain": "aspirateurs", "sub": "balai",
-                          "props": {"cordless": True}})                                               # l'autonomie n'en est pas
-        self.assertEqual(like(product("Lave-linge hublot 9 kg classe A 1400 tr/min", 499)),
-                         {"category": "lave_linge", "features": [], "attrs": {"capacity_kg": 9}, "domain": "lave_linge", "sub": "hublot",
-                          "props": {}})                                                               # ni la classe énergie
-        tv = {**like(product("TV OLED 55\" 4K 120 Hz", 1290)), "max_price": 1100}                     # v59 : même type, même écran
-        self.assertTrue(matches(tv, product("TV OLED 139 cm 4K Ultra HD", 1090)))
-        self.assertFalse(matches(tv, product("TV QLED 55 pouces 4K", 549)))
-        self.assertFalse(matches(tv, product("TV OLED 65 pouces 4K", 1090)))
-        hand = normalize(like(product("Aspirateur Brava X5", 199)))                                   # type non dit : son rayon, pas les robots
-        self.assertEqual((hand["category"], hand["domain"], hand["sub"]), ("aspirateur", "aspirateurs", None))
-        self.assertEqual(like(product("Lit coffre 2 places 140x190 chêne", 499))["attrs"], {"bed_size": "140x190"})
-        m = {**like(product("Lit coffre 160x200 chêne", 699)), "max_price": 600}
-        self.assertTrue(matches(m, product("Lit coffre 160x200 noyer", 549)))
-        self.assertFalse(matches(m, product("Lit coffre 140x190 noyer", 449)))
 
 
 class Night(unittest.TestCase):
@@ -202,7 +182,6 @@ class Night(unittest.TestCase):
                          {"category": None, "features": [], "attrs": {"seats": 3}, "domain": "canape", "sub": "angle",
                           "props": {"convertible": True}})                                          # v56 : « canapé d'angle convertible »
         self.assertEqual(normalize({"category": "refrigerateur", "features": ["americain"]})["sub"], "americain")
-        self.assertEqual(normalize({"product_id": 3, "category": "aspirateur"}), {"product_id": 3, "category": "aspirateur"})   # un produit précis
         with self.s.tx() as c:
             c.execute("INSERT INTO missions(user_id, category, want, max_price, label, created_at) VALUES (?,?,?,?,?,?)",
                       (self.uid, "aspirateur", json.dumps({"attrs": {}, "features": ["balai", "sans_fil"]}), 300, "Aspirateur balai sans fil · 300 € max", 1))
@@ -221,8 +200,8 @@ class Night(unittest.TestCase):
     def test_a_person_manages_her_missions(self):
         self.assertEqual(self.m.list(self.uid), {"missions": [], "reached": 0, "fresh": 0})
         self.assertEqual(self.m.list(None), {"missions": [], "reached": 0, "fresh": 0})              # sans compte : rien
-        a = self.m.create(self.uid, {"product_id": 2, "max_price": 350})                              # ce produit, sous 350 €
-        self.assertEqual((a["label"], a["total"], a["nearest"]["price"]), ("Zephyr Aspirateur balai sans fil V8 40 min · 350 € max", 0, 399))
+        a = self.m.create(self.uid, {"brand": "zephyr", "max_price": 350})                            # une marque, sous 350 €
+        self.assertEqual((a["label"], a["total"], a["nearest"]["price"]), ("Zephyr · 350 € max", 0, 399))
         b = self.m.create(self.uid, {"category": "aspirateur"})                                       # sans prix : une recherche gardée
         self.assertEqual((b["label"], b["total"], b["reached"], b["fresh"], b["nearest"]), ("Aspirateur", 3, False, 0, None))
         for bad in ({}, {"category": "micro_ondes", "max_price": 300}, {"category": "aspirateur", "off": 95}, {"words": "x"},
@@ -308,18 +287,58 @@ class Night(unittest.TestCase):
         self.assertEqual(self.m.list(guest)["missions"][0]["fresh"], 1)                               # l'invité le voit dans l'app
 
     def test_one_mission_per_target(self):
-        a = self.m.create(self.uid, {"like": 1, "max_price": 300})                                    # comparable au Flex
+        balai = {"domain": "aspirateurs", "sub": "balai", "props": {"cordless": True}}
+        a = self.m.create(self.uid, {**balai, "max_price": 300})
         self.assertEqual((a["label"], a["title"], a["total"]), ("Aspirateur balai sans fil · 300 € max", "Aspirateur balai sans fil", 1))
-        b = self.m.create(self.uid, {"like": 1, "max_price": 260})                                    # même cible : nouveau prix
-        c = self.m.create(self.uid, {"category": "aspirateur", "features": ["sans_fil", "balai"], "max_price": 250})
+        b = self.m.create(self.uid, {**balai, "max_price": 260})                                     # même cible : nouveau prix
+        c = self.m.create(self.uid, {"category": "aspirateur", "features": ["sans_fil", "balai"], "max_price": 250})   # dite à l'ancienne
         self.assertEqual((b["id"], c["id"], b["total"]), (a["id"], a["id"], 0))
-        d = self.m.create(self.uid, {"product_id": 2, "max_price": 350})
-        self.assertEqual(d["title"], "Zephyr Aspirateur balai sans fil V8 40 min")
-        self.assertEqual(self.m.create(self.uid, {"product_id": 2, "max_price": 330})["id"], d["id"])
+        d = self.m.create(self.uid, {"brand": "Zephyr", "max_price": 350})
+        self.assertEqual(d["title"], "Zephyr")
+        self.assertEqual(self.m.create(self.uid, {"brand": "zephyr", "max_price": 330})["id"], d["id"])
         listed = self.m.list(self.uid)["missions"]
         self.assertEqual(sorted((v["id"], v["max_price"]) for v in listed), [(a["id"], 250), (d["id"], 330)])
         self.put(2, "Aspirateur balai sans fil V8 40 min", "Zephyr", 319)                             # publication suivante
         self.assertEqual([v["total"] for v in self.m.list(self.uid)["missions"] if v["id"] == d["id"]], [1])
+
+    def test_price_alerts_are_stopped(self):
+        """v65 : « Me prévenir sous un prix » est arrêté. On ne pose plus d'alerte sur un produit ni sur ses comparables ;
+        celle d'avant reste en base, inerte : ni montrée, ni comptée, ni touchée, ni envoyée."""
+        for body in ({"product_id": 2, "max_price": 350}, {"like": 1, "max_price": 300}, {"product_id": 2}):
+            for act in (self.m.create, self.m.preview):
+                with self.assertRaises(BadRequest) as e:
+                    act(self.uid, body)
+                self.assertEqual(str(e.exception), STOPPED)
+            with self.assertRaises(BadRequest):
+                self.m.pending(body)                                                                  # ni en attendant le lien
+        old = self.s.x("INSERT INTO missions(user_id, product_id, want, max_price, label, created_at, notified) "
+                       "VALUES (?,?,?,?,?,?,?)", (self.uid, 2, "{}", 350, "Zephyr V8 · 350 € max", 1, "{}"))   # une alerte d'avant
+        self.assertEqual(self.m.list(self.uid), {"missions": [], "reached": 0, "fresh": 0})
+        for act in (lambda: self.m.seen(self.uid, old), lambda: self.m.alert(self.uid, old, False), lambda: self.m.remove(self.uid, old)):
+            with self.assertRaises(NotFound):
+                act()
+        self.put(2, "Aspirateur balai sans fil V8 40 min", "Zephyr", 299)                             # elle serait atteinte
+        box = Outbox()
+        self.assertEqual((self.m.notify(box, "https://deals.test")["missions"], box.mails), (0, []))
+        self.m.caught_up(self.uid)
+        self.assertEqual(self.s.q("SELECT notified FROM missions WHERE id=?", (old,), one=True)["notified"], "{}")
+        with self.s.tx() as c:                                                                         # 19 de plus : 20 lignes en tout
+            c.executemany("INSERT INTO missions(user_id, product_id, want, max_price, label, created_at) VALUES (?,?,?,?,?,?)",
+                          [(self.uid, 3, json.dumps({"n": i}), 100 + i, "x", 1) for i in range(19)])
+        self.assertTrue(self.m.create(self.uid, {"category": "aspirateur"})["id"])                     # elles ne comptent pas
+        self.assertEqual(self.s.q("SELECT COUNT(*) n FROM missions", one=True)["n"], 21)               # et rien n'est effacé
+
+    def test_the_night_reads_each_search_with_its_own_words(self):
+        """Deux recherches du même rayon, l'une avec un mot : la seconde voit tous les produits du rayon, pas seulement ceux
+        qui ont le mot de la première (les lectures partagées le sont à mots égaux)."""
+        with self.s.tx() as c:
+            c.execute("UPDATE catalog SET search=' aspirateur balai sans fil flex kessler ' WHERE product_id=1")
+        bob = self.s.x("INSERT INTO users(email, created_at) VALUES ('bob@test.local', 0)")
+        self.m.create(self.uid, {"category": "aspirateur", "words": ["flex"], "max_price": 300})       # lue la première
+        self.m.create(bob, {"category": "aspirateur", "max_price": 300})
+        self.put(3, "Aspirateur traîneau sans sac 750 W", "Ostra", 189)                               # nouveau pour Bob seulement
+        box = Outbox()
+        self.assertEqual((self.m.notify(box, "https://deals.test")["emails"], [to for to, _ in box.mails]), (1, ["bob@test.local"]))
 
 
 if __name__ == "__main__":

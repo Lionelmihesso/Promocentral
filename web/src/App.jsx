@@ -45,10 +45,17 @@
    bandeau, « Pour vous », les inspirations du moment, les marques en promo, notre sélection) ; « Pour vous » y montre
    tous vos deals, top deals compris. Recherche et Profil ne changent pas.
 
+   v65 : le plus simple possible, pour aller vite au produit. Un logo qui se reconnaît (« Promo » surligné dans la
+   couleur action, « Central » dans la couleur remise) ; deux couleurs : l'action (le bouton vers l'enseigne) et la
+   remise ; la carte dit le produit, le prix, le prix barré, la remise en % et l'économie en euros, rien d'autre ; sur la
+   fiche, le bouton vers l'enseigne vient juste sous le prix. Plus de phrases d'explication (sous-titre, accroche,
+   « pourquoi » des cartes, durée de la remise) ; « Comment ça marche » et « Mentions légales » dans le Profil seulement ;
+   « Me prévenir sous un prix » est arrêté.
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
    tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
-   remises réelles seulement (la qualité est implicite), les durées dans la fiche seulement, « Moins cher, comparable »,
-   la recherche dans tout le catalogue, la connexion au moment de l'action, contrastes et zones à toucher aux normes. */
+   remises réelles seulement (la qualité est implicite), « Moins cher, comparable », la recherche dans tout le
+   catalogue, la connexion au moment de l'action, contrastes et zones à toucher aux normes. */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Vignette, ratioOf } from "./art.jsx";
 
@@ -69,7 +76,6 @@ const UI = {
   compass: ["M15.2 8.8l-1.9 4.5-4.5 1.9 1.9-4.5z", C(12, 12, 8.2)],   // l'aiguille d'abord : c'est elle que l'onglet ouvert remplit
   user: [C(12, 8.5, 3.8), "M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"],
   share: ["M12 15V4.5", "M8 8l4-4 4 4", "M6 12.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6.5"],
-  cal: ["M5.5 6h13a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M4.5 10h15", "M8.5 4v4", "M15.5 4v4"],
   next: ["M9.5 5.5L16 12l-6.5 6.5"],
   target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
   down: ["M7 10l5 5 5-5"],
@@ -81,9 +87,6 @@ const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" widt
 
 /* ---------------------------------------------------------------- formats */
 const eur = n => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " €";
-const iso = d => new Date(`${d}T12:00:00`);
-const dayLabel = d => new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" }).format(iso(d));
-const daysBetween = (a, b) => Math.round((iso(b) - iso(a)) / 86400000);
 const clock = ts => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts * 1000));
 const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(ts * 1000));
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
@@ -158,15 +161,6 @@ const SEEN_MAX = 60, PICKS_MAX = 12;
 const cleanPicks = v => Array.isArray(v) ? [...new Set(v.filter(x => typeof x === "string" && /^[a-z_]{2,40}$/.test(x)))].slice(0, PICKS_MAX) : [];
 const seenParam = list => list.slice(-SEEN_MAX).reverse()
   .map(e => `${e.k}${e.id}.${Math.min(365, Math.max(0, Math.floor((Date.now() / 1000 - e.t) / 86400)))}`).join(",");
-/* « Vos rayons : Canapés, Matelas », « D'après vos recherches : Aspirateurs » ou « D'après vos visites : Canapés » : ce que
-   l'app a compris, dit en une ligne ; les rayons que vous avez choisis d'abord (picks), puis ceux de vos recherches et
-   alertes (chosen, côté serveur), puis ceux des fiches ouvertes. */
-function tasteLine(t, picks = []) {
-  const cats = t?.cats || [], mine = cats.filter(c => picks.includes(c.key)), asked = cats.filter(c => c.chosen && !picks.includes(c.key));
-  const [say, list] = mine.length ? ["Vos rayons", mine] : asked.length ? ["D'après vos recherches", asked] : ["D'après vos visites", cats];
-  if (!list.length) return t?.brands?.length ? `Vos marques : ${t.brands.slice(0, 2).map(b => b.name).join(", ")}` : "";
-  return `${say} : ${list.slice(0, 2).map(c => c.label).join(", ")}${list.length > 2 ? "…" : ""}`;
-}
 // L'inspiration par pièce : des catégories regroupées comme on pense son intérieur ; le high-tech en premier (v59).
 const ROOMS = [
   { key: "high_tech", label: "High-tech", art: "televiseur",
@@ -178,18 +172,6 @@ const ROOMS = [
   { key: "buanderie", label: "Buanderie", art: "lave_linge", cats: ["lave_linge", "seche_linge", "lave_linge_sechant"] },
   { key: "entretien", label: "Entretien", art: "aspirateur", cats: ["aspirateur", "robot_aspirateur"] },
 ];
-
-/* Durées : seulement dans la fiche, en une ligne. */
-function timing(p) {
-  if (!(p.pct > 0) || !p.published_on) return null;
-  const parts = [];
-  if (p.since) {
-    const n = daysBetween(p.since, p.published_on);
-    parts.push(n <= 0 ? "En remise depuis aujourd'hui" : `En remise depuis ${n} jour${n > 1 ? "s" : ""}`);
-  }
-  if (p.ends && daysBetween(p.published_on, p.ends) >= 0) parts.push(`${parts.length ? "jusqu'au" : "Jusqu'au"} ${dayLabel(p.ends)}`);
-  return parts.length ? parts.join(", ") : null;
-}
 
 async function api(path, body) {
   const r = await fetch(`/api/r/${path}`, {
@@ -203,13 +185,6 @@ async function api(path, body) {
   return data;
 }
 
-/* Prix proposés pour une alerte : −5 %, −10 % et −20 % du prix du jour. */
-function suggestions(p) {
-  const out = [];
-  for (const f of [0.95, 0.9, 0.8]) { const v = Math.floor(p.price * f); if (!out.some(([x]) => x === v)) out.push([v, `−${Math.round((1 - f) * 100)} %`]); }
-  return out;
-}
-
 const withOut = (set, id) => { const n = new Set(set); n.delete(id); return n; };
 const withIn = (set, id) => { const n = new Set(set); n.add(id); return n; };
 const useWidth = () => {
@@ -221,6 +196,7 @@ const useWidth = () => {
 const CSS = `
 .d{--ink:#141414;--paper:#FFFFFF;--tint:#F4F2EF;--tint2:#EAE7E2;--mid:#5E6166;--soft:#6B6E73;--icon:#8A8D92;--line:#ECE9E4;
   --accent:#D63A0D;--accent-ink:#B5300A;--accent-soft:#FCEDE6;--good:#1F7A52;--warn:#A9480A;--terminal:#121315;
+  --action:#FFD60A;--action-down:#F2C200;--deal:#D63A0D;
   --serif:"Instrument Serif",Georgia,"Times New Roman",serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
   font-family:Manrope,-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);background:var(--paper);min-height:100vh;
   font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
@@ -229,8 +205,10 @@ const CSS = `
 .d :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:10px}
 .d .app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--paper);position:relative;padding-bottom:96px}
 .d .top{display:flex;justify-content:space-between;align-items:center;height:58px;padding:0 10px 0 16px}
-.d .logo{font-family:var(--serif);font-size:32px;line-height:1;letter-spacing:-.01em;border:0;background:none;min-height:44px;padding:0 4px;margin-left:-4px}
-.d .logo b{color:var(--accent);font-weight:400}
+/* le logo : « Promo » surligné dans la couleur action, « Central » dans la couleur remise */
+.d .logo{display:flex;align-items:center;gap:.12em;font-family:var(--serif);font-size:32px;line-height:1;letter-spacing:-.01em;border:0;background:none;min-height:44px;padding:0 4px;margin-left:-4px;color:var(--ink)}
+.d .logo .p{background:var(--action);padding:.04em .14em .07em;border-radius:.14em}
+.d .logo .c{color:var(--deal)}
 .d .tabs{display:none}
 .d .ibtn{position:relative;flex:0 0 auto;border:0;background:none;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center}
 .d .ibtn .dot{position:absolute;top:6px;right:5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:800;line-height:18px;padding:0 5px}
@@ -246,7 +224,6 @@ const CSS = `
 @keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media (prefers-reduced-motion:reduce){.d .run{animation:none}.d .tape{overflow-x:auto}.d .flow{transition:none}}
 /* titres */
-.d .intro{padding:18px 16px 0}
 .d h1{font-family:var(--serif);font-weight:400;font-size:42px;line-height:1;letter-spacing:-.015em;margin:0}
 .d .pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:12px 10px 0 16px}
 .d .sub{color:var(--mid);font-size:14.5px;margin-top:6px}
@@ -277,22 +254,24 @@ const CSS = `
 .d .mcol{display:flex;flex-direction:column;gap:18px;min-width:0}
 .d .card{display:block;cursor:pointer;min-width:0}
 .d .vis{position:relative;border-radius:16px;overflow:hidden;background:var(--tint)}
-.d .badge{position:absolute;left:10px;bottom:10px;background:var(--accent);color:#fff;font-size:13px;font-weight:800;border-radius:8px;padding:4px 8px;letter-spacing:-.01em}
-.d .badge.good{background:var(--good)}
-.d .meta .why{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:12px;font-weight:700;color:var(--good);line-height:1.3}
-.d .meta .why .i{flex:0 0 auto}
-.d .sechead .n.drop{color:var(--good);font-weight:700}
+.d .sechead .n.drop{color:var(--deal);font-weight:700}
 .d .heart{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;color:var(--ink)}
 .d .heart span{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .d .heart.on{color:var(--accent)}
 .d .meta{padding:9px 2px 0}
 .d .meta .brand{font-size:11px;font-weight:800;color:var(--mid);text-transform:uppercase;letter-spacing:.08em}
 .d .meta .name{font-size:14.5px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.d .meta .price{display:flex;align-items:baseline;gap:7px;margin-top:3px}
-.d .meta .price b{font-size:20px;font-weight:800;letter-spacing:-.03em}
-.d .meta .price b.deal{color:var(--accent)}
-.d .meta .price s{font-size:12.5px;color:var(--mid)}
-.d .meta .drop{font-size:13px;font-weight:800;color:var(--good);margin-top:2px}
+/* v65 : le prix comme une étiquette — le prix ; le prix barré et la remise ; l'économie en euros (couleur remise) */
+.d .now{font-weight:800;letter-spacing:-.03em}
+.d .was{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
+.d .was s{color:var(--mid)}
+.d .off{display:inline-block;background:var(--deal);color:#fff;font-weight:800;letter-spacing:-.01em;border-radius:6px;padding:1px 6px;font-size:12px;line-height:1.35;white-space:nowrap}
+.d .save{color:var(--deal);font-weight:800}
+.d .meta .now{font-size:20px;margin-top:4px;line-height:1.15}
+.d .meta .was{margin-top:3px}
+.d .meta .was s{font-size:12.5px}
+.d .meta .save{font-size:12.5px;margin-top:3px}
+.d .meta .drop{font-size:12.5px;font-weight:800;color:var(--deal);margin-top:2px}
 .d .scroller{display:flex;gap:12px;overflow-x:auto;padding:0 16px 4px;scrollbar-width:none}
 .d .scroller::-webkit-scrollbar{display:none}
 .d .scroller .card{flex:0 0 auto;width:158px}
@@ -307,14 +286,17 @@ const CSS = `
 .d .fbtn{pointer-events:auto;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.14)}
 .d .fbtn.on{color:var(--accent)}
 .d .info{padding:18px 16px 0}
-.d .info .title{font-family:inherit;font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:4px 0 0}
-.d .prices{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;margin-top:12px}
-.d .prices .pct{font-size:46px;font-weight:800;letter-spacing:-.05em;color:var(--accent);line-height:1}
-.d .prices .now{font-size:34px;font-weight:800;letter-spacing:-.04em;line-height:1}
-.d .prices s{font-size:17px;color:var(--mid)}
-.d .when{display:flex;align-items:center;gap:10px;margin-top:14px;background:var(--accent-soft);border-radius:14px;padding:12px 14px;font-size:14px;font-weight:600}
-.d .when .i{color:var(--accent)}
-.d .buy{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;min-height:54px;border-radius:15px;background:var(--ink);color:#fff;font-size:16px;font-weight:800;text-decoration:none}
+.d .info .title{font-family:inherit;font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:2px 0 0}
+/* sur la fiche, la place ne manque pas : le prix, le prix barré et la remise sur une ligne, l'économie dessous */
+.d .prices{display:flex;flex-wrap:wrap;align-items:center;column-gap:12px;margin-top:10px}
+.d .prices .now{font-size:36px;letter-spacing:-.04em;line-height:1.1}
+.d .prices .was{gap:6px 10px}
+.d .prices .was s{font-size:17px}
+.d .prices .off{font-size:15px;padding:3px 9px;border-radius:8px}
+.d .prices .save{flex-basis:100%;font-size:15.5px;margin-top:6px}
+/* le bouton vers l'enseigne : la couleur action, juste sous le prix */
+.d .buy{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:18px;min-height:58px;padding:0 16px;border-radius:16px;background:var(--action);color:var(--ink);font-size:17px;font-weight:800;letter-spacing:-.01em;text-align:center;text-decoration:none}
+.d .buy:active{background:var(--action-down)}
 /* comptes, marques */
 .d .cta{display:block;width:100%;margin-top:16px;border:0;background:var(--ink);color:#fff;border-radius:16px;min-height:50px;font-size:15px;font-weight:800}
 .d .cta:disabled{opacity:.5}
@@ -342,39 +324,20 @@ const CSS = `
 .d .opts .aside{display:flex;align-items:center;gap:10px}
 .d .opts .aside em{font-style:normal;font-size:13.5px;font-weight:700;color:var(--mid)}
 .d .opts button.on .aside em{color:#D9D7D2}
-/* fiche : marque et catégorie, alerte de prix */
-.d .crumbs{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px}
-.d .crumbs button{display:flex;align-items:center;gap:3px;border:0;background:rgba(255,255,255,.95);border-radius:999px;min-height:44px;padding:0 11px 0 15px;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;box-shadow:0 1px 4px rgba(0,0,0,.14)}
-.d .crumbs .i{color:var(--mid)}
-.d .aff{margin:8px 2px 0;font-size:12.5px;line-height:1.45;color:var(--mid)}
+/* fiche : la marque et la catégorie mènent à tous leurs produits ; sous le bouton vers l'enseigne, le visuel reste nu */
+.d .crumbs{display:flex;flex-wrap:wrap;gap:0 16px;margin:8px 0 0 -2px}
+.d .crumbs button{display:flex;align-items:center;gap:2px;border:0;background:none;min-height:44px;padding:0 2px;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--mid)}
 .d .lnk{border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);text-decoration:underline;text-underline-offset:3px;min-height:44px}
-.d .aff .lnk,.d .legal .lnk{display:inline-block;min-height:0;line-height:18px;padding:13px 0;margin:-13px 0}
-.d .legal{padding:28px 16px 8px;font-size:12.5px;color:var(--mid);line-height:1.5}
+.d .legal .lnk{display:inline-block;min-height:0;line-height:18px;padding:13px 0;margin:-13px 0}
+.d .legal{padding:40px 16px 8px;font-size:12.5px;color:var(--mid);line-height:1.5}
 .d .about{padding:0 16px 8px;max-width:680px}
 .d .about h1{font-size:40px;margin:6px 0 0}
 .d .about .lead{font-size:17px;line-height:1.5;margin:14px 0 0}
 .d .about h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:26px 0 0}
 .d .about p,.d .about li{font-size:15px;line-height:1.55;color:#33363A}
 .d .about p{margin:8px 0 0}.d .about ul{margin:8px 0 0;padding-left:20px}.d .about li{margin-top:6px}
-.d .mbuy{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 10px 0 0;min-height:50px;padding:0 14px 0 16px;border-radius:14px;background:var(--ink);color:#fff;text-decoration:none;font-size:14.5px;font-weight:700}
-.d .mbuy b{font-weight:800;color:#FFB08F}
-.d .alertbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;min-height:52px;border-radius:15px;border:1.5px solid var(--ink);background:var(--paper);font-size:15px;font-weight:800}
-.d .alertbtn.on{border-color:var(--good);color:var(--good);background:#EAF5EF}
-/* prix voulu */
-.d .pchips{display:flex;flex-wrap:wrap;gap:8px}
-.d .pchips button{border:0;background:var(--tint);border-radius:14px;min-height:56px;padding:7px 14px;text-align:left;display:flex;flex-direction:column;justify-content:center}
-.d .pchips button b{font-size:17px;font-weight:800;letter-spacing:-.02em}
-.d .pchips button span{font-size:12px;font-weight:700;color:var(--mid)}
-.d .pchips button.on{background:var(--ink);color:#fff}.d .pchips button.on span{color:#D9D7D2}
-.d .pinput{display:flex;align-items:center;gap:10px;margin-top:10px;border:1px solid #CFCFCA;border-radius:14px;padding:0 16px;min-height:56px;background:var(--paper)}
-.d .pinput:focus-within{border-color:var(--ink)}
-.d .pinput span{font-size:13px;font-weight:800;color:var(--mid);white-space:nowrap}
-.d .pinput input,.d .sheet .pinput input{flex:1;align-self:stretch;min-width:0;width:auto;border:0;margin:0;padding:0;outline:0;background:transparent;font-size:20px;font-weight:800;color:var(--ink);text-align:right;-moz-appearance:textfield;appearance:textfield}
-.d .pinput input::-webkit-outer-spin-button,.d .pinput input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.d .pinput b{font-size:20px;font-weight:800}
-.d .state{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:14.5px;font-weight:700;color:var(--mid)}
-.d .state i{width:9px;height:9px;border-radius:50%;background:var(--icon);flex:0 0 auto}
-.d .state.ok{color:var(--good)}.d .state.ok i{background:var(--good);box-shadow:0 0 0 3px rgba(31,122,82,.15)}
+.d .mbuy{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 10px 0 0;min-height:50px;padding:0 14px 0 16px;border-radius:14px;background:var(--action);color:var(--ink);text-decoration:none;font-size:14.5px;font-weight:700}
+.d .mbuy b{font-weight:800}
 /* recherche : un champ, trois filtres, des exemples ou vos recherches sur une ligne, un feed que la saisie adapte */
 .d .sbar.big{height:58px;border-radius:18px;padding-left:18px;margin-top:14px}
 .d .sbar.big input{font-size:17px;font-weight:600}
@@ -425,12 +388,6 @@ const CSS = `
 .d .mi .nums{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-family:var(--mono);font-size:12.5px;color:var(--mid)}
 .d .mi .nums b{color:var(--ink)}.d .mi .nums b.ok{color:var(--good)}
 .d .mi .scroller{padding:12px 10px 2px 0}
-.d .near{display:flex;align-items:center;gap:12px;width:calc(100% - 10px);margin-top:12px;border:0;background:var(--tint);border-radius:14px;padding:8px 10px 8px 8px;text-align:left;min-height:64px}
-.d .near .th{flex:0 0 48px;width:48px;height:48px;border-radius:10px;overflow:hidden;background:var(--tint2)}
-.d .near .tx{flex:1;min-width:0;font-size:13.5px;font-weight:700;line-height:1.3}
-.d .near .tx small{display:block;font-size:12px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.06em}
-.d .near .tx span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.d .near b{font-size:16px;font-weight:800;letter-spacing:-.02em}
 /* recherche v56 : les critères compris, en puces modifiables ; sauvegarder */
 .d .crit{flex:0 0 auto;display:flex;align-items:center;background:var(--ink);color:#fff;border-radius:999px;min-height:44px}
 .d .crit .cl{display:flex;align-items:center;border:0;background:none;color:inherit;min-height:44px;min-width:44px;padding:0 2px 0 15px;font-size:14.5px;font-weight:700;white-space:nowrap}
@@ -508,7 +465,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   nav.d-nav{display:none}
   .d .toast{bottom:32px}
   .d .ticker{border-radius:12px;margin-bottom:8px}
-  .d .intro,.d .sechead,.d .pagehead{padding-left:0;padding-right:0}
+  .d .sechead,.d .pagehead{padding-left:0;padding-right:0}
   .d .sbar{margin-left:0;margin-right:0;max-width:640px}
   .d .chips,.d .rooms,.d .masonry,.d .scroller,.d .bchips,.d .me,.d .mlist,.d .note,.d .filters,.d .tryit{padding-left:0;padding-right:0}
   .d .idline,.d .savebar,.d .confirm{margin-left:0;margin-right:0}
@@ -529,7 +486,7 @@ nav.d-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%
   .d .item .info{padding-left:0;padding-right:0;padding-top:0}
   .d .sheet-wrap{align-items:center}.d .sheet{border-radius:26px}
 }
-@media (hover:hover){.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover,.d .ctag:hover,.d .brow:hover{background:var(--tint2)}.d .chips button.on:hover,.d .ctag.on:hover{background:var(--ink)}}
+@media (hover:hover){.d .buy:hover,.d .mbuy:hover{background:var(--action-down)}.d .card:hover .vis{filter:brightness(.97)}.d .chips button:hover,.d .ctag:hover,.d .brow:hover{background:var(--tint2)}.d .chips button.on:hover,.d .ctag.on:hover{background:var(--ink)}}
 `;
 
 /* Une feuille se ferme aussi avec Échap. */
@@ -546,8 +503,8 @@ function Toast({ text }) {
   return text ? <div className="toast" role="status">{text}</div> : null;
 }
 
-/* Ajouter son e-mail (facultatif) : pour recevoir les alertes par e-mail et retrouver ce qu'on a gardé sur un autre
-   appareil. Le lien ouvert rattache l'adresse au compte invité de cet appareil (rien n'est perdu). */
+/* Ajouter son e-mail (facultatif) : pour recevoir par e-mail les nouveautés de ses recherches et retrouver ce qu'on a
+   gardé sur un autre appareil. Le lien ouvert rattache l'adresse au compte invité de cet appareil (rien n'est perdu). */
 function EmailSheet({ reason, onClose, onDone }) {
   useEscape(onClose);
   const [email, setEmail] = useState("");
@@ -566,7 +523,7 @@ function EmailSheet({ reason, onClose, onDone }) {
       {!sent ? <>
         <div className="eyebrow">Facultatif</div>
         <h2 id="email-h">{reason || "Ajouter votre e-mail"}</h2>
-        <p className="hint">Pour recevoir vos alertes par e-mail et retrouver vos favoris, vos marques et vos recherches sur un autre
+        <p className="hint">Pour recevoir par e-mail les nouveautés de vos recherches et retrouver ce que vous gardez sur un autre
           appareil. Un lien vous est envoyé : aucun mot de passe. Sans e-mail, tout reste gardé sur cet appareil.</p>
         <input type="email" required autoFocus value={email} onChange={e => setEmail(e.target.value)} placeholder="vous@exemple.fr" aria-label="Adresse e-mail" />
         {err && <div className="err">{err}</div>}
@@ -601,55 +558,6 @@ function BrandSheet({ brands, followed, onToggle, onClose }) {
           <span className="aside">{on ? <Icon d={UI.check} size={18} sw={2.4} /> : <Icon d={UI.plus} size={18} sw={2.2} />}</span></button>;
       })}</div>
       <button className="cta" onClick={onClose}>Terminé</button>
-    </div>
-  </div>;
-}
-
-/* « Me prévenir sous un prix », depuis la fiche : ce produit, ou tous les comparables (même catégorie, mêmes fonctions,
-   même taille : la règle est côté serveur) ; trois prix proposés ou le sien. */
-function AlertSheet({ item, current, onClose, onLaunch, onStop }) {
-  useEscape(onClose);
-  const box = useRef(null);
-  useEffect(() => { box.current?.focus(); }, []);           // le focus entre dans la feuille
-  const sugg = suggestions(item);
-  const [mode, setMode] = useState("product");
-  const [price, setPrice] = useState(String(current ? Math.round(current.max_price) : sugg[0]?.[0] ?? ""));
-  const [like, setLike] = useState(null);                  // aperçu des comparables : ce qui est guetté, ce qui y répond déjà
-  const [busy, setBusy] = useState(false);
-  const n = Number(price), ok = price !== "" && n >= 1;
-  useEffect(() => {
-    const t = setTimeout(() => api("missions/preview", { like: item.id, max_price: ok ? n : null }).then(setLike).catch(() => setLike(null)), 250);
-    return () => clearTimeout(t);
-  }, [price]);
-  const status = !ok ? null : mode === "product"
-    ? (item.price <= n ? { ok: true, text: `Déjà à ${eur(item.price)} aujourd'hui` } : { text: `Aujourd'hui ${eur(item.price)} : encore ${eur(item.price - n)}` })
-    : like && (like.total > 0 ? { ok: true, text: `${plural(like.total, "comparable")} déjà sous ${eur(n)} aujourd'hui` }
-      : like.nearest ? { text: `Le moins cher aujourd'hui : ${eur(like.nearest.price)}` } : { text: "Aucun comparable pour l'instant : l'alerte guette les nouveaux" });
-  const launch = async () => {
-    setBusy(true);
-    const done = await onLaunch(mode === "like" ? { like: item.id, max_price: n } : { product_id: item.id, max_price: n });
-    setBusy(false);
-    if (done) onClose();
-  };
-  return <div className="sheet-wrap" onClick={onClose}>
-    <div className="sheet" ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="alert-h" onClick={e => e.stopPropagation()}>
-      <div className="eyebrow">Alerte de prix</div>
-      <h2 id="alert-h">Me prévenir sous un prix</h2>
-      <h3>Pour</h3>
-      <div className="opts">
-        {[["product", "Ce produit", `${item.brand} ${item.name || item.title}`], ["like", "Tous les comparables", like ? like.title : item.kind]].map(([k, l, sub]) =>
-          <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => setMode(k)}>
-            <span><b>{l}</b><small>{sub}</small></span>{mode === k && <Icon d={UI.check} size={18} sw={2.4} />}</button>)}
-      </div>
-      <h3>Prix maximum</h3>
-      <div className="pchips">{sugg.map(([v, l]) => <button key={v} className={ok && n === v ? "on" : ""} aria-pressed={ok && n === v}
-        onClick={() => setPrice(String(v))}><b>{eur(v)}</b><span>{l}</span></button>)}</div>
-      <label className="pinput"><span>Mon prix</span>
-        <input type="number" inputMode="numeric" min="1" value={price} onChange={e => setPrice(e.target.value)} aria-label="Mon prix maximum, en euros" /><b>€</b></label>
-      {status && <div className={`state ${status.ok ? "ok" : ""}`} role="status"><i />{status.text}</div>}
-      <button className="cta" disabled={!ok || busy} onClick={launch}>{ok ? `Me prévenir sous ${eur(n)}` : "Me prévenir"}</button>
-      {current && <button className="ghost" onClick={() => { onStop(current); onClose(); }}>Arrêter l'alerte à {eur(current.max_price)}</button>}
-      <p className="hint">Votre alerte est dans Profil, avec vos recherches ; par e-mail aussi, si vous ajoutez votre adresse.</p>
     </div>
   </div>;
 }
@@ -749,7 +657,6 @@ export default function App() {
   const pseq = useRef(0);
   const [item, setItem] = useState(null);
   const [missions, setMissions] = useState(null);  // vos recherches sauvegardées (missions) : { missions, reached, fresh }
-  const [alertOpen, setAlertOpen] = useState(false);
   const [session, setSession] = useState({ checked: false, email: null, guest: false, variant: "p" });
   const [saved, setSaved] = useState(new Set());
   const [followed, setFollowed] = useState(new Set());
@@ -893,7 +800,7 @@ export default function App() {
       .catch(() => { if (n === pseq.current) setError("Impossible de charger cette page."); });
   }, [pageParams, version]);
 
-  useEffect(() => { window.scrollTo(0, 0); setAlertOpen(false); setPicking(null); setErase(false); }, [view, tab]);
+  useEffect(() => { window.scrollTo(0, 0); setPicking(null); setErase(false); }, [view, tab]);
 
   const isSaved = id => saved.has(id);
   const isFollowed = b => followed.has(b);
@@ -1022,7 +929,7 @@ export default function App() {
     m.domain || null, m.sub || null, Object.entries(m.props || {}).sort()]);
   // Ce qu'une réponse de la Recherche ou d'une page demande, mots compris : la recherche que « Sauvegarder » garde.
   const wantOf = res => res?.criteria ? { ...res.criteria, words: res.words || [] } : null;
-  const searches = (missions?.missions || []).filter(m => !m.product_id);
+  const searches = missions?.missions || [];
   const savedOf = res => { const c = wantOf(res); return c ? searches.find(m => sig(m) === sig(c)) : null; };
   const saveSearch = async res => {
     const hit = savedOf(res), c = wantOf(res);
@@ -1045,38 +952,39 @@ export default function App() {
   };
   const dropSaved = async m => {
     setMissions(x => x && { ...x, missions: x.missions.filter(y => y.id !== m.id) });
-    try { await api("missions/delete", { id: m.id }); flash(m.product_id ? "Alerte arrêtée" : "Recherche retirée"); } catch { /* relue ensuite */ }
+    try { await api("missions/delete", { id: m.id }); flash("Recherche retirée"); } catch { /* relue ensuite */ }
     setVersion(v => v + 1);
   };
   const openSaved = m => {
-    if (m.product_id) open(m.product_id, "mission", m.id);
-    else {
-      setView(null); setItem(null); setTab("search"); setQ((m.words || []).join(" ")); setSkip([]);
-      setCrit({ category: m.category || null, room: m.room || null, brand: m.brand || null, features: m.features || [], attrs: m.attrs || {},
-        min: m.min_price ?? null, max: m.max_price ?? null, off: m.off || null, low: !!m.low, sort: null,
-        domain: m.domain || null, sub: m.sub || null, props: m.props || {} });
-    }
+    setView(null); setItem(null); setTab("search"); setQ((m.words || []).join(" ")); setSkip([]);
+    setCrit({ category: m.category || null, room: m.room || null, brand: m.brand || null, features: m.features || [], attrs: m.attrs || {},
+      min: m.min_price ?? null, max: m.max_price ?? null, off: m.off || null, low: !!m.low, sort: null,
+      domain: m.domain || null, sub: m.sub || null, props: m.props || {} });
     if (m.fresh) api("missions/seen", { id: m.id }).then(() => setVersion(v => v + 1)).catch(() => {});
   };
   const toggleAlert = async m => {
-    if (!session.email) { setEmailFor("Recevoir vos alertes par e-mail"); return; }
+    if (!session.email) { setEmailFor("Recevoir vos recherches par e-mail"); return; }
     try { await api("missions/alert", { id: m.id, on: !m.alert }); setVersion(v => v + 1); flash(m.alert ? "Plus d'e-mail pour cette recherche" : "Un e-mail la nuit où il y a du nouveau"); }
     catch (ex) { flash(ex.message); }
   };
-  const launchAlert = async spec => {                                      // « Me prévenir sous un prix », depuis la fiche
-    try { await keep("missions", spec); flash("Alerte posée : on vous prévient"); setVersion(v => v + 1); return true; }
-    catch (ex) { flash(ex.message); return false; }
-  };
   const dropOf = p => p.saved_price ? Math.round(p.saved_price - p.price) : 0;
   const drops = (savedList || []).filter(p => dropOf(p) >= 1).length;
-  const said = p => `${p.brand}, ${p.name || p.title}, ${p.pct > 0 ? `moins ${p.pct} %, ` : ""}${eur(p.price)}`;
+  // v65 : le prix comme une étiquette (Pixmania) — le prix ; le prix barré et la remise ; l'économie en euros. Un prix
+  // bas sans remise le dit d'un mot ; sur « Moins cher, comparable », l'économie est celle faite sur le produit de la fiche.
+  const economy = p => p.pct > 0 && p.was > p.price ? Math.round(p.was - p.price) : 0;
+  const said = p => `${p.brand}, ${p.name || p.title}, ${eur(p.price)}${economy(p) >= 1 ? `, au lieu de ${eur(p.was)}, moins ${p.pct} %` : ""}`;
+  const priceTag = p => <>
+    <div className="now">{eur(p.price)}</div>
+    {p.pct > 0 ? <div className="was">{economy(p) >= 1 && <s>{eur(p.was)}</s>}<span className="off">−{p.pct} %</span></div>
+      : p.why?.low && <div className="was"><span className="off">Prix bas</span></div>}
+    {p.saving >= 1 ? <div className="save">{eur(p.saving)} de moins</div>
+      : economy(p) >= 1 && <div className="save">{eur(economy(p))} d'économie</div>}
+  </>;
 
   const card = (via, mission) => p => <article key={p.id} className="card" role="button" tabIndex={0} aria-label={said(p)}
     onClick={() => open(p.id, via, mission)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via, mission); }}>
     <div className="vis" style={{ aspectRatio: `1 / ${ratioOf(p.category)}` }}>
       <Vignette category={p.category} seed={p.id} />
-      {p.saving >= 1 ? <span className="badge good">{eur(p.saving)} de moins</span> : p.pct > 0 ? <span className="badge">−{p.pct} %</span>
-        : p.why?.low && <span className="badge good">Prix bas</span>}
       <button className={`heart ${isSaved(p.id) ? "on" : ""}`} aria-pressed={isSaved(p.id)}
         aria-label={isSaved(p.id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={e => toggleSave(p.id, e)}>
         <span><Icon d={UI.heart} size={18} fill={isSaved(p.id)} /></span></button>
@@ -1084,9 +992,8 @@ export default function App() {
     <div className="meta">
       <div className="brand">{p.brand}</div>
       <div className="name">{p.name || p.title}</div>
-      <div className="price"><b className={p.pct > 0 ? "deal" : ""}>{eur(p.price)}</b>{p.pct > 0 && p.was && <s>{eur(p.was)}</s>}</div>
+      {priceTag(p)}
       {dropOf(p) >= 1 && <div className="drop">Baisse de {eur(dropOf(p))}</div>}
-      {p.why?.low && <div className="why"><Icon d={UI.check} size={13} sw={3} />{p.why.low === "lowest" ? "Au plus bas" : "Parmi les plus bas"}</div>}
     </div>
   </article>;
   const grid = (items, via) => <Masonry items={items} cols={cols} render={card(via)} />;
@@ -1102,14 +1009,9 @@ export default function App() {
   const badge = { me: fresh + drops };
   const freshSaid = fresh > 1 ? `${fresh} recherches avec du nouveau` : fresh === 1 ? "1 recherche avec du nouveau" : "";
   const tabSaid = (k, l) => k === "me" && badge.me ? `${l}, ${[freshSaid, drops ? `${plural(drops, "baisse")} de prix sur vos favoris` : ""].filter(Boolean).join(", ")}` : undefined;
-  const nearRow = (p, label, mission) => <button className="near" onClick={() => open(p.id, "mission", mission)} aria-label={`${label} : ${said(p)}`}>
-    <span className="th"><Vignette category={p.category} seed={p.id} ratio={1} /></span>
-    <span className="tx"><small>{label}</small><span>{p.brand} {p.name || p.title}</span></span><b>{eur(p.price)}</b>
-    <Icon d={UI.next} size={16} sw={2.2} /></button>;
   const searchItem = m => {
     const hit = m.matches?.[0], target = m.max_price != null;
-    const state = m.product_id ? (m.reached ? `ATTEINTE · ${eur(hit.price)}` : "EN VEILLE")
-      : target ? (m.reached ? `ATTEINTE · ${plural(m.total, "produit").toUpperCase()}` : "EN VEILLE") : plural(m.total, "produit").toUpperCase();
+    const state = target ? (m.reached ? `ATTEINTE · ${plural(m.total, "produit").toUpperCase()}` : "EN VEILLE") : plural(m.total, "produit").toUpperCase();
     return <article key={m.id} className={`mi ${m.reached ? "ok" : ""}`}>
       <div className="row"><button className="mopen" onClick={() => openSaved(m)} aria-label={`Ouvrir ${m.title}`}>
         <span className="st"><i />{state}{m.fresh > 0 && <em className="new">{m.fresh > 1 ? `${m.fresh} NOUVEAUX` : "1 NOUVEAU"}</em>}</span>
@@ -1124,7 +1026,6 @@ export default function App() {
       {m.reached && hit && target && <a className="mbuy" href={`/api/r/out/${hit.offer_id}?from=mission&m=${m.id}&v=${variant}`} target="_blank" rel="noopener"
         aria-label={`Voir l'offre : ${said(hit)}, chez ${hit.merchant}`}>
         <span>Voir l'offre · <b>{eur(hit.price)}</b> chez {hit.merchant}</span><Icon d={UI.ext} size={18} sw={2.2} /></a>}
-      {!m.reached && m.product_id && m.nearest && nearRow(m.nearest, "Voir la fiche", m.id)}
     </article>;
   };
   const categories = allCats.filter(c => c.count > 0);                    // celles qui ont des remises aujourd'hui
@@ -1166,10 +1067,10 @@ export default function App() {
       <ul>
         <li><b>Sans compte</b> : vos recherches récentes et les fiches ouvertes pendant la visite restent dans votre
           navigateur ; il les joint à chaque lecture pour ordonner ce qui vous est montré, nos serveurs n'en gardent rien.</li>
-        <li><b>Ce que vous gardez</b> (favoris, marques, rayons, recherches, alertes) : un compte sans e-mail, propre à
+        <li><b>Ce que vous gardez</b> (favoris, marques, rayons, recherches) : un compte sans e-mail, propre à
           cet appareil, le garde pour vous rendre ce service ; il tient à un cookie de session, valable un an après le dernier
           choix gardé, et un compte que plus personne ne peut ouvrir est effacé.</li>
-        <li><b>Votre e-mail</b>, facultatif : il sert à vous envoyer vos alertes et vos liens de connexion, et à
+        <li><b>Votre e-mail</b>, facultatif : il sert à vous envoyer les nouveautés de vos recherches et vos liens de connexion, et à
           retrouver vos choix sur un autre appareil. Il n'est transmis qu'à notre prestataire d'envoi.</li>
         <li><b>Mesures</b> : les fiches vues et les clics vers les enseignes sont comptés pour savoir ce qui est utile ;
           une enseigne ne reçoit qu'un identifiant de clic, qui ne dit pas qui vous êtes.</li>
@@ -1224,14 +1125,12 @@ export default function App() {
         quelque chose (un favori, une marque, un rayon, une recherche), un compte sans e-mail est créé pour cet appareil : il
         garde ces choix, et, si vous le demandez dans Profil, les fiches que vous ouvrez. Il tient à un cookie valable un an
         après le dernier choix gardé ; sans e-mail, effacer les données du navigateur le perd, et un compte que plus personne
-        ne peut ouvrir est effacé. Votre e-mail est facultatif : il sert à recevoir vos alertes et à retrouver vos choix sur un
+        ne peut ouvrir est effacé. Votre e-mail est facultatif : il sert à recevoir les nouveautés de vos recherches et à retrouver vos choix sur un
         autre appareil. Profil montre ce que l'app a compris ;
         « Oublier » l'efface, « Effacer mes données » efface tout.</p>
     </div>;
   } else if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
-    const mine = (missions?.missions || []).find(m => m.product_id === item.id);
-    const when = timing(item);
     const source = view.via || "item";
     body = <div className="item">
       <div className="hero">
@@ -1240,24 +1139,18 @@ export default function App() {
           <div><button className="fbtn" onClick={() => share(item)} aria-label="Partager"><Icon d={UI.share} size={19} /></button>
             <button className={`fbtn ${isSaved(item.id) ? "on" : ""}`} onClick={() => toggleSave(item.id)} aria-pressed={isSaved(item.id)}
               aria-label={isSaved(item.id) ? "Retirer des favoris" : "Ajouter aux favoris"}><Icon d={UI.heart} size={20} fill={isSaved(item.id)} /></button></div></div>
-        <div className="crumbs">
-          {item.brand && <button onClick={() => openBrand(item.brand)} aria-label={`Voir tous les produits ${item.brand}`}>{item.brand}<Icon d={UI.next} size={14} sw={2.6} /></button>}
-          <button onClick={() => openCategory(item.category)} aria-label={`Voir la catégorie ${item.kind}`}>{item.kind}<Icon d={UI.next} size={14} sw={2.6} /></button>
-        </div>
       </div>
       <div>
         <div className="info">
           <h1 className="title">{item.name || item.title}</h1>
-          <div className="prices">{item.pct > 0 && <span className="pct">−{item.pct} %</span>}<span className="now">{eur(item.price)}</span>
-            {item.pct > 0 && item.was && <s>{eur(item.was)}</s>}</div>
-          {when && <div className="when"><Icon d={UI.cal} size={20} />{when}</div>}
+          <div className="prices">{priceTag(item)}</div>
           {best && <a className="buy" href={`/api/r/out/${best.offer_id}?from=${source}${view.mission ? `&m=${view.mission}` : ""}&v=${variant}`}
             target="_blank" rel="noopener" onClick={() => note("c", item.id)}>
-            Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={18} sw={2.2} /></a>}
-          {best && <p className="aff">Enseigne partenaire : si vous achetez, nous touchons une commission, sans surcoût pour vous.{" "}
-            <button className="lnk" onClick={openAbout}>Comment ça marche</button></p>}
-          <button className={`alertbtn ${mine ? "on" : ""}`} onClick={() => setAlertOpen(true)}>
-            <Icon d={mine ? UI.check : UI.bell} size={19} sw={2.1} />{mine ? `Alerte à ${eur(mine.max_price)}` : "Me prévenir sous un prix"}</button>
+            Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={19} sw={2.4} /></a>}
+          <div className="crumbs">
+            {item.brand && <button onClick={() => openBrand(item.brand)} aria-label={`Voir tous les produits ${item.brand}`}>{item.brand}<Icon d={UI.next} size={13} sw={2.6} /></button>}
+            <button onClick={() => openCategory(item.category)} aria-label={`Voir la catégorie ${item.kind}`}>{item.kind}<Icon d={UI.next} size={13} sw={2.6} /></button>
+          </div>
         </div>
         {item.alternatives.length > 0 && <>
           <div className="sechead"><h2>Moins cher, comparable</h2></div>
@@ -1268,7 +1161,6 @@ export default function App() {
           <div className="scroller">{item.similar.map(card("similar"))}</div>
         </>}
       </div>
-      {alertOpen && <AlertSheet item={item} current={mine} onClose={() => setAlertOpen(false)} onLaunch={launchAlert} onStop={dropSaved} />}
     </div>;
   } else if (isPage(view)) {                     // une marque, une catégorie, une pièce : l'entonnoir, un tri, leurs produits
     const res = pres?._k === pageKey(view) ? pres : null, stale = !!res && res._p !== pageParams;
@@ -1298,7 +1190,7 @@ export default function App() {
   } else if (tab === "tops") {                    // Top deals : les plus fortes remises réelles et les prix bas, à tour de rôle
     const tops = top?.products || [];
     body = <>
-      <div className="pagehead"><div><h1>Top deals</h1><div className="sub">Remises et prix bas</div></div></div>
+      <div className="pagehead"><div><h1>Top deals</h1></div></div>
       <div style={{ height: 16 }} />
       {top && tops.length === 0 && <div className="empty">Aucun top deal aujourd'hui.</div>}
       {grid(tops, "top")}
@@ -1313,10 +1205,8 @@ export default function App() {
     const rest = items.filter(p => !shown.has(p.id));
     body = <>
       <Ticker items={items} publishedAt={all?.published_at} />
-      <div className="intro"><h1>De bonnes affaires, pour vos envies.</h1></div>
       {yours.length > 0 && <>
-        <div className="sechead"><div><h2>Pour vous</h2><span className="n">{tasteLine(you?.taste, picks)}</span></div>
-          <button className="forget" onClick={() => goTab("me")} aria-label="Modifier vos goûts, dans Profil">Modifier</button></div>
+        <div className="sechead"><h2>Pour vous</h2></div>
         <div className="scroller tops">{yours.map(card("foryou"))}</div>
       </>}
       {rooms.length > 0 && <>
@@ -1390,11 +1280,9 @@ export default function App() {
         </> : <>
         {brandHit && <button className="brow" onClick={() => openBrand(brandHit.name)} aria-label={`La marque ${brandHit.name}`}>
           <small>Marque</small><b>{brandHit.name}</b><span>{plural(brandHit.products, "produit")}</span><Icon d={UI.next} size={18} sw={2.2} /></button>}
-        {shownRes.relaxed ? <>
-          <div className="sechead"><div><h2>Rien à moins de {eur(shownRes.relaxed.max_price)}</h2>
-            <span className="n">Les plus proches, dès {eur(shownRes.relaxed.from)}</span></div></div>
-          <div className="savebar"><span>On vous prévient dès qu'un produit passe sous {eur(shownRes.relaxed.max_price)}.</span>{saveBtn("Me prévenir", shownRes)}</div>
-        </> : fin ? <div style={{ height: 18 }} /> : <div className="sechead"><h2>{plural(shownRes.total, "produit")}</h2>{saveBtn("Sauvegarder", shownRes)}</div>}
+        {shownRes.relaxed ? <div className="sechead"><div><h2>Rien à moins de {eur(shownRes.relaxed.max_price)}</h2>
+            <span className="n">Les plus proches, dès {eur(shownRes.relaxed.from)}</span></div>{saveBtn("Sauvegarder", shownRes)}</div>
+          : fin ? <div style={{ height: 18 }} /> : <div className="sechead"><h2>{plural(shownRes.total, "produit")}</h2>{saveBtn("Sauvegarder", shownRes)}</div>}
         {shownRes.ignored?.length > 0 && <p className="note">« {shownRes.ignored.join(" ")} » : aucun produit ; voici le reste de votre recherche.</p>}
         <div className={`flow ${searching ? "dim" : ""}`}>{grid(shownRes.products, "search")}</div>
       </>}
@@ -1405,7 +1293,6 @@ export default function App() {
     const understood = [...(taste?.taste?.cats || []).filter(c => !c.chosen).map(c => ({ key: c.key, label: c.label, go: () => openCategory(c.key) })),
       ...(taste?.taste?.brands || []).filter(b => !b.chosen).map(b => ({ key: b.name, label: b.name, go: () => openBrand(b.name) }))];
     const learning = !!taste?.learn;
-    const alerts = (missions?.missions || []).filter(m => m.product_id);
     // Des titres seuls, beaucoup d'air entre les sections ; une section vide le dit d'un mot, sur la ligne du titre.
     body = <div className="center profile">
       <div className="pagehead"><div><h1>Profil</h1></div></div>
@@ -1418,10 +1305,6 @@ export default function App() {
         <div className="sechead"><h2>Vos recherches</h2>{searches.length === 0 && <span className="n">Aucune</span>}</div>
         {searches.length > 0 && <div className="mlist">{searches.map(searchItem)}</div>}
       </section>
-      {alerts.length > 0 && <section className="psec">
-        <div className="sechead"><h2>Vos alertes de prix</h2></div>
-        <div className="mlist">{alerts.map(searchItem)}</div>
-      </section>}
       <section className="psec">
         <div className="sechead"><h2>Vos favoris</h2>{drops > 0 ? <span className="n drop">{plural(drops, "baisse")} de prix</span>
           : !savedList?.length && <span className="n">Aucun</span>}</div>
@@ -1453,13 +1336,16 @@ export default function App() {
           : <div className="confirm" role="alert"><span>Vos recherches, favoris, marques et rayons seront effacés.</span>
             <button className="danger" onClick={eraseAll}>Tout effacer</button><button className="ghost" onClick={() => setErase(false)}>Annuler</button></div>}
       </div>}
+      <footer className="legal">Offres d'enseignes partenaires, remises vérifiées.{" "}
+        <button className="lnk" onClick={openAbout}>Comment ça marche</button>{" · "}
+        <button className="lnk" onClick={openLegal}>Mentions légales</button></footer>
       {picking === "brands" && <BrandSheet brands={allBrands} followed={followed} onToggle={toggleFollow} onClose={() => setPicking(null)} />}
     </div>;
   }
 
   return <div className="d"><style>{CSS}</style><div className="app">
     {!(view?.kind === "item" && width < 1000) && <header className="top">
-      <button className="logo" onClick={() => goTab("tops")} aria-label="Promo Central, top deals">Promo Central<b>.</b></button>
+      <button className="logo" onClick={() => goTab("tops")} aria-label="Promo Central, top deals"><span className="p">Promo</span><span className="c">Central</span></button>
       <div className="tabs">{tabsList.map(([k, l, d]) => <button key={k} className={tab === k && !view ? "on" : ""} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <Icon d={d} size={18} />{l}{badge[k] > 0 && <span className="dot">{badge[k]}</span>}</button>)}</div>
       <button className="ibtn" aria-label={fresh ? freshSaid : "Vos recherches"} onClick={() => goTab("me")}>
@@ -1467,9 +1353,6 @@ export default function App() {
     </header>}
     {error && <div className="empty">{error}</div>}
     {body}
-    {view?.kind !== "about" && view?.kind !== "legal" && <footer className="legal">Offres d'enseignes partenaires, remises vérifiées.{" "}
-      <button className="lnk" onClick={openAbout}>Comment ça marche</button>{" · "}
-      <button className="lnk" onClick={openLegal}>Mentions légales</button></footer>}
     <nav className="d-nav" aria-label="Navigation">{tabsList.map(([k, l, d]) =>
       <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => goTab(k)} aria-label={tabSaid(k, l)}>
         <span className="ic"><Icon d={d} size={23} fill={tab === k && k !== "search"} />

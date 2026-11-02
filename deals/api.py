@@ -15,7 +15,8 @@ sans mot ni filtre, le feed, orienté par recent (les dernières recherches du n
 goûts. v60 : funnel (Affiner en entonnoir, deals/funnel.py : les étapes franchies, les questions qui restent) ; sort :
 relevance, price, price_desc, discount ; item/<id> n'envoie plus history ni position (la fiche n'a plus la jauge).
 Ce qu'on garde (v56 : sans e-mail) : save, brand/follow, interests {categories}, missions (POST : sauvegarder une
-recherche, prix facultatif), profile {learn} créent au besoin un compte invité (cookie) ; saves, follows, missions (GET)
+recherche, prix facultatif ; v65 : plus d'alerte de prix, product_id et like sont refusés), profile {learn} créent au
+besoin un compte invité (cookie) ; saves, follows, missions (GET)
 sont vides sans compte ; missions/delete, missions/seen (ce qui y répond n'est plus nouveau), missions/alert {id, on}
 (e-mail de la nuit), profile/reset, account/delete (effacer le compte et ce qu'il gardait).
 Adresse e-mail (facultative) : auth/request {email, mission?} (depuis un compte invité : l'adresse lui sera rattachée),

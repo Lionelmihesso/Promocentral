@@ -111,8 +111,8 @@ autre qui l'est).
   les attributs selon `compare` ; la même taille d'écran à 5 % près (un 55 pouces par un 55 pouces) ; au moins autant
   de stockage, de mémoire, de fréquence ; une console de la même marque (ses jeux sont les siens).
 - **Recherches sauvegardées** : celles des versions d'avant (« canapé d'angle convertible », « frigo américain ») sont
-  relues comme la même phrase aujourd'hui (le type, l'attribut) ; une alerte « tous les comparables » garde le type et
-  les attributs du produit.
+  relues comme la même phrase aujourd'hui (le type, l'attribut). (L'alerte « tous les comparables », qui gardait le type
+  et les attributs du produit, est arrêtée en v65.)
 
 ## Mesures
 

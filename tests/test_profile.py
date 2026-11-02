@@ -355,12 +355,14 @@ class Reads(unittest.TestCase):
         uid, token = self.account()                                               # une recherche de besoin (aspirateurs) : ses rayons
         self.assertEqual(self.post("/api/r/missions", {"domain": "aspirateurs", "sub": "robot", "needs": ["animaux"]}, token).status, 200)
         self.assertEqual([(c["key"], c["chosen"]) for c in self.get("/api/r/profile", token)["taste"]["cats"]], [("robot_aspirateur", True)])
-        uid, token = self.account()                                               # une mission sur un produit : son rayon, sa marque
+        uid, token = self.account()                                               # v65 : plus d'alerte sur un produit…
         r = self.s.q("SELECT product_id, category, brand FROM catalog WHERE pct > 0 ORDER BY product_id LIMIT 1", one=True)
-        self.assertEqual(self.post("/api/r/missions", {"product_id": r["product_id"], "max_price": 5000}, token).status, 200)
-        taste = self.get("/api/r/profile", token)["taste"]
-        self.assertIn({"key": r["category"], "label": taste["cats"][0]["label"], "chosen": True}, taste["cats"])
-        self.assertEqual(taste["brands"], [{"name": r["brand"], "chosen": True}])
+        self.assertEqual(self.post("/api/r/missions", {"product_id": r["product_id"], "max_price": 5000}, token).status, 400)
+        self.s.x("INSERT INTO missions(user_id, product_id, want, max_price, label, created_at) VALUES (?,?,?,?,?,?)",
+                 (uid, r["product_id"], "{}", 5000, "ancienne alerte", 1))
+        taste = self.get("/api/r/profile", token)["taste"]                       # …et celle d'avant ne compte plus
+        self.assertNotIn(r["category"], [c["key"] for c in taste["cats"] if c["chosen"]])
+        self.assertEqual(taste["brands"], [])
         uid, token = self.account()                                               # une mission sur une marque
         self.post("/api/r/missions", {"brand": r["brand"].lower(), "max_price": 5000}, token)
         self.assertEqual(self.get("/api/r/profile", token)["taste"]["brands"], [{"name": r["brand"], "chosen": True}])

@@ -35,12 +35,12 @@ Règles de conception :
 ## 3. Commandes
 
 ```
-python -m unittest discover -s tests -t .      # 285 tests, environ 100 s — à lancer avant tout commit
+python -m unittest discover -s tests -t .      # 287 tests, environ 100 s — à lancer avant tout commit
 python -m unittest tests.test_release -v        # release et rollback seuls
 python -m bench.cadre                           # cadre de mise en production (17/19 ; aucun point P0 ouvert)
 python deals.py demo                            # app sur un marché simulé, base temporaire (jamais la base de production)
 python -m unittest tests.test_demo_mode tests.test_install -v   # mode démo et installation en une commande
-sh web/build.sh                                 # reconstruit web/app.html (esbuild et react requis, voir web/build.sh)
+bash web/build.sh                               # reconstruit web/app.html (bash ; esbuild et react requis, voir web/build.sh)
 ```
 
 Le test de timing `test_web_writes_never_wait_during_the_night` lance deux processus réels sur la même base (sans
@@ -126,9 +126,9 @@ historiques de prix. Une perte est irréversible. Règles :
 ## 7. Commits
 
 - Message en français, première ligne courte, corps qui explique le pourquoi.
-- Se terminer par les lignes :
+- Se terminer par les lignes d'attribution de la session, au nom du modèle qui fait le commit, par exemple :
   ```
-  Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   Claude-Session: https://claude.ai/code/session_01NQ8adgh3NMNZuZxej7BKeK
   ```
 - Ne pas pousser sans accord du responsable du projet.

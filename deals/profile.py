@@ -248,16 +248,16 @@ class Profiles:
                     f"SELECT product_id, at FROM {table} WHERE user_id=? AND at>? ORDER BY at DESC LIMIT 300", (uid, since))]
         else:                                                  # n'apprend pas : seulement cette visite, envoyée par le navigateur
             rows += [(k, i, now - age * 86400) for k, i, age in parse_events(query.get("p"))]
-        missions = self.s.q("SELECT product_id, category, brand, want FROM missions WHERE user_id=?", (uid,))
-        things = self._things([i for _, i, _ in rows] + [m["product_id"] for m in missions if m["product_id"]])
+        # les recherches sauvegardées ; une alerte de prix d'avant la v65 (un produit) ne compte plus (missions.py)
+        missions = self.s.q("SELECT category, brand, want FROM missions WHERE user_id=? AND product_id IS NULL", (uid,))
+        things = self._things([i for _, i, _ in rows])
         seen = [(k, things[i]["category"], things[i]["brand"], (now - at) / 86400) for k, i, at in rows if i in things]
         chosen = [r["category"] for r in self.s.q("SELECT category FROM interests WHERE user_id=? ORDER BY created_at", (uid,))]
         follows = [r["brand"] for r in self.s.q("SELECT brand FROM follows WHERE user_id=?", (uid,))]
         for m in missions:                                     # une mission en cours : on est en train d'acheter
-            thing = things.get(m["product_id"]) or {}
-            chosen.append(m["category"] or thing.get("category"))
-            chosen += domain_rayons(m["want"]) if not m["category"] and not m["product_id"] else []
-            follows.append(m["brand"] or (thing.get("brand") if m["product_id"] else None))
+            chosen.append(m["category"])
+            chosen += domain_rayons(m["want"]) if not m["category"] else []
+            follows.append(m["brand"])
         return build(chosen, follows, seen + searched, personal=not control(uid))
 
     # ------------------------------------------------------------ gestes

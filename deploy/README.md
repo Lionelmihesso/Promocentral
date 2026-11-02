@@ -65,7 +65,7 @@ Une sauvegarde de la base est prise avant chaque bascule, la nouvelle version pa
 gardée, et une version refusée ou en échec ramène la précédente. **Revenir en arrière** à la main :
 `sudo sh /opt/deals/current/deploy/release.sh rollback`.
 
-**Compatibilité** : testé ici avec Python 3.13 et 3.14 (la suite de 285 tests passe sur les deux). Ubuntu 26.04 n'était
+**Compatibilité** : testé ici avec Python 3.13 et 3.14 (la suite de 287 tests passe sur les deux). Ubuntu 26.04 n'était
 pas accessible depuis l'environnement de développement : `install.sh` vérifie la version de Python et de SQLite avant
 toute installation et s'arrête avec la cause ; à confirmer sur le serveur avec `python3 -V`.
 

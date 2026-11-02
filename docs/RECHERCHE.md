@@ -87,7 +87,8 @@ Promo et Trier (pertinence, prix croissant ou décroissant, remise) restent des 
 ## Jamais d'impasse
 
 - **Rien sous le budget** : les plus proches au-dessus, du moins cher au plus cher (« Rien à moins de 50 € · Les plus
-  proches, dès 414 € »), et « Me prévenir » : la recherche est sauvegardée avec son budget.
+  proches, dès 414 € »), et « Sauvegarder » : la recherche est sauvegardée avec son budget (v65 : plus de « Me
+  prévenir »).
 - **Rien du tout** : on le dit, on propose de sauvegarder (« Pas encore là ? On surveille pour vous »), et le feed
   reste là.
 - **Une marque tapée** s'ouvre en raccourci au-dessus des résultats.
@@ -98,14 +99,14 @@ Une recherche sauvegardée est une **mission** : la plateforme la surveille. Le 
 résultats ; la même recherche, retapée, se sait sauvegardée (« Sauvegardée », un geste pour la retirer). Elles sont
 dans le Profil (depuis la v61, plus dans la Recherche, qui dit où les retrouver), avec ce qui y répond et **ce qui est nouveau depuis
 qu'on l'a ouverte** (« 5 NOUVEAUX » ; la cloche et l'onglet Profil comptent les recherches qui ont du nouveau). L'ouvrir
-remet ses critères et oublie ses nouveautés. Une alerte de prix (« Me prévenir sous un prix », depuis la fiche) est une
-mission sur un produit ou ses comparables. Les recherches sauvegardées nourrissent le profil : leur rayon et leur marque
+remet ses critères et oublie ses nouveautés. L'alerte de prix (« Me prévenir sous un prix », depuis la fiche : une
+mission sur un produit ou ses comparables) est arrêtée en v65. Les recherches sauvegardées nourrissent le profil : leur rayon et leur marque
 comptent comme choisis. La nuit, un e-mail part seulement pour qui a donné son adresse et laissé la cloche de la
 recherche allumée, avec ce qui est nouveau à son prix (`deals/missions.py`).
 
 ## Sans e-mail
 
-Favoris, marques suivies, rayons, recherches sauvegardées et alertes marchent **sans e-mail**. Au premier geste qui
+Favoris, marques suivies, rayons et recherches sauvegardées marchent **sans e-mail**. Au premier geste qui
 garde quelque chose, le serveur crée un **compte invité** pour cet appareil : un cookie de session (HttpOnly, SameSite),
 valable un an après le dernier geste qui garde, et aucune donnée sur la personne. Au plus 100 créations par adresse IP
 et par heure (une box ou un opérateur mobile partagent une adresse) ; un geste qui échoue ne laisse aucun compte ;
@@ -114,7 +115,7 @@ clé a expiré) est effacé. Un compte invité n'apprend pas des fiches ouvertes
 (Profil).
 
 **L'e-mail est facultatif** : « Ajouter mon e-mail » (Profil), ou la cloche d'une recherche sauvegardée. Il sert à
-recevoir les alertes et à retrouver ses choix sur un autre appareil (« J'ai déjà un compte »). Le lien ouvert rattache
+recevoir les nouveautés de ses recherches et à retrouver ses choix sur un autre appareil (« J'ai déjà un compte »). Le lien ouvert rattache
 l'adresse au compte invité — rien n'est perdu — ou, si un compte existe déjà pour elle, y verse tout ce que l'invité
 gardait (sans doublon : la même recherche n'est gardée qu'une fois) ; ce que la personne voyait déjà dans l'app ne lui
 est pas envoyé par e-mail. « Effacer mes données » efface le compte et ce qu'il gardait (fiches vues et clics restent

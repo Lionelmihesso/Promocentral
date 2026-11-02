@@ -134,9 +134,13 @@ class Scenario(unittest.TestCase):
         return self.s.q("SELECT * FROM incidents WHERE kind=? ORDER BY id DESC", (kind,), one=True)
 
     def mission(self, email, product_id, max_price):
+        """Une recherche sauvegardée sous max_price que ce produit remplit : son rayon, sa marque, les mots de son nom (v65 :
+        plus d'alerte sur un produit ; la nuit et ses e-mails ne changent pas). Jamais envoyée : tout y est nouveau."""
+        r = self.s.q("SELECT category, brand, name FROM catalog WHERE product_id=?", (product_id,), one=True)
+        want = {"features": [], "attrs": {}, "words": [w for w in r["name"].lower().split() if w.isalpha()][:3]}
         uid = self.s.x("INSERT INTO users(email, created_at) VALUES (?, 0)", (email,))
-        self.s.x("INSERT INTO missions(user_id, product_id, want, max_price, label, created_at, notified) VALUES (?,?,'{}',?,?,0,'{}')",
-                 (uid, product_id, max_price, "Ce produit"))
+        self.s.x("INSERT INTO missions(user_id, category, brand, want, max_price, label, created_at, notified) VALUES (?,?,?,?,?,?,0,'{}')",
+                 (uid, r["category"], r["brand"], json.dumps(want), max_price, "Ce produit"))
 
 
 class Guests(Scenario):

@@ -17,7 +17,7 @@ qui garde quelque chose, le tient pour cet appareil (`docs/RECHERCHE.md`).
 |---|---|---|---|
 | Rayon choisi (Profil, page d'une catégorie) | choisi : affinité 1 | — (le geste crée le compte invité) | `interests` |
 | Marque suivie | choisi : affinité 1 | — (idem) | `follows` |
-| Recherche sauvegardée ou alerte de prix : son rayon, sa marque, ou ceux de son produit | choisi : affinité 1 | — (idem) | `missions` |
+| Recherche sauvegardée : son rayon, sa marque (v65 : une alerte de prix d'avant ne compte plus) | choisi : affinité 1 | — (idem) | `missions` |
 | Favori | vu : 2 points | — (idem) | `saves` |
 | Clic vers l'enseigne | vu : 1,5 point | la visite, en mémoire | `clicks` si le compte apprend, sinon la visite |
 | Recherche qui nomme un rayon ou une marque (« lave-linge 9 kg », « matelas dormea ») | vu : 1 point | ce navigateur (`deals.recent`) | idem |
@@ -48,7 +48,7 @@ plus dans les top deals).
 | Écran | Avec des goûts connus |
 |---|---|
 | Top deals (leur onglet, ouvert au lancement) | dans l'ordre du profil ; la plus forte remise du jour y reste |
-| « Pour vous » (Explorer, en premier) | les deals et les prix bas de vos rayons et de vos marques (affinité directe ≥ 0,3, pas la seule famille), dix au plus, top deals compris (ils ont leur onglet ; les en retirer vidait la section : sur la démo, après « aspirateur balai », 4 cartes → 1) ; « Vos rayons : Canapés, Matelas » (ceux que vous avez choisis), « D'après vos recherches : Aspirateurs » (vos recherches sauvegardées, vos alertes) ou « D'après vos visites : Canapés » dit pourquoi ; « Modifier » mène au Profil |
+| « Pour vous » (Explorer, en premier) | les deals et les prix bas de vos rayons et de vos marques (affinité directe ≥ 0,3, pas la seule famille), dix au plus, top deals compris (ils ont leur onglet ; les en retirer vidait la section : sur la démo, après « aspirateur balai », 4 cartes → 1) ; v65 : le titre seul, sans la ligne qui disait pourquoi ni « Modifier » (le Profil dit ce que l'app a compris) |
 | Inspirations du moment | les pièces de vos rayons d'abord |
 | Notre sélection | le reste des remises, dans l'ordre du profil |
 | Recherche, avant toute saisie | « Pour vous » (« D'après vos recherches », ou « D'après vos goûts ») : les produits de vos dernières recherches, puis ceux de vos rayons et de vos marques, un sur quatre pris ailleurs, puis tout le catalogue |
@@ -58,7 +58,7 @@ Sans goûts connus, ou pour un témoin, l'ordre est exactement celui d'avant (la
 
 ## Sans bloquer l'entrée
 
-- **Le Profil, centre de commande** (v56) : vos recherches sauvegardées, vos alertes de prix, vos favoris, vos marques
+- **Le Profil, centre de commande** (v56) : vos recherches sauvegardées, vos favoris, vos marques
   (« Ajouter » : toutes celles du catalogue, à suivre d'un geste), vos rayons (un geste chacun : « C'est noté : vos rayons
   passent en tête »), « Ce que l'app a compris » (rayons et marques vus, qui mènent à leur page) et « Oublier », et un
   interrupteur : sans e-mail, « Me reconnaître à mon retour » (désactivé par défaut) ; avec un e-mail, « Tenir compte des
@@ -75,7 +75,7 @@ Sans goûts connus, ou pour un témoin, l'ordre est exactement celui d'avant (la
   ni journal d'accès ne les retient (`deploy/Caddyfile`). Les fiches vues restent comptées pour la mesure de conversion,
   sans identifiant.
 - **Un compte invité** (sans e-mail, créé au premier geste qui garde quelque chose) : ce que la personne a choisi de
-  garder (rayons, favoris, marques, recherches sauvegardées et alertes), sous un identifiant sans rien d'elle, que seul
+  garder (rayons, favoris, marques, recherches sauvegardées), sous un identifiant sans rien d'elle, que seul
   le cookie de cet appareil désigne. Il n'apprend pas des fiches ouvertes ni des clics (`prefs.learn` à 0) tant que la
   personne n'active pas « Me reconnaître à mon retour » : la visite les envoie (`p`), comme sans compte.
 - **Avec un e-mail** : la même chose, plus l'adresse. « Oublier » efface l'effet des fiches et des clics passés sur

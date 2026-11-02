@@ -24,16 +24,18 @@ IDLE_S = 30                    # un client lent ou muet ne garde pas un fil ind�
 HEADERS = {"X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin"}
 
 
-DEMO_BANNER = (b'<div id="demo-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'
-               b'background:#FF6A3D;color:#141414;font:600 13px/1.3 system-ui,sans-serif;padding:8px 12px;text-align:center">'
-               b'D\xc3\xa9monstration : donn\xc3\xa9es simul\xc3\xa9es et fictives. Aucune offre r\xc3\xa9elle, aucun achat.</div>')
+# En haut de la page, dans le flux, sur une ligne : il ne recouvre rien (fixé en bas, il cachait la barre d'onglets et
+# prenait ses gestes, v64) et il est la première chose lue à chaque écran.
+DEMO_BANNER = ('<div id="demo-banner" role="status" style="background:#141414;color:#fff;font:600 12.5px/1.35 system-ui,'
+               '-apple-system,sans-serif;padding:7px 12px;text-align:center">'
+               'Démonstration\u00a0: données fictives, aucune offre réelle.</div>').encode()
 
 
 def app_page(demo=False):
     """La page de l'app telle quelle ; en mode démo, un bandeau qui dit que les données sont fictives (le front n'est pas modifié)."""
     page = APP.read_bytes()
-    if demo and page.count(b"</body>") == 1:
-        page = page.replace(b"</body>", DEMO_BANNER + b"</body>")
+    if demo and page.count(b"<body>") == 1:
+        page = page.replace(b"<body>", b"<body>" + DEMO_BANNER)
     return page
 
 

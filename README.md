@@ -10,7 +10,7 @@ critères qu'on modifie d'un geste ; ou l'on se laisse guider, **une question à
 quel type, quel budget), jusqu'à **votre sélection** — dans la Recherche comme sur la page d'une marque ou d'une
 catégorie. Une recherche se **sauvegarde** — Promo Central la surveille et dit ce qui est nouveau
 (une **mission**, avec un e-mail la nuit si on le souhaite). Tout se garde **sans e-mail** (favoris, marques, rayons,
-recherches, alertes de prix) ; l'e-mail, facultatif, sert aux alertes et à retrouver ses choix sur un autre appareil.
+recherches) ; l'e-mail, facultatif, sert aux nouveautés des recherches et à retrouver ses choix sur un autre appareil.
 
 Quatre familles chères, où une remise compte : **électroménager (aspirateurs compris), électronique (téléviseurs,
 smartphones, ordinateurs, tablettes, casques, enceintes, montres, consoles, écrans), ameublement, literie**. Une lecture
@@ -129,8 +129,8 @@ d'abord) et `props` (sans fil, sans sac : oui ou non, avec ce que chacun donnera
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
 leurs produits, remises d'abord), `item/<id>`,
 `out/<offer_id>?from=`, `missions/parse` {text} et `missions/preview` {mission} (ce qui est compris, ce qui y répond
-déjà ; une mission : `product_id`, ou `like` (comparables à ce produit), ou `category`, `brand`, `features`, `attrs` ;
-et `max_price`).
+déjà ; une mission : `category`, `brand`, `features`, `attrs`, et `max_price` ; v65 : plus d'alerte de prix,
+`product_id` et `like` sont refusés).
 Ajoutés depuis la v41 : `search`, `since` et `ends` (fiche), `alternatives` avec `saving` (fiche), `kind` (cartes :
 catégorie au singulier), `published_at` (today : heure de la dernière publication), `saved_price` (favoris), `family`,
 `best` et `products` (catégories), `best`, `products`, `top` et `categories` (marques), `attrs` (fiche : caractéristiques
@@ -139,9 +139,9 @@ lues, pour les missions) ; retirés : `specs` en v49 (la description n'est plus 
 `today?category=` accepte plusieurs catégories séparées par des virgules (univers, pièce).
 Garder (v56 : sans e-mail ; sans session, le premier geste crée un compte invité et pose son cookie, un an, renouvelé à
 chaque geste qui garde) : `save`, `brand/follow`, `interests`, `profile` {learn}, `missions` (POST : sauvegarder une
-recherche ou poser une alerte — `category`, `room`, `brand`, `features`, `attrs`, `words`, `min_price`, `max_price`
-facultatif, `off`, `low`, ou `product_id`, ou `like` ; la même cible change seulement de prix). Lire ce qu'on garde
-(vide sans compte) : `saves`, `follows`, `missions` (les miennes, ce qui y répond, `fresh` : ce qui est nouveau depuis
+recherche — `category`, `room`, `brand`, `features`, `attrs`, `words`, `min_price`, `max_price` facultatif, `off`,
+`low` ; la même cible change seulement de prix ; v65 : `product_id` et `like`, l'alerte de prix, sont refusés). Lire
+ce qu'on garde (vide sans compte) : `saves`, `follows`, `missions` (les miennes, ce qui y répond, `fresh` : ce qui est nouveau depuis
 qu'on l'a ouverte, `reached`, `alert`). `missions/seen` {id} (ouverte : plus nouveau), `missions/alert` {id, on} (l'e-mail
 de la nuit ; il faut une adresse), `missions/delete` {id}, `account/delete` (effacer le compte et ce qu'il gardait).
 Comptes : `auth/request` {email} (depuis un compte invité : l'adresse lui sera rattachée, ou ce qu'il garde versé dans
@@ -217,10 +217,11 @@ ouvert).
   définition (un robot est sans fil) ne remplace jamais ce que l'offre dit. La catégorie déclarée est gardée et relue à
   chaque publication : une ontologie révisée s'applique sans relire les offres (`deals/ontology/*.json`, un fichier par
   famille ; `docs/ONTOLOGIE.md`).
-- **Marque et catégorie** (fiche) : deux étiquettes sur le visuel, qui mènent à tous les produits de la marque ou de la
-  catégorie, les remises d'abord, même sans remise aujourd'hui.
-- **Recherches sauvegardées et alertes de prix (missions)** : une recherche sauvegardée (prix maximum facultatif), ou
-  une alerte sur un produit ou ses comparables (même rayon, même type, ses attributs, même taille d'écran ou capacité). Chacune dit ce
+- **Marque et catégorie** (fiche) : deux liens, sous le bouton vers l'enseigne, qui mènent à tous les produits de la
+  marque ou de la catégorie, les remises d'abord, même sans remise aujourd'hui.
+- **Recherches sauvegardées (missions)** : une recherche sauvegardée, prix maximum facultatif (v65 : l'alerte de prix
+  sur un produit ou ses comparables, « Me prévenir sous un prix », est arrêtée ; celles d'avant restent en base,
+  inertes : ni montrées, ni comptées, ni envoyées, ni lues pour les goûts). Chacune dit ce
   qui y répond et ce qui est nouveau depuis qu'on l'a ouverte (un produit arrivé, ou moins cher d'au moins 0,50 €) ; la
   rouvrir l'oublie. Ce qui est dit est exigé, ce qui ne l'est pas ne l'est pas : catégorie,
   marque, fonctions (balai, sans fil…), capacité, couverts, foyers, places, volume, autonomie au moins ; taille de
@@ -233,7 +234,7 @@ ouvert).
   deux fois le même produit au même prix ; rien pour ce qu'elle voyait déjà en sauvegardant ou dans l'app avant de
   donner son adresse ; au-delà du plafond de la nuit (`DEALS_MISSION_MAILS`), la suite part la nuit suivante
   (`deals/missions.py`).
-- **Sans e-mail** : favori, marque suivie, rayon, recherche sauvegardée, alerte de prix se gardent d'un geste ; le
+- **Sans e-mail** : favori, marque suivie, rayon, recherche sauvegardée se gardent d'un geste ; le
   premier crée un compte invité pour l'appareil (cookie HttpOnly, un an, renouvelé à chaque geste qui garde ; 100
   créations au plus par adresse IP et par heure ; un geste qui échoue ne laisse aucun compte ; chercher ou regarder
   n'en crée pas ; la nuit, un compte invité que plus personne ne peut ouvrir est effacé). L'e-mail est facultatif
@@ -274,10 +275,13 @@ immobile si l'appareil demande moins d'animations, lien partageable vers chaque 
 Top deals (ouvert au lancement), Explorer (« Pour vous », puis pièces, marques en promo, sélection), Recherche (une phrase comprise,
 l'entonnoir — une question à la fois, « Passer », jusqu'à votre sélection —, Promo et Trier, Sauvegarder ; vos
 recherches récentes ou des exemples ; un feed qui s'adapte ; le même entonnoir sur les pages d'une marque, d'une
-catégorie, d'une pièce), Profil, le centre de commande (vos recherches et alertes, favoris,
+catégorie, d'une pièce), Profil, le centre de commande (vos recherches, favoris,
 marques, rayons — repliés, ouverts d'un geste —, ce que l'app a compris, l'e-mail facultatif, effacer : des titres
-seuls, beaucoup d'air) ; « Comment ça marche » et « Mentions légales » au pied de chaque écran ; espaces insécables
-du français dans les textes. Principe et écrans : [`docs/UX.md`](docs/UX.md).
+seuls, beaucoup d'air ; à son pied, et seulement là, « Comment ça marche » et « Mentions légales ») ; espaces
+insécables du français dans les textes. v65, le moins possible : pas de phrase d'explication ; deux couleurs, l'action
+(jaune : le bouton vers l'enseigne, juste sous le prix, et « Promo » dans le logo) et la remise (rouge : la remise,
+l'économie, « Central ») ; chaque carte comme une étiquette : le prix, le prix barré et la remise, l'économie en
+euros. Principe et écrans : [`docs/UX.md`](docs/UX.md).
 
 ## Extraction : ne jamais enregistrer une donnée fausse
 

@@ -34,7 +34,8 @@ def get(url):
         with urllib.request.urlopen(url, timeout=10) as r:
             return r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
-        return e.code, e.read().decode("utf-8", "replace")
+        with e:                                                  # fermée : pas de ResourceWarning (Python 3.14)
+            return e.code, e.read().decode("utf-8", "replace")
 
 
 class Config(unittest.TestCase):
@@ -88,6 +89,15 @@ class Banner(unittest.TestCase):
         self.assertIn(b"demo-banner", web.app_page(demo=True))
         self.assertNotIn(b"demo-banner", web.app_page(demo=False))
         self.assertIn("fictives".encode(), web.app_page(demo=True))
+
+    def test_the_banner_sits_above_the_app_and_covers_nothing(self):
+        """v65 : fixé en bas de l'écran, le bandeau cachait la barre d'onglets d'un téléphone et prenait ses gestes. Il est
+        maintenant le premier élément de la page, dans le flux, avant l'app : il ne recouvre rien."""
+        page = web.app_page(demo=True)
+        banner = page[page.index(b"<div id=\"demo-banner\""):page.index(b"</div>", page.index(b"demo-banner")) + 6]
+        self.assertLess(page.index(b"demo-banner"), page.index(b'id="root"'))
+        self.assertNotIn(b"position:fixed", banner)
+        self.assertNotIn(b"position:absolute", banner)
 
 
 class Demo(unittest.TestCase):
