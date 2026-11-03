@@ -108,7 +108,9 @@ ESBUILD=<esbuild> REACT_DIR=<node_modules> ./web/build.sh          reconstruire 
 `deploy/deals.env.example`). Les commandes qui lisent les sites exigent `DEALS_USER_AGENT` (nom du robot, contact).
 
 ## API `/api/r/` (contrat de l'app)
-Lecture ouverte : `today?category=&q=` (remises du jour), `top` (l'onglet Top deals ; `why` : la remise, le prix
+Lecture ouverte : `catalog` (v67 : ce que contient le catalogue publié — `published_at`, `families` présentes,
+`universes` de Top deals qui ont des top deals, `rooms` qui ont des remises avec leur meilleure remise et son produit,
+`examples` de recherches qui trouvent quelque chose ; le front n'écrit rien du catalogue en dur), `today?category=&q=` (remises du jour), `top` (l'onglet Top deals ; `why` : la remise, le prix
 bas et depuis quand), `search?q=&category=&room=&brand=&feat=&attr=&min=&max=&off=&low=&sort=&recent=` (tout le
 catalogue suivi ; `q` est une phrase comprise, les autres paramètres sont les critères choisis dans l'app et l'emportent
 sur elle : `feat` des fonctions séparées par des virgules, `attr` des `clé:valeur` (`capacity_kg:9`, `bed_size:160x200`,
@@ -127,7 +129,8 @@ attributs oui/non exigés `clé:1` ou `clé:0`, les mesures en `attr` (`screen_i
 dit `domain` (avec ses rayons), et dans `options` (Affiner) `subs` (les types, nom court, les plus fournis
 d'abord) et `props` (sans fil, sans sac : oui ou non, avec ce que chacun donnerait)),
 `categories` et `brands` (celles qui ont des remises ; `?all=1` : toutes), `brand/<nom>` et `category/<clé>` (tous
-leurs produits, remises d'abord), `item/<id>`, `top?family=` (v66 : un univers, familles séparées par des virgules :
+leurs produits, remises d'abord), `item/<id>` (v67 : `shipping`, les frais de livraison de la meilleure offre, `null`
+s'ils sont inconnus ; chaque carte a `image`, la photo du flux, si `DEALS_PHOTOS=1`), `top?family=` (v66 : un univers, familles séparées par des virgules :
 `electromenager`, `ameublement,literie`, `electronique`), `out/<offer_id>?from=`, `missions/parse` {text} et
 `missions/preview` {mission} (ce qui est compris, ce qui y répond
 déjà ; une mission : `category`, `brand`, `features`, `attrs`, et `max_price` ; v65 : plus d'alerte de prix,
@@ -269,11 +272,15 @@ ouvert).
 Une page (`web/src/App.jsx` → `web/app.html`, police incluse, aucune requête vers un tiers) : les remises du jour en
 cartes à l'horizontale (v66, d'après la maquette du responsable : le visuel à gauche ; la marque et la remise, le nom,
 le prix et le prix barré, l'économie), une seule police (Manrope), des gris, l'anthracite pour agir et le violet pour
-la remise. Les visuels sont des illustrations originales par catégorie (`web/src/art.jsx`) ; les photos des enseignes ne
-sont pas montrées tant que la question des droits n'est pas tranchée.
+la remise. Les visuels sont des illustrations originales par catégorie (`web/src/art.jsx`) ; v67 : la photo donnée par le
+flux est publiée et montrée si `DEALS_PHOTOS=1` (à décider : droits d'usage du programme, requête vers le serveur de
+l'enseigne), sinon l'illustration. Rien du catalogue n'est écrit dans le front (v67) : les puces de Top deals, les pièces,
+les exemples de la Recherche et les familles viennent de `/api/r/catalog`, et un onglet resté ouvert se relit quand la
+nuit a publié (au retour sur l'onglet, ou toutes les 10 minutes) ; un lien vers un produit qui n'est plus publié le dit.
 Téléphone d'abord (une colonne de cartes ; deux puis trois sur ordinateur), contrastes et zones à toucher aux normes
 WCAG AA, lien partageable vers chaque fiche (`/?p=<id>`). Quatre onglets :
-Top deals (ouvert au lancement ; Tout, Électroménager, Maison, High-tech), Explorer (« Pour vous », puis pièces,
+Top deals (ouvert au lancement ; Tout, puis les univers qui ont des top deals ce jour-là : Électroménager, Maison,
+High-tech), Explorer (« Pour vous », puis pièces,
 marques en promo, sélection), Recherche (une phrase comprise,
 l'entonnoir — une question à la fois, « Passer », jusqu'à votre sélection —, Promo et Trier, Sauvegarder ; vos
 recherches récentes ou des exemples ; un feed qui s'adapte ; le même entonnoir sur les pages d'une marque, d'une

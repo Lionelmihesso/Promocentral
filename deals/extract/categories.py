@@ -120,8 +120,6 @@ TV_SIZES = (24, 32, 40, 42, 43, 48, 50, 55, 58, 65, 70, 75, 77, 83, 85, 86, 98, 
 # Les mesures lues dans le titre, et les rayons où chacune a un sens (« lit 2 places » n'est pas un nombre de places
 # assises, « 139 cm » d'un téléviseur n'est pas sa largeur) : ailleurs, elle n'est ni lue ni demandée.
 MEASURES = set(ATTR_PATTERNS) - {"bed_width_cm"} | {"storage_gb"}
-_ELECTRONICS = {"televiseur", "smartphone", "ordinateur_portable", "tablette", "casque_audio", "enceinte", "montre_connectee",
-                "console", "ecran_pc"}
 ONLY = {"seats": {"canape", "fauteuil", "table"}, "bed_size": {"lit", "matelas", "sommier"},
         "capacity_kg": {"lave_linge", "seche_linge", "lave_linge_sechant"}, "place_settings": {"lave_vaisselle"},
         "zones": {"plaque_cuisson", "cuisiniere"}, "autonomy_min": {"aspirateur", "robot_aspirateur"},

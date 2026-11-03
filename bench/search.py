@@ -35,7 +35,7 @@ from deals.missions import matches  # noqa: E402
 from deals.store import Store  # noqa: E402
 
 K, SHOWN = 12, 60
-# les exemples proposés par la Recherche (web/src/App.jsx, TRY) et quelques recherches courtes
+# les exemples que proposait la Recherche jusqu'en v66 (v67 : tirés du catalogue, /api/r/catalog) et quelques recherches courtes
 EXTRA = [
     ("aspirateur balai", (None, None, [], {}, None, {"domain": "aspirateurs", "sub": "balai"})),
     ("lave-linge 9 kg", (None, None, [], {"capacity_kg": 9}, None, {"domain": "lave_linge"})),

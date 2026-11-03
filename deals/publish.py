@@ -4,8 +4,9 @@ Pour chaque produit : la meilleure offre disponible et fraîche (prix relu il y 
 judge.py (vraie remise, fausse remise ou pas de remise), depuis quand la remise court et jusqu'à quand l'enseigne la
 déclare (montrés dans la fiche), les caractéristiques lues (missions), la courbe du prix sur 90 jours et le verdict de
 prix qu'elle donne (catalog.position : au plus bas, bas, habituel, cher ; pour les top deals et le filtre « prix bas »),
-les offres par enseigne, et, par alternatives.py, jusqu'à trois produits comparables moins chers et trois produits
-comparables au prix le plus proche.
+les offres par enseigne (et leurs frais de livraison, quand le flux les donne), la photo du produit donnée par le flux
+(v67 : montrée si DEALS_PHOTOS l'autorise, catalog.py), et, par alternatives.py, jusqu'à trois produits comparables moins
+chers et trois produits comparables au prix le plus proche.
 Le tout remplace l'ancien catalogue en une transaction : l'app passe d'un catalogue complet au suivant, jamais un état
 intermédiaire. Avec des enseignes partenaires (affiliate.py), seules leurs offres sont publiées : chaque offre montrée
 mène à un lien rémunéré. Seules les données validées sont publiées : une offre en quarantaine (prix suspect,
@@ -33,6 +34,14 @@ CHART_DAYS = 90              # courbe de la fiche : meilleur prix de chaque jour
 SHRINK = 0.80                # garde : le nouveau catalogue garde au moins 80 % des produits et des offres publiés…
 MIN_GUARD = 20               # … à partir de 20 publiés (en dessous, chaque produit pèse trop)
 HOLD_S = FRESH_S - 3600      # garde : au plus deux nuits (publié il y a moins de 3 jours, à l'heure près)
+
+
+def photo(url):
+    """La photo d'un flux, telle qu'une page en https peut la montrer : une adresse http(s), servie en https ; sinon rien."""
+    u = (url or "").strip()
+    if u.startswith("http://"):
+        u = "https://" + u[7:]
+    return u if u.startswith("https://") and len(u) <= 1000 and not any(c in u for c in "\"'<> ") else None
 
 
 def day_start(d):
@@ -71,7 +80,7 @@ def daily_best(offer_intervals, first, last):
 def publish(store, today, now, partners=None, guard=False):
     """Recalcule et remplace le catalogue publié ; partners : les enseignes partenaires (clés), seules publiées (None :
     toutes, en développement) ; guard : la garde de la nuit (voir plus haut). → statistiques de publication."""
-    products = {r["id"]: r for r in store.q("SELECT id, title, brand, category, attributes FROM products")}
+    products = {r["id"]: r for r in store.q("SELECT id, title, brand, category, attributes, image FROM products")}
     before = {r["product_id"]: r for r in store.q("SELECT product_id, pct, since FROM catalog")}
     offers = [o for o in store.q("SELECT id, product_id, merchant, retailer FROM offers WHERE product_id IS NOT NULL "
                                  "AND status NOT IN ('gone', 'out_of_scope') "
@@ -79,7 +88,7 @@ def publish(store, today, now, partners=None, guard=False):
               if partners is None or o["retailer"] in partners]
     since = day_start(today - timedelta(days=LOOKBACK + 1)) - FRESH_S
     intervals = defaultdict(list)
-    for r in store.q("SELECT offer_id, first_seen, last_seen, price, was, availability, lowest_30d, valid_until FROM prices "
+    for r in store.q("SELECT offer_id, first_seen, last_seen, price, was, availability, lowest_30d, valid_until, shipping FROM prices "
                      "WHERE last_seen >= ? AND rejected=0 ORDER BY offer_id, first_seen, id", (since,)):
         intervals[r["offer_id"]].append(r)
     by_product = defaultdict(list)
@@ -98,7 +107,8 @@ def publish(store, today, now, partners=None, guard=False):
         fresh.sort(key=lambda x: (x[1]["availability"] == "out_of_stock", x[1]["price"], x[1]["availability"] != "in_stock", x[0]["id"]))
         for rank, (o, r) in enumerate(fresh):
             pct = round((1 - r["price"] / r["was"]) * 100) if r["was"] and r["was"] > r["price"] else 0
-            catalog_offers.append((pid, o["id"], o["merchant"], r["price"], r["was"] if pct else None, pct, r["availability"], rank))
+            catalog_offers.append((pid, o["id"], o["merchant"], r["price"], r["was"] if pct else None, pct, r["availability"], rank,
+                                   r["shipping"]))
         best_o, best = fresh[0]
         verdict = None
         series = daily_best([intervals[o["id"]] for o in offs], today - timedelta(days=LOOKBACK), today)
@@ -124,7 +134,7 @@ def publish(store, today, now, partners=None, guard=False):
                         verdict.was if deal else None, verdict.pct if deal else 0, best_o["merchant"], best_o["id"],
                         int(bool(deal and verdict.verified)), haystack(p["title"], p["brand"], best_o["merchant"], p["category"]),
                         day, deal_since, ends, history, json.dumps(attrs, ensure_ascii=False),
-                        pos and pos["level"], pos and pos["days"], pos and pos["usual"]))
+                        pos and pos["level"], pos and pos["days"], pos and pos["usual"], photo(p["image"]), best["shipping"]))
         published.append({"id": pid, "category": p["category"], "family": FAMILY_OF.get(p["category"]), "brand": p["brand"],
                           "price": best["price"], "in_stock": best["availability"] != "out_of_stock", "attrs": attrs})
 
@@ -150,10 +160,10 @@ def publish(store, today, now, partners=None, guard=False):
         c.execute("DELETE FROM similar")
         c.execute("DELETE FROM alternatives")
         c.executemany("INSERT INTO catalog(product_id, name, title, brand, category, price, was, pct, merchant, offer_id, verified, "
-                      "search, published_on, since, ends, history, attrs, level, span, usual) "
-                      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
-        c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank) "
-                      "VALUES (?,?,?,?,?,?,?,?)", catalog_offers)
+                      "search, published_on, since, ends, history, attrs, level, span, usual, image, shipping) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", catalog)
+        c.executemany("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, was, pct, availability, rank, shipping) "
+                      "VALUES (?,?,?,?,?,?,?,?,?)", catalog_offers)
         c.executemany("INSERT INTO similar(product_id, other_id, rank) VALUES (?,?,?)", similar)
         c.executemany("INSERT INTO alternatives(product_id, other_id, rank) VALUES (?,?,?)", cheaper_rows)
         c.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('published_at', ?)", (str(now),))

@@ -81,6 +81,23 @@ class Boundaries(unittest.TestCase):
                 if allowed is not None:
                     self.assertIn(rel, allowed, f"{rel} écrit {table}, réservée à {sorted(allowed)}")
 
+    def test_the_front_writes_nothing_of_the_catalog(self):
+        """v67 : le front reçoit le catalogue de l'API (/api/r/catalog, les cartes, la recherche) ; aucune clé ni aucun nom
+        de rayon, de famille, de pièce ou d'univers n'est écrit dans son code : un rayon, une famille ou une pièce de plus,
+        ou de moins, après une nuit, ne demande aucun changement du front. Seul art.jsx connaît des rayons : un dessin par
+        rayon, et un colis pour un rayon qu'il ne connaît pas."""
+        from deals import ontology
+        from deals.extract.categories import FAMILY_OF
+        from deals.labels import ROOMS, UNIVERSES
+        web = ROOT.parent / "web" / "src"
+        code = re.sub(r"/\*.*?\*/|//[^\n]*", "", (web / "App.jsx").read_text(encoding="utf-8"), flags=re.S)
+        keys = set(FAMILY_OF) | set(FAMILY_OF.values()) | set(ROOMS) | set(UNIVERSES)
+        self.assertEqual({k for k in keys if re.search(rf"[\"'`]{k}[\"'`,]", code)}, set())
+        names = {label for label, _ in [*ontology.FAMILIES.values(), *ROOMS.values(), *UNIVERSES.values()]}
+        self.assertEqual({n for n in names if n in code}, set())
+        self.assertIn('api("catalog")', code)
+        self.assertIn("(DRAW[category] || parcel)", (web / "art.jsx").read_text(encoding="utf-8"))
+
     def test_quarantine_only_marks_prices_rejected(self):
         src = (ROOT / "quarantine.py").read_text(encoding="utf-8")
         writes = re.findall(r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+prices[^\"']*", src, re.I)

@@ -33,7 +33,6 @@ REQUIRED = ("title", "url", "price")
 FORMATS = ("csv", "tsv", "xml", "json", "jsonl")
 OPTIONS = {"preset", "format", "encoding", "delimiter", "item", "items", "fields", "availability", "properties",
            "category_separator", "currency", "drop_params", "_note"}
-MONEY = ("price", "sale_price", "list_price", "lowest_30d", "shipping")
 TRACKING = re.compile(r"^(utm_[a-z0-9_]+|gclid|fbclid|msclkid|srsltid|_ga)$", re.I)
 csv.field_size_limit(16 * 1024 * 1024)
 

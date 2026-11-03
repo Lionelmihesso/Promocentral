@@ -43,8 +43,9 @@ def interpret(text, brands=()):
         raise BadRequest("Dites ce que vous cherchez, par exemple : aspirateur balai sous 300 €")
     r = query.read(raw, brands)
     if r["unsupported"]:
+        followed = [label.lower() for label, _ in ontology.FAMILIES.values()]
         raise BadRequest(f"Les {CATEGORY_LABEL.get(r['unsupported'], r['unsupported']).lower()} ne sont pas encore suivis : "
-                         "électroménager, électronique, ameublement et literie seulement")
+                         f"{', '.join(followed[:-1])} et {followed[-1]} seulement")
     if not r["category"] and not r["brand"] and not r["domain"]:
         raise BadRequest("Je n'ai pas reconnu le produit : essayez « lave-linge 9 kg sous 500 € » ou « matelas 160x200 »")
     return {"category": r["category"], "brand": r["brand"], "features": r["features"], "attrs": r["attrs"], "max_price": r["max_price"],

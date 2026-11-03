@@ -98,7 +98,7 @@ Promo et Trier (pertinence, prix croissant ou décroissant, remise) restent des 
 Une recherche sauvegardée est une **mission** : la plateforme la surveille. Le prix est facultatif. « Sauvegarder » sur les
 résultats ; la même recherche, retapée, se sait sauvegardée (« Sauvegardée », un geste pour la retirer). Elles sont
 dans le Profil (depuis la v61, plus dans la Recherche, qui dit où les retrouver), avec ce qui y répond et **ce qui est nouveau depuis
-qu'on l'a ouverte** (« 5 NOUVEAUX » ; la cloche et l'onglet Profil comptent les recherches qui ont du nouveau). L'ouvrir
+qu'on l'a ouverte** (« 5 NOUVEAUX » ; l'onglet Profil compte les recherches qui ont du nouveau ; v66 : plus de cloche dans l'en-tête). L'ouvrir
 remet ses critères et oublie ses nouveautés. L'alerte de prix (« Me prévenir sous un prix », depuis la fiche : une
 mission sur un produit ou ses comparables) est arrêtée en v65. Les recherches sauvegardées nourrissent le profil : leur rayon et leur marque
 comptent comme choisis. La nuit, un e-mail part seulement pour qui a donné son adresse et laissé la cloche de la

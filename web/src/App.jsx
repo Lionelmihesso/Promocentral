@@ -61,8 +61,15 @@
    partage au-dessus du visuel, puis la marque et la catégorie, le nom, la remise, le prix et le prix barré,
    l'économie, le bouton, la livraison et les retours.
 
+   v67 : rien du catalogue n'est écrit ici. Les puces de Top deals (les univers qui ont des top deals), les pièces
+   d'Explorer, les exemples de la Recherche et les familles suivies viennent de /api/r/catalog, relu à chaque nouvelle
+   publication : un onglet resté ouvert se relit quand on y revient (ou toutes les 10 minutes) si la nuit a publié. La
+   fiche dit la livraison que le flux donne (offerte, son prix, ou « selon le marchand » s'il ne la donne pas).
+
    Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
-   tiers, aucun droit de tiers. Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
+   tiers, aucun droit de tiers. v67 : si DEALS_PHOTOS l'autorise, la photo donnée par le flux de l'enseigne la remplace
+   (chargée depuis son serveur, sans dire d'où l'on vient) ; une photo qui ne se charge pas laisse l'illustration.
+   Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
    remises réelles seulement (la qualité est implicite), « Moins cher, comparable », la recherche dans tout le
    catalogue, la connexion au moment de l'action, contrastes et zones à toucher aux normes. */
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -80,13 +87,11 @@ const UI = {
   plus: ["M12 5v14", "M5 12h14"],
   heart: [HEART],
   bell: ["M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z", "M10 20.5a2.2 2.2 0 0 0 4 0"],
-  home: ["M4.5 10.5L12 4.5l7.5 6V19a1 1 0 0 1-1 1h-4v-5.5h-5V20h-4a1 1 0 0 1-1-1z"],
   flame: ["M12 20.5c-3.5 0-6-2.5-6-5.8 0-2.6 1.4-4.3 2.8-5.9.2 1.5.9 2.6 2 3.2-.1-3.3 1.4-6.1 4-8 .2 3 1.8 4.9 3 6.6.9 1.3 1.5 2.6 1.5 4.3 0 3.1-2.6 5.6-6.3 5.6z"],
   compass: ["M15.2 8.8l-1.9 4.5-4.5 1.9 1.9-4.5z", C(12, 12, 8.2)],   // l'aiguille d'abord : c'est elle que l'onglet ouvert remplit
   user: [C(12, 8.5, 3.8), "M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"],
   share: ["M12 15V4.5", "M8 8l4-4 4 4", "M6 12.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6.5"],
   next: ["M9.5 5.5L16 12l-6.5 6.5"],
-  target: [C(12, 12, 8), C(12, 12, 4.2), "M12 12h.01"],
   down: ["M7 10l5 5 5-5"],
   bookmark: ["M7.5 4.5h9a1 1 0 0 1 1 1v14.5l-5.5-3.6-5.5 3.6V5.5a1 1 0 0 1 1-1z"],
   truck: ["M2.8 6.8h11v9.4h-11z", "M13.8 9.8h3.7l3 3.2v3.2h-6.7", C(7, 17.4, 1.7), C(17, 17.4, 1.7)],
@@ -98,19 +103,17 @@ const Icon = ({ d, size = 20, sw = 1.8, fill }) => <svg viewBox="0 0 24 24" widt
 
 /* ---------------------------------------------------------------- formats */
 const eur = n => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " €";
-const clock = ts => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts * 1000));
-const shortDay = ts => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(ts * 1000));
+const eurc = n => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);      // 29,90 €
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const norm = s => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const FAMILY = { electromenager: "Électroménager", electronique: "Électronique", ameublement: "Ameublement", literie: "Literie" };
-// Top deals : un univers d'un geste (v66) ; les familles du catalogue (deals/extract/categories.py), « Maison » en réunit deux.
-const FAMS = [["", "Tout"], ["electromenager", "Électroménager"], ["ameublement,literie", "Maison"], ["electronique", "High-tech"]];
+// « a, b et c » ; « d'électroménager », « de literie » (v67 : les familles viennent du catalogue)
+const listFr = xs => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} et ${xs.at(-1)}` : xs[0] || "";
+const ofFr = w => /^[aeéèêiïoôuyh]/i.test(w) ? `d'${w}` : `de ${w}`;
 // Le visuel d'une carte est carré : un objet haut (réfrigérateur, aspirateur) y tient entier en rapetissant un peu ; un
 // objet large (lit, téléviseur) grandit et le sol remonte, pour qu'il occupe le cadre comme sur une photo.
 const fitZoom = cat => ratioOf(cat) > 1 ? 0.8 : ratioOf(cat) < 1 ? 1.24 : 1.08;
 const fitFloor = cat => ratioOf(cat) < 1 ? 0.8 : undefined;
-// Recherche : des exemples pour démarrer, le filtre de promo et les tris (le rayon et le budget : l'entonnoir).
-const TRY = ["aspirateur balai sans fil", "TV OLED 55 pouces", "smartphone 5G", "lave-linge 9 kg", "canapé d'angle"];
+// Recherche : le filtre de promo et les tris (le rayon et le budget : l'entonnoir ; les exemples : le catalogue, v67).
 // Promo : un palier de remise, ou un prix parmi les plus bas depuis longtemps (catalog.cheap) ; seuls les choix qui
 // donnent quelque chose sont proposés, avec leur nombre de produits.
 const OFFS = [["", "Toutes"], ["1", "En promo"], ["10", "−10 % et plus"], ["20", "−20 % et plus"], ["30", "−30 % et plus"],
@@ -178,17 +181,6 @@ const SEEN_MAX = 60, PICKS_MAX = 12;
 const cleanPicks = v => Array.isArray(v) ? [...new Set(v.filter(x => typeof x === "string" && /^[a-z_]{2,40}$/.test(x)))].slice(0, PICKS_MAX) : [];
 const seenParam = list => list.slice(-SEEN_MAX).reverse()
   .map(e => `${e.k}${e.id}.${Math.min(365, Math.max(0, Math.floor((Date.now() / 1000 - e.t) / 86400)))}`).join(",");
-// L'inspiration par pièce : des catégories regroupées comme on pense son intérieur ; le high-tech en premier (v59).
-const ROOMS = [
-  { key: "high_tech", label: "High-tech", art: "televiseur",
-    cats: ["televiseur", "smartphone", "ordinateur_portable", "tablette", "casque_audio", "enceinte", "montre_connectee", "console", "ecran_pc"] },
-  { key: "chambre", label: "Chambre", art: "lit", cats: ["lit", "matelas", "sommier", "armoire", "commode"] },
-  { key: "salon", label: "Salon", art: "canape", cats: ["canape", "fauteuil", "table", "buffet", "meuble_tv", "luminaire"] },
-  { key: "cuisine", label: "Cuisine", art: "refrigerateur",
-    cats: ["refrigerateur", "congelateur", "four", "plaque_cuisson", "hotte", "lave_vaisselle", "cuisiniere", "micro_ondes", "machine_cafe"] },
-  { key: "buanderie", label: "Buanderie", art: "lave_linge", cats: ["lave_linge", "seche_linge", "lave_linge_sechant"] },
-  { key: "entretien", label: "Entretien", art: "aspirateur", cats: ["aspirateur", "robot_aspirateur"] },
-];
 
 async function api(path, body) {
   const r = await fetch(`/api/r/${path}`, {
@@ -266,6 +258,7 @@ const CSS = `
 .d .card{position:relative;display:flex;gap:14px;min-width:0;padding:10px;border-radius:18px;background:var(--paper);border:1px solid #EFEFF2;box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.05);cursor:pointer;text-align:left}
 .d .vis{position:relative;border-radius:16px;overflow:hidden;background:var(--tint)}
 .d .card .vis{flex:0 0 38%;max-width:156px;aspect-ratio:1;border-radius:12px}
+.d .photo{display:block;width:100%;height:100%;object-fit:contain;background:#FFFFFF}
 .d .sechead .n.drop{color:var(--deal);font-weight:700}
 .d .meta{flex:1;min-width:0;display:flex;flex-direction:column;padding:2px 2px 2px 0}
 .d .meta .mtop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
@@ -367,7 +360,6 @@ const CSS = `
 .d .flow{transition:opacity .18s}
 .d .flow.dim{opacity:.45}
 .d .ctag{display:flex;align-items:center;gap:8px;border:0;background:var(--tint);border-radius:999px;min-height:44px;padding:0 16px;font-size:14.5px;font-weight:700}
-.d .ctag.more{background:var(--paper);border:1px solid #D9D6D0;padding:0 12px 0 16px;gap:6px}
 .d .ctag.on{background:var(--ink);color:#fff}
 .d .bchips button{display:inline-flex;align-items:center;gap:6px}
 .d .bchips button.on{background:var(--ink);color:#fff}
@@ -510,6 +502,15 @@ function useEscape(onClose, on = true) {
   }, [onClose, on]);
 }
 
+/* Le visuel d'un produit (v67) : la photo donnée par le flux de l'enseigne, quand l'API la donne (DEALS_PHOTOS) ; sinon,
+   ou si elle ne se charge pas, son illustration. p : {id, category, image}. */
+function Visual({ p, ...v }) {
+  const [broken, setBroken] = useState(false);
+  if (p.image && !broken) return <img className="photo" src={p.image} alt="" loading="lazy" decoding="async"
+    referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+  return <Vignette category={p.category} seed={p.id} {...v} />;
+}
+
 function Toast({ text }) {
   return text ? <div className="toast" role="status">{text}</div> : null;
 }
@@ -646,6 +647,7 @@ export default function App() {
   const [pres, setPres] = useState(null);          // pages : la réponse (une Recherche fixée sur la marque, la catégorie, la pièce)
   const pseq = useRef(0);
   const [item, setItem] = useState(null);
+  const [gone, setGone] = useState(null);           // v67 : la fiche demandée n'est plus publiée (lien partagé, onglet ancien)
   const [missions, setMissions] = useState(null);  // vos recherches sauvegardées (missions) : { missions, reached, fresh }
   const [session, setSession] = useState({ checked: false, email: null, guest: false, variant: "p" });
   const [saved, setSaved] = useState(new Set());
@@ -658,6 +660,8 @@ export default function App() {
   const [erase, setErase] = useState(false);       // « Effacer mes données » : la confirmation est montrée
   const [toast, setToast] = useState(null);
   const [legal, setLegal] = useState(null);         // mentions légales : l'identité de l'éditeur, lue au serveur
+  const [meta, setMeta] = useState(null);           // v67 : ce que contient le catalogue (univers, pièces, exemples, familles)
+  const shownAt = useRef(null);                     // l'heure de publication du catalogue montré
   const [error, setError] = useState(null);
   const width = useWidth();
 
@@ -743,7 +747,22 @@ export default function App() {
   useEffect(() => {
     api("categories?all=1").then(setAllCats).catch(() => setError("Impossible de charger les catégories."));
     api("brands?all=1").then(setAllBrands).catch(() => {});
+    api("catalog").then(d => { shownAt.current = d.published_at; setMeta(d); }).catch(() => {});
   }, [version]);
+
+  // v67 : la nuit a publié un nouveau catalogue ? Un onglet resté ouvert se relit quand on y revient, ou toutes les 10
+  // minutes s'il reste au premier plan : tout ce qui est montré est relu (version).
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState !== "visible") return;
+      api("catalog").then(d => { if (shownAt.current != null && d.published_at !== shownAt.current) setVersion(v => v + 1); }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", check);
+    const t = setInterval(check, 10 * 60 * 1000);
+    return () => { document.removeEventListener("visibilitychange", check); clearInterval(t); };
+  }, []);
+  // un univers qui n'a plus de top deals après une publication : on revient à « Tout »
+  useEffect(() => { if (fam && meta && !meta.universes.some(u => u.families.join(",") === fam)) setFam(""); }, [meta, fam]);
 
   useEffect(() => {                                                         // top deals ; Explorer : pour vous, sélection — selon vos goûts
     if (!session.checked) return;
@@ -778,7 +797,8 @@ export default function App() {
   useEffect(() => {
     if (!view) return;
     setError(null);
-    if (view.kind === "item") api(`item/${view.id}`).then(setItem).catch(() => setError("Produit introuvable."));
+    if (view.kind === "item") api(`item/${view.id}`).then(d => { setGone(null); setItem(d); })
+      .catch(e => { if (e.status === 404) setGone(view.id); else setError("Impossible de charger ce produit."); });
   }, [view, version]);
 
   // Pages d'une marque, d'une catégorie, d'une pièce (v60) : une Recherche fixée sur elles (ctx), avec l'entonnoir et un
@@ -975,7 +995,7 @@ export default function App() {
   // l'économie. Ni cœur (on garde depuis la fiche) ni bouton : toute la carte mène à la fiche.
   const card = (via, mission) => p => <article key={p.id} className="card" role="button" tabIndex={0} aria-label={said(p)}
     onClick={() => open(p.id, via, mission)} onKeyDown={e => { if (e.key === "Enter") open(p.id, via, mission); }}>
-    <div className="vis"><Vignette category={p.category} seed={p.id} ratio={1} zoom={fitZoom(p.category)} floor={fitFloor(p.category)} /></div>
+    <div className="vis"><Visual p={p} ratio={1} zoom={fitZoom(p.category)} floor={fitFloor(p.category)} /></div>
     <div className="meta">
       <div className="mtop"><span className="brand">{p.brand}</span>{offTag(p)}</div>
       <div className="name">{p.name || p.title}</div>
@@ -1016,21 +1036,19 @@ export default function App() {
         <span>Voir l'offre · <b>{eur(hit.price)}</b> chez {hit.merchant}</span><Icon d={UI.ext} size={18} sw={2.2} /></a>}
     </article>;
   };
-  const categories = allCats.filter(c => c.count > 0);                    // celles qui ont des remises aujourd'hui
   const promoBrands = allBrands.filter(b => b.count > 0 && b.top).slice(0, 12);
   // Des cartes au format des pièces : un visuel (le produit de la meilleure remise), la marque, « Jusqu'à −20 % ».
-  const bigCard = (key, label, best, sub, art, seed, onClick, cls = "") => <button key={key} className={`room ${cls}`} onClick={onClick}
+  const bigCard = (key, label, best, sub, top, onClick, cls = "") => <button key={key} className={`room ${cls}`} onClick={onClick}
     aria-label={`${label}, jusqu'à moins ${best} %, ${sub}`}>
-    <Vignette category={art} seed={seed} ratio={1.32} floor={0.7} zoom={ratioOf(art) > 1 ? 0.9 : 1.04} /><span className="shade" />
+    <Visual p={top} ratio={1.32} floor={0.7} zoom={ratioOf(top.category) > 1 ? 0.9 : 1.04} /><span className="shade" />
     <span className="rt"><b>{label}</b><span>Jusqu'à −{best} %</span><small>{sub}</small></span></button>;
   const sortBar = <div className="chips" role="group" aria-label="Trier">{[["pct", "Remises d'abord"], ["asc", "Prix croissant"], ["desc", "Prix décroissant"]].map(([k, l]) =>
     <button key={k} className={order === k ? "on" : ""} aria-pressed={order === k} onClick={() => setOrder(k)}>{l}</button>)}</div>;
   const liked = new Set((you?.taste?.cats || []).map(c => c.key));        // vos rayons : leurs pièces d'abord
-  const rooms = ROOMS.map(r => {
-    const here = categories.filter(c => r.cats.includes(c.key));
-    return here.length ? { ...r, best: Math.max(...here.map(c => c.best)), sub: here.map(c => c.label).join(", "),
-      art: here.some(c => c.key === r.art) ? r.art : here[0].key, mine: here.some(c => liked.has(c.key)) } : null;
-  }).filter(Boolean).sort((a, b) => b.mine - a.mine);
+  // v67 : les pièces viennent du catalogue (celles qui ont des remises, les plus fournies d'abord) ; vos pièces d'abord
+  const rooms = (meta?.rooms || []).map(r => ({ ...r, cats: r.categories.map(c => c.key), sub: r.categories.map(c => c.label).join(", "),
+    mine: r.categories.some(c => liked.has(c.key)) })).sort((a, b) => b.mine - a.mine);
+  const famWords = (meta?.families || []).map(f => f.label.toLowerCase());
   // Vos rayons à choisir : ceux qui ont des produits, les plus riches en remises d'abord.
   const pickable = allCats.filter(c => c.products > 0).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "fr"));
   const pickChips = cls => pickable.map(c => <button key={c.key} className={`${cls} ${picks.includes(c.key) ? "on" : ""}`}
@@ -1062,8 +1080,10 @@ export default function App() {
           retrouver vos choix sur un autre appareil. Il n'est transmis qu'à notre prestataire d'envoi.</li>
         <li><b>Mesures</b> : les fiches vues et les clics vers les enseignes sont comptés pour savoir ce qui est utile ;
           une enseigne ne reçoit qu'un identifiant de clic, qui ne dit pas qui vous êtes.</li>
-        <li><b>Cookies</b> : un seul cookie, celui de votre session, nécessaire au service ; aucun traceur publicitaire,
+        <li><b>Cookies</b> : un seul cookie, celui de votre session, nécessaire au service ; aucun traceur publicitaire,
           aucune mesure d'audience par un tiers.</li>
+        {L.photos && <li><b>Photos des produits</b> : chargées depuis le serveur de l'enseigne, qui reçoit votre adresse IP
+          comme pour toute image, mais pas la page d'où vous venez.</li>}
         <li><b>Vos droits</b> : accès, rectification, effacement, opposition, portabilité. « Effacer mes
           données », dans Profil, efface tout aussitôt ; pour le reste, écrivez à {v(L.contact, "DEALS_LEGAL_CONTACT")}.
           Vous pouvez aussi saisir la CNIL (cnil.fr).</li>
@@ -1073,7 +1093,7 @@ export default function App() {
     body = <div className="about">
       {back}
       <h1>Comment ça marche</h1>
-      <p className="lead">Promo Central repère chaque jour les bonnes affaires d'électroménager, d'électronique, d'ameublement et de literie : des
+      <p className="lead">Promo Central repère chaque jour les bonnes affaires{famWords.length > 0 ? ` ${listFr(famWords.map(ofFr))}` : ""} : des
         remises réelles, et les prix au plus bas depuis longtemps.</p>
       <h2>Quelles offres ?</h2>
       <p>Uniquement celles de nos enseignes partenaires. Leurs prix sont relus chaque nuit ; un prix qui n'a pas été relu depuis
@@ -1117,6 +1137,12 @@ export default function App() {
         autre appareil. Profil montre ce que l'app a compris ;
         « Oublier » l'efface, « Effacer mes données » efface tout.</p>
     </div>;
+  } else if (view?.kind === "item" && gone === view.id) {   // v67 : plus en vente chez nos partenaires depuis la dernière nuit
+    body = <div className="about">
+      {back}
+      <h1>Ce produit n'est plus en vente chez nos partenaires.</h1>
+      <button className="cta" onClick={() => goTab("tops")}>Voir les top deals</button>
+    </div>;
   } else if (view?.kind === "item" && item) {
     const best = item.offers.find(o => o.best);
     const source = view.via || "item";
@@ -1129,7 +1155,7 @@ export default function App() {
         <button className="fbtn" onClick={() => share(item)} aria-label="Partager"><Icon d={UI.share} size={19} /></button></div>
       <div className="fbody">
       <div className="hero">
-        <div className="vis" style={{ aspectRatio: `1 / ${heroRatio}` }}><Vignette category={item.category} seed={item.id} label={item.kind}
+        <div className="vis" style={{ aspectRatio: `1 / ${heroRatio}` }}><Visual p={item} label={item.kind}
           ratio={heroRatio} zoom={ratioOf(item.category) > 1 ? 0.8 : undefined} /></div>
       </div>
       <div>
@@ -1145,7 +1171,8 @@ export default function App() {
             target="_blank" rel="noopener" onClick={() => note("c", item.id)}>
             Voir l'offre chez {best.merchant}<Icon d={UI.ext} size={19} sw={2.4} /></a>}
           <ul className="terms">
-            <li><Icon d={UI.truck} size={21} />Livraison selon le marchand</li>
+            <li><Icon d={UI.truck} size={21} />{item.shipping == null ? "Livraison selon le marchand"
+              : item.shipping === 0 ? "Livraison offerte" : `Livraison : ${eurc(item.shipping)}`}</li>
             <li><Icon d={UI.swap} size={21} />Retours selon le marchand</li>
           </ul>
         </div>
@@ -1166,7 +1193,7 @@ export default function App() {
     const fin = !!(at && !at.q && at.done > 0 && res?.total > 0);
     const entry = view.kind === "brand" ? allBrands.find(x => x.name === view.name) : view.kind === "category" ? allCats.find(x => x.key === view.key) : null;
     const title = view.kind === "brand" ? view.name : view.kind === "room" ? view.room.label : entry?.label || "…";
-    const sub = view.kind === "room" ? `${plural(allCats.filter(x => view.room.cats.includes(x.key)).reduce((n, x) => n + x.count, 0), "remise")} · ${view.room.sub}`
+    const sub = view.kind === "room" ? `${plural(view.room.deals, "remise")} · ${view.room.sub}`
       : entry ? `${entry.count ? `${plural(entry.count, "remise")} aujourd'hui · ` : ""}${plural(entry.products, "produit")}` : "";
     const on = view.kind === "brand" ? isFollowed(view.name) : picks.includes(view.key);
     body = <>
@@ -1189,7 +1216,7 @@ export default function App() {
     const shownTop = fam ? topFam : top, tops = shownTop?.products || [];
     body = <>
       <div className="pagehead"><div><h1>Top deals</h1></div></div>
-      <div className="fams" role="group" aria-label="Univers">{FAMS.map(([k, l]) =>
+      <div className="fams" role="group" aria-label="Univers">{[["", "Tout"], ...(meta?.universes || []).map(u => [u.families.join(","), u.label])].map(([k, l]) =>
         <button key={k || "all"} className={fam === k ? "on" : ""} aria-pressed={fam === k} onClick={() => setFam(k)}>{l}</button>)}</div>
       <div style={{ height: 12 }} />
       {shownTop && tops.length === 0 && <div className="empty">Aucun top deal aujourd'hui.</div>}
@@ -1211,11 +1238,11 @@ export default function App() {
       </>}
       {rooms.length > 0 && <>
         <div className="sechead"><h2>Inspirations du moment</h2></div>
-        <div className="rooms">{rooms.map(r => bigCard(r.key, r.label, r.best, r.sub, r.art, r.key, () => openRoom(r)))}</div>
+        <div className="rooms">{rooms.map(r => bigCard(r.key, r.label, r.best, r.sub, r.top, () => openRoom(r)))}</div>
       </>}
       {promoBrands.length > 0 && <>
         <div className="sechead"><h2>Les marques en promo</h2></div>
-        <div className="rooms">{promoBrands.map(b => bigCard(b.name, b.name, b.best, b.categories.join(", "), b.top.category, b.top.id,
+        <div className="rooms">{promoBrands.map(b => bigCard(b.name, b.name, b.best, b.categories.join(", "), b.top,
           () => openBrand(b.name), "bcard"))}</div>
       </>}
       <div className="sechead"><h2>Notre sélection</h2></div>
@@ -1263,13 +1290,13 @@ export default function App() {
         {recent.length > 0
           ? <><div className="th"><h3>Vos recherches récentes</h3><button className="forget" onClick={forget} aria-label="Effacer vos recherches">Effacer</button></div>
             <div className="ctags row">{recent.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>
-          : <><h3>Essayez</h3>
-            <div className="ctags row">{TRY.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>}
+          : meta?.examples?.length > 0 && <><h3>Essayez</h3>
+            <div className="ctags row">{meta.examples.map(x => <button key={x} className="ctag" onClick={() => { setQ(x); setSkip([]); remember(x); }}>{x}</button>)}</div></>}
       </div>}
       {!any || !shownRes ? <>{feedHead}<div className={`flow ${any ? "dim" : ""}`}>{grid(feed?.products || [], "feed")}</div></>
         : shownRes.unsupported ? <>
           <div className="sechead"><h2>Les {shownRes.unsupported.toLowerCase()} ne sont pas encore suivis</h2></div>
-          <p className="note">Électroménager, électronique, ameublement et literie seulement, pour l'instant.</p>
+          {famWords.length > 0 && <p className="note">{(w => w[0].toUpperCase() + w.slice(1))(listFr(famWords))} seulement, pour l'instant.</p>}
           {feedHead}{grid(feed?.products || [], "feed")}
         </> : shownRes.total === 0 ? <>{/* rien trouvé : on le dit, on propose de sauvegarder, et le feed reste là */}
           <div className="sechead"><h2>{term && every.every(c => c.id.startsWith("word:")) ? `Rien pour « ${term} »` : "Rien pour cette recherche"}</h2></div>

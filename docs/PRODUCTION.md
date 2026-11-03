@@ -15,6 +15,7 @@ mesures de base, cartographie, registre complet des risques, plan par lots) est 
 | D3 | Pré-collecte silencieuse avant d'ouvrir | **retenue** (31 octobre) : la nuit tourne sur le serveur, sans public, 3 semaines au moins |
 | D4 | Comptes de service | hébergement **OVHcloud VPS** (1er novembre) ; **à ouvrir** : stockage objet pour la copie des sauvegardes (OVHcloud Object Storage), SMTP, sonde extérieure |
 | D5 | Page légale en pied de page, et seulement elle (v63) ; v65 : au pied du Profil seulement, avec « Comment ça marche », et plus de mention « enseigne partenaire » près de l'offre (interface minimale) | **faite** (v65) ; à valider : P1-10 |
+| D6 | Photos des produits données par les flux (v67) : publiées avec le catalogue ; montrées si `DEALS_PHOTOS=1`, chargées chez l'enseigne (sans référent), illustration sinon ; la page des mentions le dit d'elle-même quand elles sont montrées | **à décider** : droits d'usage prévus par chaque programme ; réglage par défaut `0` |
 
 ## Ce qui est fait
 
@@ -40,7 +41,7 @@ mesures de base, cartographie, registre complet des risques, plan par lots) est 
 | P1-7 | Pas de préproduction | La pré-collecte se fait sur le serveur de production, sans public : mise à jour, retour arrière et restauration s'y répètent avant l'ouverture (`deploy/README.md` § 11, § 12) | serveur |
 | P1-9 | E-mails de connexion en indésirables sans SPF, DKIM, DMARC | DNS du domaine selon le fournisseur SMTP ; essai vers 3 messageries | D2, D4 |
 | P1-10 | Transparence de l'affiliation depuis la v65 (D5) : « Comment ça marche » et les mentions au pied du Profil seulement, plus de mention près de l'offre. Le Code de la consommation (L111-7 ; D111-6 dans sa version du 9 juillet 2024) demande à une plateforme qui classe des offres une rubrique « directement et aisément accessible à partir de toutes les pages » et, pour chaque résultat classé, à proximité de l'offre, l'information que son classement a été influencé par une relation contractuelle ou une rémunération, quand c'est le cas | Faire trancher par le juriste avant l'ouverture (seules les offres de partenaires sont montrées) ; si une mention est due, elle tient en un mot près du bouton, et le lien sur chaque écran | juriste |
-| P2-1 | Frais de livraison : gardés (`prices.shipping`), pas montrés | Choix de front, après l'ouverture | — |
+| P2-1 | Frais de livraison : montrés sur la fiche depuis la v67 (« Livraison offerte », leur montant, ou « selon le marchand » si le flux ne les donne pas) ; pas encore dans le prix des cartes ni dans le classement | Prix livré dans les listes : après l'ouverture | — |
 | P2-2 | Pas de politique de contenu (CSP) | Par empreinte du script de `app.html`, calculée au build, vérifiée par le parcours e2e | après l'ouverture |
 | P2-3 | Aucune limite de débit en lecture | Surveiller ; limite dans Caddy si le trafic le demande | après l'ouverture |
 | P2-4 | `App.jsx` d'un seul tenant | Découpage reporté : le front est validé, le parcours e2e le protège | — |

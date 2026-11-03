@@ -10,6 +10,7 @@ from pathlib import Path
 
 from deals import publish as P
 from deals import sources
+from deals.catalog import Catalog
 from deals.ingest import batches, contract, feeds, registry
 from deals.ingest.collector import Collector
 from deals.ingest.pages.crawl import Crawler
@@ -270,6 +271,27 @@ class Ingestion(unittest.TestCase):
         self.assertEqual(tv["availability"], "out_of_stock")
         attrs = json.loads(self.store.q("SELECT attributes FROM products WHERE gtin='3000000000014'", one=True)["attributes"])
         self.assertEqual(attrs.get("energy_class"), "A")                           # la caractéristique déclarée nourrit l'ontologie
+
+    def test_the_feed_photo_and_delivery_reach_the_fiche(self):
+        """v67 : la photo et les frais de livraison que le flux donne arrivent jusqu'à la fiche (lus et gardés depuis le
+        lot 2, ils n'étaient pas publiés) ; la photo, servie en https, n'est montrée que si DEALS_PHOTOS l'autorise ; une
+        livraison inconnue reste inconnue (None), jamais « offerte »."""
+        self.files["alpha"] = rss(LAVE.replace("</link>", "</link><g:image_link>http://img.alpha.example/ll1.jpg</g:image_link>", 1),
+                                  item("TV2", "TV QLED Brava 50 pouces 4K", "https://alpha.example/p/tv2", "599.00 EUR", gtin="3000000000052",
+                                       brand="Brava", ptype="TV - Vidéo > Téléviseurs > TV QLED",
+                                       extra="<g:shipping><g:country>FR</g:country><g:price>19.90 EUR</g:price></g:shipping>"),
+                                  item("TV3", "TV LED Brava 43 pouces 4K", "https://alpha.example/p/tv3", "349.00 EUR", gtin="3000000000069",
+                                       brand="Brava", ptype="TV - Vidéo > Téléviseurs > TV LED"))
+        self.c.ingest("alpha")
+        P.publish(self.store, DAY, self.now)
+        ids = {r["title"].split()[1]: r["product_id"] for r in self.store.q("SELECT product_id, title FROM catalog")}
+        shown, hidden = Catalog(self.store, photos=True), Catalog(self.store)
+        ll, tv, led = (shown.item(None, ids[k]) for k in ("hublot", "QLED", "LED"))
+        self.assertEqual((ll["image"], ll["shipping"], ll["offers"][0]["shipping"]), ("https://img.alpha.example/ll1.jpg", 0.0, 0.0))
+        self.assertEqual((tv["image"], tv["shipping"]), (None, 19.9))              # pas de photo dans le flux
+        self.assertEqual((led["image"], led["shipping"]), (None, None))            # livraison non dite : inconnue
+        self.assertEqual((hidden.item(None, ids["hublot"])["image"], hidden.item(None, ids["hublot"])["shipping"]), (None, 0.0))
+        self.assertEqual(P.photo("javascript:alert(1)"), None)                     # seulement une adresse http(s)
 
     def test_the_same_file_again_writes_no_new_price(self):
         self.c.ingest("alpha")

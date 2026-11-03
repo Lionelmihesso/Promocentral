@@ -42,6 +42,8 @@ class Settings:
     legal_contact: str = ""                         # contact (et exercice des droits sur les données personnelles)
     legal_host: str = ""                            # hébergeur : nom, adresse, téléphone
     operator_email: str = ""                        # responsable d'exploitation : l'agent lui écrit si c'est utile (agent.py)
+    photos: bool = False                            # v67 : montrer la photo du produit donnée par le flux (chargée depuis le
+                                                    # serveur de l'enseigne) ; non : nos illustrations. À décider (droits, tiers)
     env: str = "dev"                                # dev | demo | prod : noté dans chaque ligne du journal
     log_json: bool = False                          # journal opérationnel aussi en JSON sur la sortie d'erreur (journald)
 

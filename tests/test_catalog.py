@@ -8,6 +8,7 @@ d'abord les produits dont la requête nomme la catégorie ou la marque ; sans mo
 les produits des recherches récentes en tête, puis tout le catalogue, une catégorie à tour de rôle.
 """
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ from unittest import mock
 
 from deals import catalog
 from deals import config
+from deals import store
 from deals.api import Api, Request
 from deals.catalog import Catalog, haystack, position
 from deals.extract import attributes, categorize
@@ -359,6 +361,30 @@ class Top(unittest.TestCase):
         self.assertEqual(self.c.top(families={"electronique"})["products"], [])
         self.assertEqual([p["id"] for p in self.c.top(families=None)["products"]], [1, 6, 2, 3, 8])
 
+    def test_the_catalog_says_what_it_holds_and_follows_each_publication(self):
+        """v67 : le front n'écrit rien du catalogue en dur. /api/r/catalog dit les familles présentes, les univers de Top
+        deals qui ont des top deals (une puce qui ne donnerait rien n'est pas proposée), les pièces qui ont des remises
+        (les plus fournies d'abord, avec le produit de leur meilleure remise), des exemples de recherche qui trouvent tous
+        quelque chose ; la publication suivante change la réponse, sans redémarrer."""
+        self.s.x("INSERT OR REPLACE INTO meta(key, value) VALUES ('published_at', '1000')")
+        v = self.c.vocabulary()
+        self.assertEqual([(f["key"], f["products"]) for f in v["families"]], [("electromenager", 6), ("ameublement", 1), ("literie", 1)])
+        self.assertEqual([(u["label"], u["families"], u["deals"]) for u in v["universes"]],
+                         [("Électroménager", ["electromenager"], 4), ("Maison", ["ameublement", "literie"], 1)])   # pas de High-tech
+        self.assertEqual([len(self.c.top(families=set(u["families"]))["products"]) for u in v["universes"]], [4, 1])
+        self.assertEqual([(r["key"], r["deals"], r["best"], r["top"]["id"]) for r in v["rooms"]],
+                         [("chambre", 1, 15, 6), ("buanderie", 1, 12, 3), ("entretien", 1, 30, 1)])
+        self.assertEqual(v["examples"], ["aspirateur sous 300 €", "matelas sous 600 €", "lave-linge sous 400 €"])
+        self.assertTrue(all(self.c.search(q=e)["total"] > 0 for e in v["examples"]))
+        with self.s.tx() as c:                                   # la nuit suivante : plus de literie en remise
+            c.execute("DELETE FROM catalog WHERE product_id=6")
+            c.execute("UPDATE meta SET value='2000' WHERE key='published_at'")
+        v = self.c.vocabulary()
+        self.assertEqual((v["published_at"], [u["label"] for u in v["universes"]]), (2000, ["Électroménager"]))
+        self.assertEqual([r["key"] for r in v["rooms"]], ["buanderie", "entretien"])
+        self.assertEqual([f["key"] for f in v["families"]], ["electromenager", "ameublement"])
+        self.assertEqual(v["examples"], ["aspirateur sous 300 €", "lave-linge sous 400 €"])
+
     def test_promo_filter_says_what_each_choice_gives(self):
         out = self.c.search()
         self.assertEqual(out["offs"], {"1": 3, "10": 3, "20": 1, "30": 1, "40": 0, "50": 0, "low": 3})
@@ -367,6 +393,31 @@ class Top(unittest.TestCase):
         self.assertEqual(self.c.search(category="lave_linge")["offs"], {"1": 1, "10": 1, "20": 0, "30": 0, "40": 0, "50": 0, "low": 1})
         self.assertEqual({c["key"] for c in self.c.search(low=True)["categories"]}, {"aspirateur", "lave_linge", "hotte"})
         self.assertEqual(self.c.search(low=True, recent=["p2"])["recent"], [])           # un filtre : ce n'est plus le feed
+
+
+
+class Migration(unittest.TestCase):
+    def test_a_v13_catalog_gets_photo_and_delivery_and_keeps_what_was_published(self):
+        """v14 : catalog et catalog_offers gagnent la photo et la livraison ; ce qui était publié reste lisible, sans photo
+        ni livraison jusqu'à la publication suivante."""
+        path = Path(tempfile.mkdtemp(), "v13.sqlite")
+        c = sqlite3.connect(path, isolation_level=None)
+        for st in store.statements(store.SCHEMA):
+            c.execute(st)
+        for v in range(2, 14):
+            for st in store.MIGRATIONS[v]:
+                c.execute(st)
+        c.execute("PRAGMA user_version=13")
+        c.execute("INSERT INTO catalog(product_id, name, title, brand, category, price, pct, search, published_on, attrs) "
+                  "VALUES (1, 'Lave-linge 8 kg', 'Lave-linge Kessler 8 kg', 'Kessler', 'lave_linge', 499, 0, ' l ', '2026-11-01', '{}')")
+        c.execute("INSERT INTO catalog_offers(product_id, offer_id, merchant, price, pct, availability, rank) "
+                  "VALUES (1, 9, 'Alpha', 499, 0, 'in_stock', 0)")
+        c.close()
+        s = Store(path)
+        self.addCleanup(s.close)
+        self.assertEqual(s.q("PRAGMA user_version", one=True)["user_version"], 14)
+        it = Catalog(s, photos=True).item(None, 1)
+        self.assertEqual((it["name"], it["image"], it["shipping"], it["offers"][0]["shipping"]), ("Lave-linge 8 kg", None, None, None))
 
 
 if __name__ == "__main__":

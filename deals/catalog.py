@@ -14,6 +14,7 @@ filtre ou tri resserre ou réordonne. Les top deals (`top`, leur onglet, ouvert 
 et les prix parmi les plus bas depuis longtemps (`cheap`, pur), à tour de rôle.
 """
 import json
+import math
 import re
 import unicodedata
 from collections import Counter, defaultdict
@@ -25,7 +26,7 @@ from . import profile as P
 from . import query
 from .errors import NotFound
 from .extract.categories import FAMILY_OF
-from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS  # noqa: F401  (relus par missions, profile)
+from .labels import CATEGORY_LABEL, CATEGORY_ONE, FEATURE_LABEL, ROOMS, UNIVERSES  # noqa: F401  (relus par missions, profile)
 
 TODAY_LIMIT = 60
 POSITION_DAYS = 14                                         # en dessous, trop peu de relevés pour juger un prix
@@ -41,6 +42,7 @@ OPTION_ATTRS = {"capacity_kg": "Capacité", "place_settings": "Couverts", "zones
                 "drawers": "Tiroirs"}                       # Affiner
 RECENT_SEARCHES = 4                                        # feed : les dernières recherches gardées par le navigateur
 RECENT_EACH = 6                                            # feed : produits au plus par recherche récente, en tête
+EXAMPLES = 5                                               # Recherche : exemples proposés avant toute saisie (v67 : tirés du catalogue)
 FAMILY_LABEL = {f: label for f, (label, _) in ontology.FAMILIES.items()}   # Électroménager, Électronique, Ameublement, Literie
 SYNONYMS = {
     "frigo": "refrigerateur", "refrigerateurs": "refrigerateur", "congelo": "congelateur", "congel": "congelateur",
@@ -178,10 +180,12 @@ def measure_values(k, pool, chosen):
     return [{"value": v, "label": query.ATTR_CHIP[k](v), "count": count[v]} for v in order][:8]
 
 class Catalog:
-    def __init__(self, store):
-        self.s = store
+    def __init__(self, store, photos=False):
+        """photos : montrer la photo donnée par le flux (réglage DEALS_PHOTOS) ; sinon les cartes n'en portent pas."""
+        self.s, self.photos = store, photos
         self._brands = ("?", [])                           # marques du catalogue, le temps d'une publication (« ? » : pas encore lues)
         self._attrs = ("?", {})                            # caractéristiques lues des produits publiés, le temps d'une publication
+        self._vocab = ("?", None)                          # ce que contient le catalogue (vocabulary), le temps d'une publication
 
     def _personal(self, uid):
         if uid is None:
@@ -189,9 +193,9 @@ class Catalog:
         return ({r["brand"] for r in self.s.q("SELECT brand FROM follows WHERE user_id=?", (uid,))},
                 {r["product_id"] for r in self.s.q("SELECT product_id FROM saves WHERE user_id=?", (uid,))})
 
-    @staticmethod
-    def _card(r, followed, saved):
+    def _card(self, r, followed, saved):
         return {"id": r["product_id"], "title": r["title"], "name": r["name"], "brand": r["brand"], "category": r["category"],
+                "image": r["image"] if self.photos else None,
                 "category_label": CATEGORY_LABEL.get(r["category"], r["category"]),
                 "kind": CATEGORY_ONE.get(r["category"], CATEGORY_LABEL.get(r["category"], r["category"])),
                 "price": r["price"], "was": r["was"],
@@ -247,6 +251,75 @@ class Catalog:
         return {"products": [{**self._card(full[r["product_id"]], followed, saved),
                               "why": {"pct": r["pct"], "low": r["level"] if cheap(r) else None, "days": r["span"] if cheap(r) else None}}
                              for r in picked]}
+
+    def vocabulary(self):
+        """Ce que le catalogue publié contient aujourd'hui, pour que le front n'ait rien du catalogue écrit en dur (v67) :
+        published_at (un onglet resté ouvert se relit quand elle change) ; families, les familles présentes ; universes, les
+        univers de Top deals qui ont des top deals (leurs puces ; une famille qu'aucun univers ne réunit a le sien) ; rooms,
+        les pièces qui ont des remises (Explorer), les plus fournies d'abord, avec leurs rayons, leur meilleure remise et
+        le produit de cette remise (le visuel) ; examples, des recherches qui trouvent quelque chose aujourd'hui. Calculé une
+        fois par publication."""
+        at = self.published_at()
+        if self._vocab[0] == at and self._vocab[1] is not None:
+            return self._vocab[1]
+        rows = self.s.q("SELECT product_id, category, price, pct, level, span, usual, image, attrs, search FROM catalog")
+        fam = Counter(FAMILY_OF.get(r["category"]) for r in rows if FAMILY_OF.get(r["category"]))
+        order = [f for _, fs in UNIVERSES.values() for f in fs] + sorted(f for f in FAMILY_LABEL if not any(f in fs for _, fs in UNIVERSES.values()))
+        families = [{"key": f, "label": FAMILY_LABEL.get(f, f), "products": fam[f]} for f in order if fam[f]]
+        tops = Counter(FAMILY_OF.get(r["category"]) for r in rows if r["pct"] > 0 or cheap(r))
+        grouped = list(UNIVERSES.items()) + [(f, (FAMILY_LABEL.get(f, f), (f,))) for f in order
+                                            if not any(f in fs for _, fs in UNIVERSES.values())]
+        universes = [{"key": k, "label": label, "families": list(fs), "deals": sum(tops[f] for f in fs)}
+                     for k, (label, fs) in grouped if sum(tops[f] for f in fs)]
+        deals = [r for r in rows if r["pct"] > 0]
+        rooms = []
+        for i, (key, (label, cats)) in enumerate(ROOMS.items()):
+            here = [r for r in deals if r["category"] in cats]
+            if not here:
+                continue
+            best = min(here, key=lambda r: (-r["pct"], r["price"], r["product_id"]))
+            per = Counter(r["category"] for r in here)
+            rooms.append((-len(here), i, {"key": key, "label": label, "deals": len(here), "best": best["pct"],
+                          "categories": [{"key": c, "label": CATEGORY_LABEL.get(c, c)} for c, _ in per.most_common()],
+                          "top": {"id": best["product_id"], "category": best["category"], "image": best["image"] if self.photos else None}}))
+        rooms = [room for *_, room in sorted(rooms, key=lambda x: x[:2])]
+        out = {"published_at": at, "families": families, "universes": universes, "rooms": rooms, "examples": self._examples(deals)}
+        self._vocab = (at, out)
+        return out
+
+    def _examples(self, deals):
+        """Des recherches à essayer, tirées des remises du jour : un rayon parmi les plus fournis de chaque famille à tour de
+        rôle, son type le plus fréquent (« aspirateur balai ») et un budget qui en laisse passer quelques-uns (« sous
+        300 € ») ; chaque phrase est relue par la Recherche et gardée seulement si elle trouve quelque chose, sinon le rayon
+        seul, sinon rien."""
+        by_cat = defaultdict(list)
+        for r in deals:
+            by_cat[r["category"]].append(r)
+        by_fam = defaultdict(list)
+        for c in sorted(by_cat, key=lambda c: (-len(by_cat[c]), c)):
+            by_fam[FAMILY_OF.get(c)].append(c)
+        turns = [c for turn in zip_longest(*sorted(by_fam.values(), key=lambda cs: -len(by_cat[cs[0]]))) for c in turn if c]
+        lower = lambda w: w if w[:2].isupper() else w[:1].lower() + w[1:]
+        out = []
+        for c in turns:
+            if len(out) >= EXAMPLES:
+                break
+            one = lower(CATEGORY_ONE.get(c, CATEGORY_LABEL.get(c, c)))
+            d = ontology.domain_of(c)
+            subs = Counter(a.get("sub") for a in self.attrs_of(by_cat[c]) if a.get("sub")) if d else Counter()
+            kind = subs.most_common(1)[0][0] if subs else None
+            sub = next((lower(s["label"]) for s in d.subs if s["key"] == kind), None) if kind else None
+            if sub and norm(sub) in norm(one):             # « robot aspirateur » dit déjà son type
+                sub = None
+            pool = sorted(r["price"] for r, a in zip(by_cat[c], self.attrs_of(by_cat[c])) if not sub or a.get("sub") == kind)
+            step = 50 if pool[min(2, len(pool) - 1)] < 1000 else 100
+            budget = math.ceil(pool[min(2, len(pool) - 1)] / step) * step
+            for phrase in ([f"{one} {sub} sous {budget} €"] if sub else []) + [f"{one} sous {budget} €", one]:
+                res = self.search(q=phrase)
+                if res["total"] and not res["relaxed"] and not res["unsupported"] and phrase not in out:
+                    out.append(phrase)
+                    break
+        return out
 
     def published_at(self):
         """Heure de la dernière publication (horodatage), pour « mis à jour à … »."""
@@ -522,8 +595,9 @@ class Catalog:
         followed, _ = self._personal(uid)
         rows = self.s.q("SELECT brand, COUNT(*) products, SUM(pct > 0) n, MAX(pct) best FROM catalog WHERE brand IS NOT NULL GROUP BY brand")
         top, cats = {}, defaultdict(list)
-        for r in self.s.q("SELECT brand, product_id, category FROM catalog WHERE pct > 0 AND brand IS NOT NULL ORDER BY pct DESC, product_id"):
-            top.setdefault(r["brand"], {"id": r["product_id"], "category": r["category"]})
+        for r in self.s.q("SELECT brand, product_id, category, image FROM catalog WHERE pct > 0 AND brand IS NOT NULL "
+                          "ORDER BY pct DESC, product_id"):
+            top.setdefault(r["brand"], {"id": r["product_id"], "category": r["category"], "image": r["image"] if self.photos else None})
             label = CATEGORY_LABEL.get(r["category"], r["category"])
             if label not in cats[r["brand"]]:
                 cats[r["brand"]].append(label)
@@ -563,14 +637,14 @@ class Catalog:
             raise NotFound("produit inconnu")
         followed, saved = self._personal(uid)
         offers = [{"offer_id": o["offer_id"], "merchant": o["merchant"], "price": o["price"], "was": o["was"], "pct": o["pct"],
-                   "availability": o["availability"], "best": o["rank"] == 0}
+                   "availability": o["availability"], "shipping": o["shipping"], "best": o["rank"] == 0}
                   for o in self.s.q("SELECT * FROM catalog_offers WHERE product_id=? ORDER BY rank", (product_id,))]
         similar = self.s.q("SELECT c.* FROM similar s JOIN catalog c ON c.product_id=s.other_id WHERE s.product_id=? ORDER BY s.rank",
                            (product_id,))
         cheaper = self.s.q("SELECT c.* FROM alternatives a JOIN catalog c ON c.product_id=a.other_id WHERE a.product_id=? "
                            "ORDER BY a.rank", (product_id,))
         attrs = json.loads(r["attrs"] or "{}")
-        return {**self._card(r, followed, saved), "attrs": attrs, "offers": offers,
+        return {**self._card(r, followed, saved), "attrs": attrs, "offers": offers, "shipping": r["shipping"],
                 "similar": [self._card(x, followed, saved) for x in similar],
                 "alternatives": [{**self._card(x, followed, saved), "saving": round(r["price"] - x["price"])} for x in cheaper],
                 "signed_in": uid is not None}

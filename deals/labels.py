@@ -1,5 +1,6 @@
 """Les mots de l'app pour les rayons et les fonctions : partagés par les lectures (catalog), la compréhension d'une
-recherche (query) et les missions, sans qu'ils dépendent les uns des autres."""
+recherche (query) et les missions, sans qu'ils dépendent les uns des autres. Le front n'en a aucune copie (v67) : il les
+reçoit de l'API (`/api/r/catalog`, les cartes, la recherche)."""
 
 CATEGORY_LABEL = {
     "lave_linge": "Lave-linge", "lave_linge_sechant": "Lave-linge séchants", "seche_linge": "Sèche-linge",
@@ -34,3 +35,7 @@ ROOMS = {"chambre": ("Chambre", ("lit", "matelas", "sommier", "armoire", "commod
          "entretien": ("Entretien", ("aspirateur", "robot_aspirateur")),
          "high_tech": ("High-tech", ("televiseur", "smartphone", "ordinateur_portable", "tablette", "casque_audio", "enceinte",
                                      "montre_connectee", "console", "ecran_pc"))}
+# Top deals, ses puces (v66, la maquette ; v67 : servies par l'API, seules celles qui ont des top deals) : un univers
+# réunit une ou plusieurs familles du catalogue (deals/extract/categories.py), dans cet ordre.
+UNIVERSES = {"electromenager": ("Électroménager", ("electromenager",)), "maison": ("Maison", ("ameublement", "literie")),
+             "high_tech": ("High-tech", ("electronique",))}

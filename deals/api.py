@@ -1,8 +1,11 @@
 """Contrat de l'app : /api/r/.
 
-Lecture ouverte : today?category=&q= (remises du jour), top?family= (l'onglet Top deals : remises et prix bas, why dit
+Lecture ouverte : catalog (v67 : ce que contient le catalogue publié — familles, univers de Top deals, pièces, exemples
+de recherche, heure de publication ; le front n'a rien du catalogue écrit en dur et se relit quand elle change),
+today?category=&q= (remises du jour), top?family= (l'onglet Top deals : remises et prix bas, why dit
 pourquoi ; v66 : family, un univers — familles séparées par des virgules), search (tout le catalogue suivi ; voir plus bas), categories et brands (celles qui ont des remises ; ?all=1 :
-toutes), brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id>, view {product_id, from, m, v}
+toutes), brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id> (v67 : shipping, les frais de
+livraison de l'offre, null s'ils sont inconnus ; image sur chaque carte si DEALS_PHOTOS), view {product_id, from, m, v}
 (fiche vue : le taux de clic), out/<offer_id>?from=&m=&v= (clic tracé → lien affilié de l'enseigne partenaire, avec
 l'identifiant du clic ; m : la mission d'où il part), missions/parse {text} et missions/preview {mission} (ce qui est
 compris, ce qui y répond déjà).
@@ -74,7 +77,7 @@ class Response:
 class Api:
     def __init__(self, store, settings, outbox=None, clock=time.time, rules=None):
         """rules : enseigne → règle d'affiliation ; par défaut, le fichier DEALS_AFFILIATE (aucun : liens directs)."""
-        self.catalog = Catalog(store)
+        self.catalog = Catalog(store, photos=settings.photos)
         self.accounts = Accounts(store, settings, outbox, clock)
         self.activity = Activity(store, clock, rules if rules is not None else affiliate.load(settings.affiliate))
         self.missions = Missions(store, self.catalog, clock)
@@ -95,6 +98,7 @@ class Api:
             ("POST", r"/api/r/interests", lambda r: P.choose(need(r), (r.body or {}).get("categories"))),
             ("POST", r"/api/r/profile", lambda r: P.learn(need(r), (r.body or {}).get("learn"))),
             ("POST", r"/api/r/profile/reset", lambda r: P.reset(uid(r)) if uid(r) is not None else {"reset_at": None}),
+            ("GET", r"/api/r/catalog", lambda r: C.vocabulary()),
             ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
             ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
@@ -206,10 +210,10 @@ class Api:
         s = self.settings
         if config.is_demo(s):                                  # démo : aucune entité, aucune mention, quelle que soit la config
             return {"name": "Promo Central", "demo": True, "editor": None, "registration": None, "address": None,
-                    "director": None, "contact": None, "host": None}
+                    "director": None, "contact": None, "host": None, "photos": s.photos}
         return {"name": "Promo Central", "editor": s.legal_editor or None, "registration": s.legal_registration or None,
                 "address": s.legal_address or None, "director": s.legal_director or None, "contact": s.legal_contact or None,
-                "host": s.legal_host or None}
+                "host": s.legal_host or None, "photos": s.photos}      # v67 : les photos chargées chez l'enseigne, à dire
 
     def _health(self):
         """État pour une sonde extérieure : elle prévient le responsable par un autre chemin que nos e-mails, même quand

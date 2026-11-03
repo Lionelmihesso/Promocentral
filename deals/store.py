@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 SCHEMA = """
 -- marché : écrit par market.py (collecte de nuit)
 CREATE TABLE products (
@@ -178,6 +178,12 @@ MIGRATIONS = {
         "ALTER TABLE offers ADD COLUMN batch_id INTEGER",
         "ALTER TABLE prices ADD COLUMN batch_id INTEGER",
         "ALTER TABLE prices ADD COLUMN shipping REAL",
+    ],
+    14: [  # v67 : la fiche montre ce que le flux donne — la photo du produit (si DEALS_PHOTOS l'autorise) et les frais de
+           # livraison de l'offre ; ils étaient lus et gardés (products.image, prices.shipping) mais pas publiés
+        "ALTER TABLE catalog ADD COLUMN image TEXT",
+        "ALTER TABLE catalog ADD COLUMN shipping REAL",
+        "ALTER TABLE catalog_offers ADD COLUMN shipping REAL",
     ],
 }
 

@@ -1,4 +1,4 @@
-# L'interface de Promo Central (v66)
+# L'interface de Promo Central (v67)
 
 Une page (`web/src/App.jsx` → `web/app.html`, police incluse, aucune requête vers un tiers), téléphone d'abord,
 quatre onglets : **Top deals** (ouvert au lancement), **Explorer**, **Recherche**, **Profil**. Ce document décrit
@@ -75,10 +75,10 @@ chaque champ, chaque carte nommée par sa marque, son nom, son prix et sa remise
 | Écran | Contenu |
 |---|---|
 | En-tête | le logo (« Promo » anthracite, « Central » gris clair), qui ramène à Top deals ; à l'ordinateur, les quatre onglets. Pas de cloche (v66 : l'onglet Profil compte les recherches qui ont du nouveau) |
-| Top deals | le premier onglet, ouvert au lancement : « Top deals » ; les univers, **Tout**, **Électroménager**, **Maison** (ameublement et literie), **High-tech** ; puis les top deals de l'univers en cartes (dix au plus, la plus forte remise d'abord, puis un prix bas, et ainsi de suite ; la règle est la même dans un univers) |
-| Explorer | « Explorer » ; **pour vous** (les deals et prix bas de vos rayons et de vos marques, top deals compris, en carrousel), **inspirations du moment** par pièce (les pièces de vos rayons d'abord), **les marques en promo** (même format), **notre sélection** en cartes (les autres remises : ni top deals, ni « pour vous »). Ni bandeau défilant (v66) ni recherche : elle est dans son onglet |
+| Top deals | le premier onglet, ouvert au lancement : « Top deals » ; les univers, **Tout** puis ceux qui ont des top deals ce jour-là (v67 : servis par `/api/r/catalog` ; **Électroménager**, **Maison** — ameublement et literie —, **High-tech**) ; puis les top deals de l'univers en cartes (dix au plus, la plus forte remise d'abord, puis un prix bas, et ainsi de suite ; la règle est la même dans un univers) |
+| Explorer | « Explorer » ; **pour vous** (les deals et prix bas de vos rayons et de vos marques, top deals compris, en carrousel), **inspirations du moment** par pièce (les pièces de vos rayons d'abord, puis les plus fournies en remises ; v67 : servies par `/api/r/catalog`, avec le produit de leur meilleure remise pour visuel), **les marques en promo** (même format), **notre sélection** en cartes (les autres remises : ni top deals, ni « pour vous »). Ni bandeau défilant (v66) ni recherche : elle est dans son onglet |
 | Carte | le visuel carré à gauche ; à droite la marque et la pastille de remise (« −20 % », violet ; « Prix bas » pour un prix bas sans remise), le nom (deux lignes), le prix et le prix barré, l'économie (« 151 € d'économie ») ; « 28 € de moins » sur une alternative (au lieu de l'économie : c'est ce qu'on gagne sur le produit de la fiche) ; « Baisse de 64 € » sur un favori. Ni cœur ni bouton : toute la carte ouvre la fiche |
-| Fiche | Retour, cœur (garder), partager, au-dessus du visuel ; le visuel aux coins arrondis ; **la marque et la catégorie**, qui mènent à tous leurs produits ; le nom ; la remise, le prix et le prix barré ; l'économie ; **« Voir l'offre chez … »** (l'enseigne partenaire la moins chère et disponible, la seule montrée), anthracite ; « Livraison selon le marchand », « Retours selon le marchand » ; **moins cher, comparable** ; à défaut, produits similaires |
+| Fiche | Retour, cœur (garder), partager, au-dessus du visuel ; le visuel aux coins arrondis ; **la marque et la catégorie**, qui mènent à tous leurs produits ; le nom ; la remise, le prix et le prix barré ; l'économie ; **« Voir l'offre chez … »** (l'enseigne partenaire la moins chère et disponible, la seule montrée), anthracite ; la livraison que le flux donne (v67 : « Livraison offerte », « Livraison : 4,99 € », ou « Livraison selon le marchand » s'il ne la donne pas), « Retours selon le marchand » ; **moins cher, comparable** ; à défaut, produits similaires |
 | Recherche | le champ, qui comprend une phrase (« aspirateur balai sans fil sous 300 € » : les étapes « Aspirateurs », « Balai », « Sans fil », « Moins de 300 € ») ; **Promo** et **Trier** ; en puces, la marque, la promo, le tri et les mots, et « Tout effacer » ; **l'entonnoir** ; avant toute saisie, **vos recherches récentes** (« Effacer ») ou « Essayez » et cinq exemples, puis le **feed** (« À découvrir » ou « Pour vous ») ; dès qu'on tape ou choisit : « 3 produits », **« Sauvegarder »** (« Recherche sauvegardée dans votre Profil »), les cartes ; des mots sans produit, dits, et le reste de la recherche ; rien sous le budget : « Rien à moins de 300 € », les plus proches au-dessus, et « Sauvegarder » ; rien du tout : « Rien pour « xyzzy » » et « Sauvegarder », puis le feed ; un rayon non suivi : « Les smartphones ne sont pas encore suivis » |
 | Affiner (l'entonnoir) | « AFFINER », des traits (fait, en cours, à venir) ; les **étapes franchies** (« High-tech × », « Téléviseurs × » : la croix revient avant elle) ; **la question** (« Quel univers ? », « Quel rayon ? », « Quel type ? », « Taille d'écran ? », « Votre budget ? ») et ses réponses, chacune avec son nombre (« OLED 3 ») ; **« Passer »** ; à la fin, « VOTRE SÉLECTION », « 3 produits », « Sauvegarder » (sur une page : « Recommencer ») ; rien ici : « retirez une étape » |
 | Marque, catégorie, pièce | « 1 remise aujourd'hui · 7 produits » ; suivre la marque ; une catégorie rejoint vos rayons ; **l'entonnoir** (une marque : « Quel rayon ? », ou « Quel univers ? » au-delà de six rayons ; une marque d'un seul rayon : ses questions d'emblée ; une catégorie : ses questions ; une pièce : « Quel rayon ? ») ; le tri (remises d'abord, prix croissant, décroissant) ; les cartes ; ce qu'on y a choisi reste quand on ouvre une fiche et revient |
@@ -88,14 +88,27 @@ chaque champ, chaque carte nommée par sa marque, son nom, son prix et sa remise
 | Mentions légales et données personnelles | depuis le Profil : l'éditeur, le directeur de la publication, l'hébergeur, le contact (lus dans `DEALS_LEGAL_…` ; en développement, « à compléter » ; en production, l'app ne démarre pas sans eux), ce que la plateforme garde, pourquoi, combien de temps, vos droits |
 | Démonstration (`DEALS_ENV=demo`) | une ligne noire en haut de chaque page, avant l'app : « Démonstration : données fictives, aucune offre réelle. » ; dans le flux, elle ne recouvre rien (v64 : fixée en bas, elle cachait la barre d'onglets d'un téléphone et prenait ses gestes) |
 
+## Ce qui vient du catalogue (v67)
+
+Rien du catalogue n'est écrit dans le front : les univers de Top deals, les pièces d'Explorer, les exemples de la
+Recherche (des phrases tirées des remises du jour, relues par la Recherche avant d'être proposées) et les familles
+suivies (« Comment ça marche », un rayon non suivi) viennent de `/api/r/catalog`, recalculé à chaque publication. Une
+nuit qui ajoute ou retire une enseigne, une marque, un rayon ou une famille ne demande aucun changement du front. Un
+onglet resté ouvert se relit quand on y revient (ou toutes les 10 minutes) si la nuit a publié ; un lien vers un
+produit qui n'est plus publié dit « Ce produit n'est plus en vente chez nos partenaires. » et mène aux top deals.
+`tests/test_architecture.py` refuse dans `App.jsx` toute clé du catalogue (rayon, famille, pièce, univers) et tout nom de
+famille, de pièce ou d'univers.
+
 ## À décider : les photos des produits
 
-Les flux des enseignes donnent l'adresse de la photo de chaque produit (`image_link`) ; elle est gardée
-(`products.image`) mais pas montrée. La montrer est une décision de front : la charger depuis l'enseigne (une requête
-vers un tiers à chaque ouverture, l'adresse IP des visiteurs transmise), ou la copier sur notre serveur (stockage,
-bande passante), dans tous les cas selon les conditions du programme d'affiliation. Tant que ce n'est pas décidé, les
-illustrations tiennent la place ; elles restent de toute façon le repli d'un produit sans photo. La maquette de la v66
-montre des photos : c'est là qu'elles iraient (le visuel carré des cartes, celui de la fiche).
+Les flux des enseignes donnent l'adresse de la photo de chaque produit (`image_link`). v67 : elle est publiée avec le
+catalogue (en https) et l'app la montre si `DEALS_PHOTOS=1` (le visuel carré des cartes, celui de la fiche, les grandes
+cartes d'Explorer), chargée depuis le serveur de l'enseigne sans dire d'où vient la personne ; une photo qui ne se
+charge pas laisse l'illustration. Réglage par défaut : `0`, les illustrations, tant que ces points ne sont pas tranchés :
+les droits d'usage prévus par chaque programme d'affiliation, et la requête vers un tiers à chaque ouverture (l'adresse
+IP des visiteurs transmise à l'enseigne ; la page des mentions le dit d'elle-même quand les photos sont montrées) ; la
+copier sur notre serveur l'éviterait
+(stockage, bande passante). Les illustrations restent le repli d'un produit sans photo.
 
 ## Vérifier
 
@@ -119,3 +132,11 @@ scripts ne sont pas dans le dépôt ; depuis, des contrôles ciblés :
   univers), 4 → 3 cartes entières au premier écran (des cartes plus larges, le nom en entier) ; bouton vers l'enseigne
   sur les mêmes 22 fiches, médiane 478 → 568 px (la barre au-dessus du visuel, la marque et la catégorie avant le nom),
   toujours entier dans le premier écran (22/22) ; la page passe de 403 à 341 ko (deux polices de moins).
+- v67 (le front lit le catalogue) : l'épreuve des refresh — la démo (75 nuits), puis 6 vraies nuits où l'électronique
+  quitte les flux et une enseigne nouvelle arrive (une marque jamais vue, photos et livraison dans son flux), serveur
+  jamais redémarré. Avant → après : la puce « High-tech » sans produit 1 → 0 ; exemples de la Recherche qui ne trouvent
+  rien 2/5 → 0/5 ; livraison du flux montrée non → oui ; photo du flux montrée jamais → si `DEALS_PHOTOS=1` (une photo
+  qui ne se charge pas laisse l'illustration) ; onglet resté ouvert relu au retour non → oui ; lien vers un produit
+  retiré : un message clair. Clics jusqu'au marchand inchangés (lien partagé 1, Top deals 2, Explorer 3, Recherche 3 et
+  la saisie, pièce 4), 10 parcours sur 10 arrivés chez le marchand. Les 43 contrôles de la v66 passent, et 14 + 13
+  contrôles de la v67 (photos montrées, puis non).
