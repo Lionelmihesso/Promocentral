@@ -13,7 +13,6 @@ from deals import sources
 from deals.catalog import Catalog
 from deals.ingest import batches, contract, feeds, registry
 from deals.ingest.collector import Collector
-from deals.ingest.pages.crawl import Crawler
 from deals.market import Market
 from deals.store import Store
 
@@ -167,20 +166,22 @@ class Registry(unittest.TestCase):
         f.write_text(json.dumps(data), encoding="utf-8")
         return str(f)
 
-    def test_a_feed_replaces_the_pages_and_its_secret_comes_from_the_environment(self):
-        path = self.write({"boulanger": {"kind": "feed", "network": "kwanko", "url": "https://flux.example/b?key=${DEALS_FEED_B}",
-                                         "mapping": "feeds/boulanger.json"}})
+    def test_a_feed_takes_its_secret_from_the_environment_and_only_feeds_are_read(self):
+        path = self.write({"boulanger": {"kind": "feed", "name": "Boulanger", "network": "kwanko",
+                                         "url": "https://flux.example/b?key=${DEALS_FEED_B}", "mapping": "feeds/boulanger.json"}})
         specs = registry.load(path, env={"DEALS_FEED_B": "s3cr3t"})
         b = specs["boulanger"]
         self.assertEqual((b["kind"], b["name"], b["url"]), ("feed", "Boulanger", "https://flux.example/b?key=s3cr3t"))
         self.assertNotIn("url", registry.public(b))
-        self.assertEqual(specs["ikea"]["kind"], "site")                            # les autres restent celles du code
-        self.assertNotIn("boulanger", registry.sites(specs))
+        self.assertEqual(list(specs), ["boulanger"])                              # v68 : aucune source cachée dans le code
+        self.assertEqual(registry.load(None), {})
+        with self.assertRaisesRegex(ValueError, "ikea : kind « site » : la lecture des fiches des enseignes est retirée"):
+            registry.load(self.write({"ikea": {"kind": "site", "name": "IKEA"}}), env={})
 
     def test_invalid_sources_stop_with_their_name(self):
         with self.assertRaisesRegex(ValueError, "boulanger : variable d'environnement DEALS_FEED_B absente"):
-            registry.load(self.write({"boulanger": {"kind": "feed", "url": "https://f/${DEALS_FEED_B}", "mapping": "feeds/boulanger.json"}}),
-                          env={})
+            registry.load(self.write({"boulanger": {"kind": "feed", "name": "Boulanger", "url": "https://f/${DEALS_FEED_B}",
+                                                    "mapping": "feeds/boulanger.json"}}), env={})
         with self.assertRaisesRegex(ValueError, "fnac : name manquant"):
             registry.load(self.write({"fnac": {"kind": "feed", "url": "x", "mapping": {"preset": "google_shopping"}}}), env={})
         with self.assertRaisesRegex(ValueError, "kind 'api'"):
@@ -223,7 +224,7 @@ class Registry(unittest.TestCase):
         code, _ = run({})
         self.assertIn("variable d'environnement DEALS_FEED_FNAC absente", str(code))
         with mock.patch.dict(os.environ, {"DEALS_SOURCES": path}), self.assertRaises(SystemExit) as e:
-            cli.main(["--db", str(self.dir / "p.sqlite"), "probe", "--source", "ikea"])   # une source « site »
+            cli.main(["--db", str(self.dir / "p.sqlite"), "probe", "--source", "ikea"])   # une source inconnue
         self.assertIn("n'est pas une source « feed »", str(e.exception.code))
 
 
@@ -238,9 +239,8 @@ class Ingestion(unittest.TestCase):
         self.specs = {"alpha": {"key": "alpha", "name": "Alpha", "kind": "feed", "enabled": True, "families": [],
                                 "url": "https://flux.example/alpha?token=SECRET", "url_template": "https://flux.example/alpha?token=${T}",
                                 "mapping": feeds.Mapping.load({"preset": "google_shopping"})}}
-        crawler = Crawler(self.market, None, {}, clock=lambda: self.now)
-        self.c = Collector(self.store, self.market, crawler, self.specs, raw_dir=str(self.dir / "raw"),
-                           transport=self.fetch, clock=lambda: self.now)
+        self.c = Collector(self.store, self.market, self.specs, raw_dir=str(self.dir / "raw"), transport=self.fetch,
+                           clock=lambda: self.now)
 
     def fetch(self, spec):
         f = self.files[spec["key"]]
@@ -385,7 +385,7 @@ class Ingestion(unittest.TestCase):
         self.assertEqual((stat["accepted"], stat["ignored"]), (1, 1))
         self.assertEqual(self.store.q("SELECT price FROM prices", one=True)["price"], 529.0)
 
-    def test_a_feed_and_the_pages_meet_on_the_same_offer(self):
+    def test_an_offer_known_by_its_address_is_the_one_the_feed_updates(self):
         with self.store.tx():
             oid = self.market.track("https://alpha.example/p/ll1?color=blanc", "alpha", "Alpha")
         self.c.ingest("alpha")
@@ -419,10 +419,6 @@ class Ingestion(unittest.TestCase):
         self.assertTrue(stats.get("run"))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class FeedNights(unittest.TestCase):
     """Un flux injoignable, de bout en bout dans la vraie nuit : relancé une fois, compté, mis de côté au bout de trois
     nuits ratées, sans jamais vider le catalogue ; quand il répond de nouveau, l'agent propose de le reprendre."""
@@ -435,7 +431,7 @@ class FeedNights(unittest.TestCase):
         start = date(2025, 10, 1)
         s = Store(str(Path(tempfile.mkdtemp()) / "n.sqlite"))
         self.addCleanup(s.close)
-        w = demo.world(s, start, mode="feed")
+        w = demo.world(s, start)
         base, down = w.collector.transport, {"on": False}
 
         def transport(spec):
@@ -454,7 +450,7 @@ class FeedNights(unittest.TestCase):
         before = s.q("SELECT COUNT(*) n FROM catalog", one=True)["n"]
         down["on"] = True
         out = night_(6)
-        self.assertIs(out["crawl"]["retailers"]["rapido"]["broken"], True)
+        self.assertIs(out["collect"]["retailers"]["rapido"]["broken"], True)
         retry = s.q("SELECT status FROM actions WHERE action='retry_source' AND entity='rapido'", one=True)
         self.assertEqual(retry["status"], "unverified")                              # relancé une fois, sans effet
         self.assertEqual(s.q("SELECT status, failures FROM sources WHERE key='rapido'", one=True), {"status": "degraded", "failures": 1})
@@ -498,3 +494,7 @@ class FeedHealthAndReport(unittest.TestCase):
         self.assertIn("| ⚠ Alpha | 6 | 2 | 1 | 3 | 1 | 7 |", text)
         self.assertIn("⚠ Beta : flux en échec (OSError : connexion refusée)", text)
         self.assertIn("⚠ Alpha : 3 lignes refusées (60 %) : prix manquant (3).", text)
+
+
+if __name__ == "__main__":
+    unittest.main()

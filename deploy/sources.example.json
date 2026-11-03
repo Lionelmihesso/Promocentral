@@ -1,7 +1,7 @@
 {
   "boulanger": {
     "_note": "Programme Kwanko : « flux produits mis à jour en temps réel » (boulanger.com/info/corporate/afiliation.htm, relevé le 31/10/2026). Adresse du flux et correspondance à prendre dans l'espace Kwanko, puis à vérifier avec deals.py probe.",
-    "kind": "feed", "network": "kwanko", "enabled": false,
+    "kind": "feed", "name": "Boulanger", "network": "kwanko", "enabled": false,
     "url": "${DEALS_FEED_BOULANGER}", "mapping": "feeds/boulanger.json",
     "families": ["electromenager", "electronique"]
   },
@@ -19,32 +19,32 @@
   },
   "conforama": {
     "_note": "Fiches illisibles sans navigateur (défi Cloudflare) : le flux est la seule voie. Programme à identifier.",
-    "kind": "feed", "network": "à identifier", "enabled": false,
+    "kind": "feed", "name": "Conforama", "network": "à identifier", "enabled": false,
     "url": "${DEALS_FEED_CONFORAMA}", "mapping": "feeds/conforama.json",
     "families": ["electromenager", "ameublement", "literie"]
   },
   "but": {
-    "kind": "feed", "network": "à identifier", "enabled": false,
+    "kind": "feed", "name": "But", "network": "à identifier", "enabled": false,
     "url": "${DEALS_FEED_BUT}", "mapping": "feeds/but.json",
     "families": ["electromenager", "ameublement", "literie"]
   },
   "ikea": {
-    "kind": "feed", "network": "à identifier", "enabled": false,
+    "kind": "feed", "name": "IKEA", "network": "à identifier", "enabled": false,
     "url": "${DEALS_FEED_IKEA}", "mapping": "feeds/ikea.json",
     "families": ["ameublement", "literie"]
   },
   "maisonsdumonde": {
-    "kind": "feed", "network": "à identifier", "enabled": false,
+    "kind": "feed", "name": "Maisons du Monde", "network": "à identifier", "enabled": false,
     "url": "${DEALS_FEED_MAISONSDUMONDE}", "mapping": "feeds/maisonsdumonde.json",
     "families": ["ameublement", "literie"]
   },
   "laredoute": {
-    "kind": "feed", "network": "à identifier", "enabled": false,
+    "kind": "feed", "name": "La Redoute", "network": "à identifier", "enabled": false,
     "url": "${DEALS_FEED_LAREDOUTE}", "mapping": "feeds/laredoute.json",
     "families": ["ameublement", "literie"]
   },
   "cdiscount": {
-    "kind": "feed", "network": "à identifier", "enabled": false,
+    "kind": "feed", "name": "Cdiscount", "network": "à identifier", "enabled": false,
     "url": "${DEALS_FEED_CDISCOUNT}", "mapping": "feeds/cdiscount.json",
     "families": ["electromenager", "electronique", "ameublement", "literie"]
   }

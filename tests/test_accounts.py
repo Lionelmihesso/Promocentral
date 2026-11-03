@@ -227,7 +227,7 @@ class Accounts(unittest.TestCase):
 
     def test_public_surface(self):
         self.assertIn(b"/api/r/", self.raw("GET", "/")[2])                    # l'app
-        for path in ("/admin", "/api/offers", "/api/run", "/api/stream", "/api/admin/metrics", "/robots"):
+        for path in ("/admin", "/api/offers", "/api/run", "/api/stream", "/api/admin/metrics", "/robots", "/robot"):
             self.assertEqual(self.raw("GET", path)[0], 404, path)
         self.assertEqual(self.raw("POST", "/api/r/auth/request", b"x" * 20000)[0], 413)   # corps limité
         self.assertEqual(self.raw("POST", "/api/r/auth/request", b"[1,2]")[0], 400)
@@ -238,9 +238,9 @@ class Accounts(unittest.TestCase):
         self.assertEqual((st, h["X-Content-Type-Options"], h["Cache-Control"]), (200, "nosniff", "no-store"))
 
     def test_head_answers_like_get_without_body_and_never_replays_a_click(self):
-        """curl -I et les sondes extérieures (souvent en HEAD) : la page, /robot et l'état répondent comme un GET, sans
-        corps ; un clic sortant ou un lien de connexion ne se rejouent pas (405, rien d'enregistré)."""
-        for path in ("/", "/robot", "/api/r/health"):
+        """curl -I et les sondes extérieures (souvent en HEAD) : la page et l'état répondent comme un GET, sans corps ; un
+        clic sortant ou un lien de connexion ne se rejouent pas (405, rien d'enregistré)."""
+        for path in ("/", "/api/r/health"):
             g, gh, gbody = self.raw("GET", path)
             st, h, body = self.raw("HEAD", path)
             self.assertEqual((st, body, h["Content-Length"], h["Content-Type"]), (g, b"", str(len(gbody)), gh["Content-Type"]), path)
@@ -249,14 +249,14 @@ class Accounts(unittest.TestCase):
             self.assertEqual(self.raw("HEAD", path)[0], 405, path)
         self.assertEqual(self.store.q("SELECT COUNT(*) n FROM clicks", one=True)["n"], clicks)
         with socket.create_connection(("127.0.0.1", self.srv.server_port), timeout=5) as c:   # puis un GET, même connexion
-            c.sendall(b"HEAD / HTTP/1.1\r\nHost: x\r\n\r\nGET /robot HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+            c.sendall(b"HEAD / HTTP/1.1\r\nHost: x\r\n\r\nGET /api/r/health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
             data = b""
             while chunk := c.recv(65536):
                 data += chunk
         head, _, rest = data.partition(b"\r\n\r\n")
         self.assertTrue(head.startswith(b"HTTP/1.1 200"))
-        self.assertTrue(rest.startswith(b"HTTP/1.1 200"), rest[:40])   # aucun corps après les en-têtes du HEAD
-        self.assertIn(b"PromoCentralBot", rest)                    # puis la réponse entière au GET
+        self.assertTrue(rest.startswith(b"HTTP/1.1 "), rest[:40])     # aucun corps après les en-têtes du HEAD
+        self.assertIn(b'"status"', rest)                            # puis la réponse entière au GET
 
 
 

@@ -70,10 +70,10 @@ class Cli(unittest.TestCase):
         self.assertEqual(ko.returncode, 1)
         self.assertIn("point(s) à régler", ko.stdout)
 
-    def test_demo_refuses_everything_that_reads_real_sites_or_sends_mail(self):
+    def test_demo_refuses_everything_that_reads_real_feeds_or_sends_mail(self):
         db = str(Path(tempfile.mkdtemp()) / "r.sqlite")
-        for cmd in ("nightly", "missions", "discover", "ingest", "publish"):
-            r = cli({"DEALS_ENV": "demo"}, "--db", db, cmd, *(["all"] if cmd in ("discover", "ingest") else []))
+        for cmd in ("nightly", "missions", "ingest", "replay", "publish"):
+            r = cli({"DEALS_ENV": "demo"}, "--db", db, cmd, *(["all"] if cmd in ("ingest", "replay") else []))
             self.assertEqual(r.returncode, 1, cmd)
             self.assertIn("indisponible en mode démo", r.stderr, cmd)
 
@@ -148,17 +148,15 @@ class Demo(unittest.TestCase):
         self.assertIn('"editor": null', body)
         self.assertIn('"registration": null', body)
 
-    def test_search_and_robot_page_answer(self):
+    def test_search_answers(self):
         status, body = get(self.base + "/api/r/search?q=lave-linge")
         self.assertEqual(status, 200)
         self.assertIn('"products"', body)
-        status, body = get(self.base + "/robot")
-        self.assertEqual(status, 200)
-        self.assertIn("PromoCentralBot", body)
 
     def test_nothing_else_is_served(self):
-        status, _ = get(self.base + "/admin")
-        self.assertEqual(status, 404)
+        for path in ("/admin", "/robot"):                                    # v68 : plus de robot, plus de page du robot
+            status, _ = get(self.base + path)
+            self.assertEqual(status, 404, path)
 
 
 if __name__ == "__main__":

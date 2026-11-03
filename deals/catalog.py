@@ -605,27 +605,6 @@ class Catalog:
                 "top": top.get(r["brand"]), "categories": cats.get(r["brand"], [])} for r in rows if every or r["n"]]
         return sorted(out, key=lambda e: (-e["followed"], -e["count"], e["name"]))
 
-    def brand(self, uid, name):
-        """Tout ce que la marque a dans le catalogue suivi, les remises d'abord : depuis une fiche, on continue par la
-        marque, même quand elle n'a aucune remise aujourd'hui."""
-        followed, saved = self._personal(uid)
-        rows = self.s.q("SELECT * FROM catalog WHERE brand=? ORDER BY pct > 0 DESC, pct DESC, price, product_id LIMIT ?",
-                        (name, TODAY_LIMIT))
-        if not rows:
-            raise NotFound("marque inconnue")
-        return {"brand": name, "followed": name in followed, "deals": sum(r["pct"] > 0 for r in rows),
-                "products": [self._card(r, followed, saved) for r in rows]}
-
-    def category(self, uid, key):
-        """Tous les produits d'une catégorie, les remises d'abord, puis du moins cher au plus cher."""
-        followed, saved = self._personal(uid)
-        rows = self.s.q("SELECT * FROM catalog WHERE category=? ORDER BY pct > 0 DESC, pct DESC, price, product_id LIMIT ?",
-                        (key, TODAY_LIMIT))
-        if not rows:
-            raise NotFound("catégorie inconnue")
-        return {"key": key, "label": CATEGORY_LABEL.get(key, key), "kind": CATEGORY_ONE.get(key, key),
-                "deals": sum(r["pct"] > 0 for r in rows), "products": [self._card(r, followed, saved) for r in rows]}
-
     def cards(self, uid, rows):
         """Cartes d'autres modules (missions), avec les signets et marques suivies de la personne."""
         followed, saved = self._personal(uid)

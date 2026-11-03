@@ -2,8 +2,8 @@
 
 Un seul projet, un seul serveur. Nom de code technique : `deals` (commande, services, dossiers, compte système) ; le
 nom affiché est Promo Central. Ce guide a été rejoué de bout en bout sur un serveur simulé (compte `deals`, dossiers et
-services de ce guide, sections 5 à 11) : voir `docs/AUDIT.md`. Ce qui dépend de vos comptes (DNS, Caddy et son
-certificat, pare-feu, SMTP, stockage objet) se vérifie sur le serveur, aux étapes indiquées.
+services de ce guide, sections 5 à 11) : l'audit d'octobre, `git show 2ca25aa:docs/AUDIT.md`. Ce qui dépend de vos
+comptes (DNS, Caddy et son certificat, pare-feu, SMTP, stockage objet) se vérifie sur le serveur, aux étapes indiquées.
 
 **Architecture** : Python 3.11 ou plus récent, bibliothèque standard uniquement (aucun `pip install`, aucun
 environnement virtuel), SQLite 3.35 ou plus récent, Caddy pour le HTTPS. L'app écoute sur `127.0.0.1:8000` seulement ;
@@ -65,7 +65,7 @@ Une sauvegarde de la base est prise avant chaque bascule, la nouvelle version pa
 gardée, et une version refusée ou en échec ramène la précédente. **Revenir en arrière** à la main :
 `sudo sh /opt/deals/current/deploy/release.sh rollback`.
 
-**Compatibilité** : testé ici avec Python 3.13 et 3.14 (la suite de 292 tests passe sur les deux). Ubuntu 26.04 n'était
+**Compatibilité** : testé ici avec Python 3.11, 3.13 et 3.14 (la suite de 285 tests passe sur les trois). Ubuntu 26.04 n'était
 pas accessible depuis l'environnement de développement : `install.sh` vérifie la version de Python et de SQLite avant
 toute installation et s'arrête avec la cause ; à confirmer sur le serveur avec `python3 -V`.
 
@@ -159,7 +159,6 @@ sudoedit /etc/deals/deals.env
 sudo deals check                            # ce qui manque, en clair ; « prêt » quand tout est réglé
 ```
 À renseigner (une valeur par ligne, sans commentaire en fin de ligne : systemd le garderait dans la valeur) :
-- `DEALS_USER_AGENT` : nom du robot, adresse publique de `/robot`, adresse de contact réelle ;
 - `DEALS_PUBLIC_URL` : l'adresse HTTPS définitive (`https://promocentral.fr`) ;
 - `DEALS_LEGAL_EDITOR`, `DEALS_LEGAL_REGISTRATION`, `DEALS_LEGAL_ADDRESS`, `DEALS_LEGAL_DIRECTOR`,
   `DEALS_LEGAL_CONTACT`, `DEALS_LEGAL_HOST` : les mentions légales exactes (la production ne démarre pas sans elles) ;
@@ -174,8 +173,7 @@ modèles, qui n'activent rien : les clés du modèle de partenaires ne désignen
 d'exemple sont désactivées. Une enseigne ne devient active qu'au § 9.
 
 `sudo deals <commande>` lance `deals.py` comme les services : compte `deals`, dossier `/var/lib/deals`, réglages de
-`/etc/deals/deals.env` ; vos gestes sont journalisés à votre nom. Gardez le nom du robot (`PromoCentralBot`) dans
-`DEALS_USER_AGENT` : les tests de fumée le cherchent sur `/robot`.
+`/etc/deals/deals.env` ; vos gestes sont journalisés à votre nom.
 
 **Après toute modification** de `/etc/deals/deals.env` ou de `/etc/deals/affiliate.json` : `sudo systemctl restart
 deals-web` (l'app les lit à son démarrage ; la nuit et `sudo deals` les relisent à chaque lancement).
@@ -202,7 +200,7 @@ premier partenaire. La copie hors du serveur (`deals-offsite.timer`) s'active au
 python3 /opt/deals/current/deploy/smoke.py https://VOTRE-DOMAINE        # 7 contrôles, à travers Caddy : tous « ok »
 curl -sI https://VOTRE-DOMAINE/ | grep -i strict-transport-security    # HSTS, envoyé par l'app
 curl -s https://VOTRE-DOMAINE/api/r/health                             # 503 « critical » tant qu'aucune nuit n'a tourné
-curl -s -o /dev/null -w '%{http_code}\n' https://VOTRE-DOMAINE/admin   # 404 : rien d'autre que /, /api/r/ et /robot
+curl -s -o /dev/null -w '%{http_code}\n' https://VOTRE-DOMAINE/admin   # 404 : rien d'autre que / et /api/r/
 sudo ss -ltnp | grep ':8000'                                           # 127.0.0.1:8000 seulement
 sudo deals status
 sudo deals metrics
@@ -235,9 +233,9 @@ disponibilité, adresse, lien de suivi (« Voir l'offre » passe par le réseau,
 affilié), date de fin et cohérence de la promotion. La grille « Du flux à l'écran » (`docs/ARCHITECTURE.md`) dit ce
 que chaque champ du flux nourrit, et ce qui se passe quand il manque.
 
-Une enseigne sans flux ne se lit par ses fiches qu'en dernier recours, si ses conditions d'utilisation le permettent
-(`docs/PRODUCTION.md`) : `sudo deals discover <enseigne> --per 40`, `diagnose`, `build` (produits rapprochés par EAN,
-sinon marque et référence ; un titre semblable n'est qu'un candidat, à revoir avec `sudo deals review`).
+Une enseigne sans flux n'est pas lue : la plateforme ne lit que les flux des programmes d'affiliation (v68). Les
+produits sont rapprochés par EAN, sinon marque et référence ; un titre semblable n'est qu'un candidat, à revoir avec
+`sudo deals review`.
 
 ## 10. Sauvegardes, supervision, exploitation
 
@@ -304,7 +302,7 @@ sudo sh /opt/deals/current/deploy/release.sh list                  # les version
 sudo sh /opt/deals/current/deploy/release.sh rollback              # la version précédente, en une commande
 ```
 `install` vérifie Python, sauvegarde la base, bascule `current`, redémarre l'app et passe les tests de fumée
-(`deploy/smoke.py` : la page, les catégories, une recherche, l'état, les mentions légales, `/robot`, rien d'autre) ;
+(`deploy/smoke.py` : la page, les catégories, une recherche, l'état, les mentions légales, rien d'autre) ;
 un test raté ramène aussitôt la version d'avant. La base porte un numéro de schéma, et un code plus ancien que sa base
 refuse de démarrer : si la version retirée l'avait migrée, la sauvegarde prise juste avant la bascule est restaurée.
 Une version qui change les services (`deploy/*.service`, `*.timer`) demande de les recopier (§ 7) puis

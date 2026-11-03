@@ -3,10 +3,9 @@
 Garde-fous : corps de requête limité à 16 Ko (longueur invalide refusée) ; connexion inactive fermée après 30 s ;
 session lue seulement dans le cookie ; adresse IP du client prise dans X-Forwarded-For uniquement quand la connexion
 vient du proxy local (Caddy) ; en-têtes de sécurité, HTTPS imposé au navigateur (HSTS) quand l'adresse publique est en
-https ; aucune autre route que la page, /api/r/ et /robot (ce que fait le robot qui lit les enseignes, et qui joindre).
+https ; aucune autre route que la page et /api/r/.
 """
 import json
-from html import escape
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,7 +16,6 @@ from .accounts import COOKIE
 from .api import Request
 
 APP = Path(__file__).resolve().parent.parent / "web" / "app.html"
-ROBOT = Path(__file__).resolve().parent.parent / "web" / "robot.html"
 HSTS = "max-age=31536000"
 MAX_BODY = 16 * 1024
 IDLE_S = 30                    # un client lent ou muet ne garde pas un fil indéfiniment
@@ -83,10 +81,6 @@ def make_server(api, store, settings, host="127.0.0.1", port=8000):
 
         def handle_any(self, method):
             path, _, qs = self.path.partition("?")
-            if path == "/robot" and method == "GET":
-                page = ROBOT.read_text(encoding="utf-8").replace("{agent}", escape(settings.user_agent)).replace(
-                    "{contact}", escape(settings.legal_contact or "l'adresse indiquée dans son nom (User-Agent)"))
-                return self.send(200, page.encode(), "text/html; charset=utf-8", cache="public, max-age=3600")
             if not path.startswith("/api/"):
                 if path not in ("/", "/index.html"):
                     return self.send(404, {"error": "Introuvable"})
@@ -120,10 +114,10 @@ def make_server(api, store, settings, host="127.0.0.1", port=8000):
 
         def do_HEAD(self):
             """HEAD (RFC 9110 : tout serveur le doit ; curl -I, sondes extérieures) : les en-têtes d'un GET, sans le corps,
-            là où un GET ne change rien — la page, /robot, l'état pour la sonde. Ailleurs 405 : un clic sortant ou un lien
+            là où un GET ne change rien — la page, l'état pour la sonde. Ailleurs 405 : un clic sortant ou un lien
             de connexion ne se rejouent pas sur un HEAD (aperçus de liens, robots)."""
             self.head = True
-            if self.path.partition("?")[0] in ("/", "/index.html", "/robot", "/api/r/health"):
+            if self.path.partition("?")[0] in ("/", "/index.html", "/api/r/health"):
                 return self.handle_any("GET")
             return self.send(405, {"error": "Méthode non permise"})
 

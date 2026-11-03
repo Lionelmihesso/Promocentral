@@ -1,23 +1,23 @@
 """Agent opérateur : il observe la nuit, diagnostique, agit dans des limites écrites, vérifie, journalise et prévient.
 
 Il ne calcule pas les prix : il lit ce que les modules produisent (bilan de la passe, contrôles de santé, quarantaine) et
-n'agit que par des outils étroits (Tools) : relancer une source, la mettre de côté, relire une page témoin, la reprendre,
+n'agit que par des outils étroits (Tools) : relancer une source, la mettre de côté, relire son flux, la reprendre,
 mettre un prix en quarantaine ou l'en sortir, publier malgré la garde, envoyer des e-mails retenus. Boucle : observer →
 diagnostiquer → proposer → vérifier la politique → exécuter ce qui est permis → vérifier le résultat → journaliser →
 escalader. Pas de modèle de langage : des règles écrites, versionnées, testées.
 
 Politiques (POLICY) :
-  auto       fait et journalisé                                relance, page témoin, quarantaine
+  auto       fait et journalisé                                relance, sonde du flux, quarantaine
   alert      fait, journalisé, et le responsable est prévenu   mise de côté d'une source, publication retenue
   approval   proposé ; `deals.py approve <n°>` l'exécute        reprendre une source, publier malgré la garde, envoi massif
-  recommend  un conseil écrit, rien à exécuter                  règle de lecture, budget, e-mails, suivi des clics…
-  forbidden  jamais : refusé et journalisé                      contourner un anti-robot
+  recommend  un conseil écrit, rien à exécuter                  correspondance du flux, e-mails, suivi des clics…
+  forbidden  jamais : refusé et journalisé                      aucune aujourd'hui (contourner un anti-robot, avant la v68)
 Chaque action garde l'acteur, la justification, les entrées, les préconditions, l'effet attendu, une clé d'idempotence
 (relancer la nuit ne répète rien), le résultat, la vérification et le plan de retour arrière.
 
 Le responsable (DEALS_OPERATOR_EMAIL) reçoit au plus un e-mail par nuit, et seulement s'il y a lieu : décision à prendre,
 action « alert » exécutée, action automatique en échec, incident critique, incident sérieux qui dure (dès la première
-nuit s'il ne peut pas être passager : anti-robot, page changée, e-mails en échec…), incident signalé qui se résout. Un
+nuit s'il ne peut pas être passager : flux changé, e-mails en échec…), incident signalé qui se résout. Un
 envoi qui échoue est retenté la nuit suivante.
 """
 import json
@@ -29,8 +29,8 @@ from . import health, quarantine, sources
 from .ingest.report import euros
 
 POLICY = {
-    "retry_source": "auto",             # échec passager : relue une fois dans la nuit (jamais pour un anti-robot ou un 429)
-    "probe_source": "auto",             # source mise de côté par l'agent : une page témoin tous les 3 jours
+    "retry_source": "auto",             # échec passager : relue une fois dans la nuit
+    "probe_source": "auto",             # source mise de côté par l'agent : son flux relu tous les 3 jours
     "quarantine_offer": "auto",         # prix suspect (quarantine.RULE)
     "confirm_offer": "auto",
     "release_offer": "auto",
@@ -40,38 +40,32 @@ POLICY = {
     "enable_source": "approval",        # reprendre une source mise de côté
     "force_publication": "approval",    # publier malgré la garde
     "mass_notification": "approval",    # envoyer des e-mails de missions en nombre anormal
-    "review_rules": "recommend",        # page changée, prix suspects en nombre : la règle de lecture doit suivre
-    "slow_down": "recommend",           # l'enseigne demande de ralentir (429) : un réglage global, décision humaine
-    "contact_partner": "recommend",     # anti-robot chez un partenaire : flux produits ou accès du robot, à demander
-    "raise_budget": "recommend",        # budget de nuit atteint : un réglage global, décision humaine
+    "review_rules": "recommend",        # flux changé, prix suspects en nombre : la correspondance du flux doit suivre
     "check_partners": "recommend",      # catalogue qui fond : fichier des partenaires, état des sources
     "check_mail": "recommend",
     "check_tracking": "recommend",
-    "bypass_protection": "forbidden",   # contourner un anti-robot : jamais
 }
 PROBE_S = 3 * 86400
 DIGEST_DONE = 12                        # e-mail au responsable : au plus 12 actions faites sans lui, la suite dans deals.py actions
 SEVERITY = {"info": 0, "warning": 1, "critical": 2}
-IMMEDIATE = {"source_blocked", "source_throttled", "source_layout", "catalog_held", "catalog_small", "mission_mail",
+IMMEDIATE = {"source_layout", "catalog_held", "catalog_small", "mission_mail",
              "mass_mail", "night_error"}       # sérieux dès la première nuit : ne passera pas tout seul
-SAY = {"source_blocked": "bloquée par un anti-robot", "source_throttled": "ralentie par l'enseigne (trop de requêtes)",
-       "source_failing": "en échec (erreurs)", "source_layout": "plus de prix lisible : la page a changé",
-       "suspect_prices": "prix suspects en nombre", "budget": "budget de nuit atteint",
+SAY = {"source_failing": "en échec (erreurs)", "source_layout": "plus de prix barré : le flux a changé",
+       "suspect_prices": "prix suspects en nombre",
        "catalog_held": "publication retenue : le nouveau catalogue fondait", "catalog_small": "catalogue réduit",
        "freshness": "fraîcheur du catalogue insuffisante", "mission_mail": "e-mails des missions en échec",
        "mail_quota": "e-mails des missions différés (quota)", "mass_mail": "e-mails des missions retenus : envoi massif",
        "clicks_drop": "clics en chute", "night_error": "étape de la nuit en erreur"}
-LABEL = {"retry_source": "relancée", "probe_source": "page témoin relue", "disable_source": "mise de côté",
+LABEL = {"retry_source": "relancée", "probe_source": "flux relu", "disable_source": "mise de côté",
          "enable_source": "reprendre la source", "quarantine_offer": "prix mis en quarantaine", "confirm_offer": "prix suspect relu",
          "release_offer": "prix libéré", "hold_publication": "publication retenue", "release_publication": "publication relâchée",
          "force_publication": "publier malgré la garde",
-         "mass_notification": "envoyer les e-mails retenus", "review_rules": "revoir la règle de lecture",
-         "slow_down": "ralentir la lecture", "contact_partner": "contacter l'enseigne", "raise_budget": "relever le budget de nuit",
+         "mass_notification": "envoyer les e-mails retenus", "review_rules": "revoir la correspondance du flux",
          "check_partners": "vérifier les partenaires et les sources", "check_mail": "vérifier l'envoi des e-mails",
-         "check_tracking": "vérifier le suivi des clics", "bypass_protection": "contourner la protection"}
+         "check_tracking": "vérifier le suivi des clics"}
 STATUS = {"verified": "fait", "unverified": "sans effet", "failed": "échec", "proposed": "à décider", "recommended": "conseil", "refused": "refusé (interdit)",
           "executed": "exécuté", "rejected": "refusé", "expired": "caduc"}
-CAUSE = {"blocked": "anti-robot", "throttled": "trop de requêtes", "layout": "plus de prix lisible", "transient": "erreurs"}
+CAUSE = {"layout": "flux changé", "transient": "erreurs"}
 
 
 def utc_day(ts):
@@ -79,21 +73,21 @@ def utc_day(ts):
 
 
 def brief(stat):
-    return {k: (stat or {}).get(k) for k in ("pages", "ok", "success", "blocked", "rate_limited", "errors", "no_price", "interrupted")}
+    return {k: (stat or {}).get(k) for k in ("pages", "ok", "success", "errors", "interrupted")}
 
 
 class Tools:
-    """Ce que l'agent peut toucher, et rien d'autre. crawler, publish et notify sont fournis par la nuit (night.py) ou la
-    ligne de commande."""
+    """Ce que l'agent peut toucher, et rien d'autre. collector (les flux), publish et notify sont fournis par la nuit
+    (night.py) ou la ligne de commande."""
 
-    def __init__(self, store, clock=time.time, crawler=None, publish=None, notify=None):
-        self.s, self.clock, self.crawler, self.publish_fn, self.notify_fn = store, clock, crawler, publish, notify
+    def __init__(self, store, clock=time.time, collector=None, publish=None, notify=None):
+        self.s, self.clock, self.collector, self.publish_fn, self.notify_fn = store, clock, collector, publish, notify
 
     def retry_source(self, key, cid=None):
-        return (self.crawler.nightly([key], cid=cid, retry=True).get("retailers") or {}).get(key) or {}
+        return (self.collector.nightly([key], cid=cid, retry=True).get("retailers") or {}).get(key) or {}
 
     def probe_source(self, key):
-        return self.crawler.probe_source(key)          # une page témoin, ou le flux (ingest/collector.py)
+        return self.collector.probe_source(key)        # le flux se lit-il de nouveau ? (ingest/collector.py)
 
     def disable_source(self, key, reason):
         sources.set_status(self.s, key, "disabled", reason, self.clock())
@@ -148,11 +142,11 @@ class Agent:
         return self.s.q("SELECT * FROM actions WHERE id=?", (aid,), one=True)
 
     # ------------------------------------------------------------ avant la publication : sources et prix suspects
-    def before_publish(self, crawl, night_start):
-        """Relance une source en échec passager, compte les nuits ratées, met de côté une source qui échoue trop (jamais de
-        contournement d'une protection), relit une page témoin des sources mises de côté, met en quarantaine les prix
-        suspects. → le bilan de la passe, mis à jour des relances réussies."""
-        per = dict((crawl or {}).get("retailers") or {})
+    def before_publish(self, collect, night_start):
+        """Relance une source en échec passager, compte les nuits ratées, met de côté une source qui échoue trop, relit le
+        flux des sources mises de côté, met en quarantaine les prix suspects. → le bilan de la passe, mis à jour des
+        relances réussies."""
+        per = dict((collect or {}).get("retailers") or {})
         now = self.clock()
         for key in [r["key"] for r in self.s.q("SELECT key FROM sources WHERE status!='disabled' ORDER BY key")]:
             stat = per.get(key)
@@ -161,10 +155,10 @@ class Agent:
                 continue                                     # pas lue cette nuit : rien à juger
             why = health.cause(stat) if bad else None
             if why == "transient":
-                a = self.act("retry_source", key, f"{stat.get('errors', 0)} erreur(s)"
-                             f"{', passe interrompue' if stat.get('interrupted') else ''} : panne passagère probable, relue une fois",
+                a = self.act("retry_source", key, f"flux en échec ({stat.get('error') or 'aucune offre retenue'}) : panne "
+                             "passagère probable, relu une fois",
                              inputs={"before": brief(stat)}, preconditions={"cause": why, "relances cette nuit": 0},
-                             expected="la source relue à 80 % ou plus", rollback="rien à défaire : une relecture",
+                             expected="le flux relu, au moins une offre retenue", rollback="rien à défaire : une relecture",
                              run=lambda key=key: self.tools.retry_source(key, self.cid),
                              verify=lambda res: (sources.failed(res) is False, brief(res)))
                 if a["status"] == "verified":
@@ -173,26 +167,26 @@ class Agent:
             if bad and failures >= sources.FAIL_NIGHTS:
                 self.act("disable_source", key, f"{failures} nuits ratées de suite ({CAUSE[why]}) : on cesse de la solliciter",
                          inputs={"last_night": brief(stat), "failures": failures}, preconditions={"failures": f">= {sources.FAIL_NIGHTS}"},
-                         expected="la source n'est plus lue ; une page témoin tous les 3 jours dira si elle se lit de nouveau",
+                         expected="la source n'est plus lue ; son flux relu tous les 3 jours dira s'il se lit de nouveau",
                          rollback=f"deals.py sources enable {key}",
                          run=lambda key=key, n=failures, w=why: self.tools.disable_source(key, f"agent : {n} nuits ratées ({CAUSE[w]})"),
                          verify=lambda res, key=key: (sources.status(self.s, key) == "disabled", res))
         self._probe(now)
         self._quarantine(night_start, now)
-        return {**(crawl or {}), "retailers": per}
+        return {**(collect or {}), "retailers": per}
 
     def _probe(self, now):
         for src in self.s.q("SELECT * FROM sources WHERE status='disabled' AND reason LIKE 'agent%' ORDER BY key"):
             key = src["key"]
             if src["last_run"] and now - src["last_run"] < PROBE_S - 3600:
                 continue
-            a = self.act("probe_source", key, f"mise de côté ({src['reason']}) : une page témoin, pour savoir si elle se lit de nouveau",
-                         expected="une page relue, rien de plus", rollback="rien à défaire : une lecture",
+            a = self.act("probe_source", key, f"mise de côté ({src['reason']}) : son flux relu, pour savoir s'il se lit de nouveau",
+                         expected="le flux relu, rien d'écrit", rollback="rien à défaire : une lecture",
                          run=lambda key=key: self.tools.probe_source(key), verify=lambda res: (True, None))
             self.s.x("UPDATE sources SET last_run=? WHERE key=?", (now, key))
             res = json.loads(a["result"] or "{}")
             if res.get("readable"):
-                self.act("enable_source", key, "la page témoin se lit de nouveau : la source peut reprendre", inputs=res,
+                self.act("enable_source", key, "le flux se lit de nouveau : la source peut reprendre", inputs=res,
                          expected="la source relue dès la nuit suivante", rollback=f"deals.py sources disable {key}",
                          key=f"enable_source:{key}:{a['id']}")
 
@@ -202,7 +196,7 @@ class Agent:
         for r in hold:
             self.act("quarantine_offer", f"offre {r['offer_id']}", f"{r['merchant']} · {r['title']} : {euros(r['price'])} relu, "
                      f"{euros(r['usual'])} d'habitude", inputs=dict(r), preconditions={"règle": quarantine.RULE},
-                     expected="l'offre n'est plus publiée et elle est relue en priorité",
+                     expected="l'offre n'est plus publiée ; le flux des nuits suivantes dira si le prix tient",
                      rollback=f"deals.py quarantine release {r['offer_id']}", key=f"quarantine_offer:{r['offer_id']}:{r['price']}:{self.day}",
                      run=lambda r=r: quarantine.hold(self.s, r, now, self.day), verify=lambda res, r=r: (held(r["offer_id"]), None))
         for r in confirm:
@@ -257,25 +251,11 @@ class Agent:
     def _advise(self, f, iid):
         e, k, ev = f["entity"], f["kind"], f["evidence"]
         once = lambda action: f"{action}:{e}:{iid}"
-        if k == "source_blocked":
-            self.act("bypass_protection", e, "anti-robot : on ne force pas une protection, la seule voie est l'accord de l'enseigne",
-                     incident=iid, key=once("bypass_protection"))
-            self.act("contact_partner", e, "lui demander son flux produits (via la plateforme d'affiliation) ou l'accès du robot "
-                     "(son User-Agent sur liste blanche)", incident=iid, inputs={"commands": [f"deals.py diagnose {e}"]},
-                     key=once("contact_partner"))
-        elif k == "source_throttled":
-            self.act("slow_down", e, "l'enseigne répond « trop de requêtes » (429) : espacer les requêtes ou demander son flux produits",
-                     incident=iid, inputs={"setting": "DEALS_MIN_INTERVAL_S"}, key=once("slow_down"))
-        elif k in ("source_layout", "suspect_prices"):
-            url = self.s.q("SELECT url FROM offers WHERE retailer=? ORDER BY checked_at DESC LIMIT 1", (e,), one=True)
-            why = "plus de prix lisible" if k == "source_layout" else f"{ev['held']} prix suspects sur {ev['pages']} pages"
-            self.act("review_rules", e, f"{why} : la page a sans doute changé, la règle de lecture doit suivre", incident=iid,
-                     inputs={"commands": [f"deals.py explain {url['url'] if url else '<adresse d’une fiche>'}",
-                                          "deals.py rules <site> '{\"price\": \"<sélecteur>\"}'", f"deals.py diagnose {e}"]},
+        if k in ("source_layout", "suspect_prices"):
+            why = "plus de prix barré dans le flux" if k == "source_layout" else f"{ev['held']} prix suspects sur {ev['pages']} offres"
+            self.act("review_rules", e, f"{why} : le flux a sans doute changé, sa correspondance doit suivre", incident=iid,
+                     inputs={"commands": [f"deals.py probe --source {e}", f"deals.py batches --source {e}", f"deals.py replay {e}"]},
                      key=once("review_rules"))
-        elif k == "budget":
-            self.act("raise_budget", e, f"{ev['not_read']} pages non relues : la nuit est trop courte", incident=iid,
-                     inputs={"setting": "DEALS_NIGHT_BUDGET_S", "commands": ["deals.py estimate"]}, key=once("raise_budget"))
         elif k == "catalog_held":
             self.act("hold_publication", "catalogue", f"le nouveau catalogue passait de {ev['before']} à {ev['after']} produits et de "
                      f"{ev['offers_before']} à {ev['offers_after']} offres : celui de la veille reste en ligne", incident=iid, inputs=ev,
@@ -457,7 +437,7 @@ def digest(store, day, sender, to, settled=()):
 
 
 def outcome(a):
-    """Ce que l'action a donné, quand la justification ne le dit pas (page témoin)."""
+    """Ce que l'action a donné, quand la justification ne le dit pas (sonde du flux)."""
     if a["action"] != "probe_source" or not a["result"]:
         return ""
     res = json.loads(a["result"])

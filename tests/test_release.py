@@ -178,7 +178,7 @@ class Smoke(unittest.TestCase):
             r = subprocess.run(["python3", str(CODE / "deploy" / "smoke.py"), f"http://127.0.0.1:{port}"], capture_output=True,
                                text=True, timeout=60)
             self.assertEqual(r.returncode, 0, r.stdout)
-            self.assertEqual(r.stdout.count("ok "), 7)
+            self.assertEqual(r.stdout.count("ok "), 6)
         finally:
             srv.shutdown()
             srv.server_close()

@@ -254,7 +254,6 @@ class Night(unittest.TestCase):
         salon, care = self.m.create(self.uid, {"room": "salon"}), self.m.create(self.uid, {"room": "entretien"})
         kept = {v["id"]: (v["room"], v["total"]) for v in self.m.list(self.uid)["missions"]}
         self.assertEqual((kept[salon["id"]], kept[care["id"]]), (("salon", 0), ("entretien", 3)))     # la pièce reste la pièce
-        self.assertEqual(self.m.preview(self.uid, {"category": "aspirateur"})["fresh"], 0)             # un aperçu n'a rien de nouveau
 
     def test_saving_again_resets_what_is_new(self):
         s = self.m.create(self.uid, {"category": "aspirateur", "max_price": 300})
@@ -305,10 +304,9 @@ class Night(unittest.TestCase):
         """v65 : « Me prévenir sous un prix » est arrêté. On ne pose plus d'alerte sur un produit ni sur ses comparables ;
         celle d'avant reste en base, inerte : ni montrée, ni comptée, ni touchée, ni envoyée."""
         for body in ({"product_id": 2, "max_price": 350}, {"like": 1, "max_price": 300}, {"product_id": 2}):
-            for act in (self.m.create, self.m.preview):
-                with self.assertRaises(BadRequest) as e:
-                    act(self.uid, body)
-                self.assertEqual(str(e.exception), STOPPED)
+            with self.assertRaises(BadRequest) as e:
+                self.m.create(self.uid, body)
+            self.assertEqual(str(e.exception), STOPPED)
             with self.assertRaises(BadRequest):
                 self.m.pending(body)                                                                  # ni en attendant le lien
         old = self.s.x("INSERT INTO missions(user_id, product_id, want, max_price, label, created_at, notified) "

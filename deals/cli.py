@@ -16,21 +16,18 @@
   python deals.py probe <fichier> | --source <clé> [--format csv|xml|…]   ce qu'est un échantillon de flux (un
                                                      fichier, ou lu à l'adresse de la source) et la correspondance proposée
   python deals.py missions                           e-mails des missions arrivées à leur prix (fait par nightly)
-  python deals.py publish                            republier le catalogue sans relire le web
-  python deals.py discover|diagnose|sample|build <enseigne|all>     constituer et régler la base
-  python deals.py explain <adresse>                  ce que l'extraction voit sur une page
-  python deals.py rules <site> '<json>'              règle de lecture d'un site (sélecteurs)
-  python deals.py review | estimate | metrics        rapprochements à vérifier, durée de la nuit, mesures
+  python deals.py publish                            republier le catalogue sans relire les flux
+  python deals.py review | metrics                   rapprochements à vérifier, mesures
   python deals.py backup <dossier> [--keep 14]       sauvegarde à chaud vérifiée
+  python deals.py check | seed-demo                  ce qui manque pour démarrer ; remplir la base de démo
 Option commune, avant la commande : --db (défaut : DEALS_DB, sinon deals.sqlite). Réglages : deals/config.py.
-Les commandes qui lisent les sites refusent de partir sans DEALS_USER_AGENT (nom du robot, page, contact).
+Sources : les flux produits des enseignes (DEALS_SOURCES, ingest/registry.py) ; leurs fiches ne sont jamais lues (v68).
 Enseignes partenaires : DEALS_AFFILIATE (affiliate.py) ; seules leurs offres sont publiées, chaque clic part par leur lien
 affilié. Sans ce fichier (développement), tout est publié et les liens partent tels quels ; la démo les simule.
 Gestes d'un responsable (approve, reject, sources enable|disable, quarantine release) : journalisés avec son nom
 (DEALS_ACTOR, que pose « sudo deals », sinon SUDO_USER, sinon l'utilisateur courant), comme les actions de l'agent.
 """
 import argparse
-import csv
 import getpass
 import json
 import os
@@ -49,10 +46,6 @@ from .ingest import batches as B
 from .ingest import feeds as F
 from .ingest import registry
 from .ingest.collector import Collector, download
-from .ingest.pages import diagnose as D
-from .ingest.pages.crawl import Crawler
-from .ingest.pages.discover import discover
-from .ingest.pages.fetch import Fetcher
 from .catalog import Catalog
 from .market import Market
 from .missions import Missions
@@ -62,7 +55,6 @@ from .store import Store
 from .web import make_server
 
 
-NETWORK = ("nightly", "discover", "diagnose", "sample", "build", "explain")
 STALE_S = 36 * 3600            # plus de 36 h sans nuit : le minuteur ne tourne plus (aussi vu par /api/r/health)
 NIGHT = {"succeeded": "réussie", "partial_success": "réussie en partie", "failed": "en erreur", "running": "en cours"}
 SOURCE = {"active": "active", "degraded": "en difficulté", "disabled": "mise de côté"}
@@ -82,7 +74,7 @@ def status_lines(store, now=None):
     if last:
         st = json.loads(last["stats"] or "{}")
         lines.append(f"Dernière nuit : {last['day']} · {NIGHT.get(last['status'], last['status'] or '—')} · "
-                     f"{st.get('offers', 0)} pages relues · corrélation {last['cid'] or '—'}")
+                     f"{st.get('offers', 0)} offres lues · corrélation {last['cid'] or '—'}")
         if age > STALE_S:
             lines.append(f"⚠ aucune nuit depuis {age / 3600:.0f} h : le minuteur tourne-t-il ? (docs/RUNBOOK.md#nuit-absente)")
     else:
@@ -125,10 +117,9 @@ def main(argv=None):
     try:
         settings = config.load()
         rules = affiliate.load(settings.affiliate)             # enseignes partenaires ; None : développement
-        specs = registry.load(settings.sources)                # sources : les fiches du code, les flux de DEALS_SOURCES
+        specs = registry.load(settings.sources)                # sources : les flux de DEALS_SOURCES
     except ValueError as e:
         sys.exit(f"Réglage invalide : {e}")
-    sites = registry.sites(specs)
     ap = argparse.ArgumentParser(prog="deals", description="Promo Central — les bonnes affaires du jour")
     ap.add_argument("--db", default=settings.db)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -150,16 +141,7 @@ def main(argv=None):
     qu = sub.add_parser("quarantine")
     qu.add_argument("op", nargs="?", choices=("release",))
     qu.add_argument("offer", nargs="?", type=int)
-    for name in ("discover", "diagnose", "sample", "build"):
-        s = sub.add_parser(name)
-        s.add_argument("retailer", help="clé d'enseigne ou « all »")
-        s.add_argument("--per", type=int, default=40, help="discover : fiches par catégorie")
-        s.add_argument("--n", type=int, default=20, help="diagnose / sample : pages par enseigne")
-    sub.add_parser("explain").add_argument("url")
-    r = sub.add_parser("rules")
-    r.add_argument("host")
-    r.add_argument("rules", help="JSON : sélecteurs (price, list_price, availability, title, gtin…)")
-    for name in ("review", "estimate", "metrics"):
+    for name in ("review", "metrics"):
         sub.add_parser(name)
     b = sub.add_parser("backup")
     b.add_argument("dest")
@@ -181,10 +163,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     settings = replace(settings, db=a.db)
     if config.is_demo(settings) and a.cmd in config.DEMO_REFUSED:
-        sys.exit(f"« {a.cmd} » est indisponible en mode démo (DEALS_ENV=demo) : pas de lecture de sites ni d'e-mails réels")
-    if a.cmd in NETWORK and settings.user_agent == config.Settings.user_agent:
-        sys.exit("Avant de lire les sites, réglez DEALS_USER_AGENT : nom du robot, page qui le décrit, contact "
-                 "(voir deploy/deals.env.example). Les enseignes doivent savoir qui les lit.")
+        sys.exit(f"« {a.cmd} » est indisponible en mode démo (DEALS_ENV=demo) : pas de lecture de flux ni d'e-mails réels")
 
     if a.cmd == "demo":
         from .demo import FIRST_NIGHT, LAST_NIGHT, RULES, build
@@ -259,22 +238,8 @@ def main(argv=None):
         return 0
 
     market = Market(store)
-    fetcher = Fetcher(user_agent=settings.user_agent, min_interval=settings.min_interval_s)
-    crawler = Crawler(market, fetcher, sites, settings.night_budget_s)
-    collector = Collector(store, market, crawler, specs, raw_dir=settings.raw_dir, keep_days=settings.raw_keep_days,
+    collector = Collector(store, market, specs, raw_dir=settings.raw_dir, keep_days=settings.raw_keep_days,
                           max_bytes=settings.feed_max_mb * 1024 * 1024, user_agent=settings.user_agent)
-    keys = lambda: [k for k in sites if sites[k]["enabled"]] if a.retailer == "all" else [a.retailer]
-
-    def urls(k, n=None):
-        f = Path(f"urls/{k}.json")
-        if not f.exists():
-            print(f"{k} : lancez d'abord « python deals.py discover {k} »")
-            return None
-        by_cat = json.loads(f.read_text(encoding="utf-8"))
-        if n is None:
-            return by_cat
-        flat = [u for v in by_cat.values() for u in v]
-        return flat[::max(1, len(flat) // n)][:n]
 
     who = os.environ.get("DEALS_ACTOR") or os.environ.get("SUDO_USER") or getpass.getuser()
     ops = Ops(store, settings.env, sys.stderr if settings.log_json else None)
@@ -285,7 +250,7 @@ def main(argv=None):
     if a.cmd == "nightly":
         if partners is not None and not partners & {k for k in specs if specs[k]["enabled"]}:
             store.close()
-            sys.exit("DEALS_AFFILIATE : aucune des enseignes déclarées n'est suivie (clés de deals/ingest/retailers.py ou de DEALS_SOURCES).")
+            sys.exit("DEALS_AFFILIATE : aucune des enseignes déclarées n'est suivie (clés de DEALS_SOURCES).")
         if partners is not None and partners - set(specs):
             print("Enseignes partenaires inconnues, ignorées :", ", ".join(sorted(partners - set(specs))))
         out = night.run(store, settings, collector, outbox_for(settings), specs, rules, stream=ops.stream,
@@ -347,7 +312,7 @@ def main(argv=None):
                 store.close()
                 sys.exit(f"source inconnue : {a.key} (deals.py sources les liste)")
         for r in sources.listing(store):
-            print(f"{r['key']:<16} {r['name']:<18} {r['kind'] or 'site':<5} {r['status']:<9} {'partenaire' if r['partner'] else '—':<11} "
+            print(f"{r['key']:<16} {r['name']:<18} {r['kind'] or 'feed':<5} {r['status']:<9} {'partenaire' if r['partner'] else '—':<11} "
                   f"nuits ratées {r['failures']} · dernière réussite {utc(r['last_success'])[:10] if r['last_success'] else '—'}"
                   f"{' · ' + r['reason'] if r['reason'] else ''}")
     elif a.cmd == "quarantine":
@@ -407,69 +372,12 @@ def main(argv=None):
                       f"reçues {b['received']} · retenues {b['accepted']} · prix changés {b['changed']} · refusées {b['rejected']} "
                       f"· hors périmètre {b['ignored']}{' · rejeu du lot ' + str(b['replay_of']) if b['replay_of'] else ''}"
                       f"{' · ' + b['error'] if b['error'] else ''}")
-    elif a.cmd == "discover":
-        Path("urls").mkdir(exist_ok=True)
-        for k in keys():
-            res = discover(fetcher, sites[k], a.per)
-            Path(f"urls/{k}.json").write_text(json.dumps(res["by_category"], ensure_ascii=False, indent=1), encoding="utf-8")
-            print(f"{sites[k]['name']:<16} {res['total']:>5} fiches · {res['files_read']} plans de site lus · "
-                  + ", ".join(f"{c} {len(v)}" for c, v in res["by_category"].items()))
-    elif a.cmd == "diagnose":
-        Path(settings.reports_dir).mkdir(exist_ok=True)
-        pct = lambda x: f"{x * 100:.0f} %"
-        lines = ["| Enseigne | Pages | Lues | Avec prix | Prix barré | EAN | Bloquées | Protection | Verdict |", "|---|---|---|---|---|---|---|---|---|"]
-        for k in keys():
-            u = urls(k, a.n)
-            if u is None:
-                continue
-            res = D.diagnose(crawler, k, u)
-            s = res["summary"]
-            with open(Path(settings.reports_dir, f"diagnostic-{k}.csv"), "w", newline="", encoding="utf-8") as fh:
-                w = csv.DictWriter(fh, fieldnames=list(res["rows"][0]) if res["rows"] else ["url"])
-                w.writeheader()
-                w.writerows(res["rows"])
-            prot = ", ".join(f"{v} ({n})" for v, n in s["protections"].items()) or "—"
-            lines.append(f"| {sites[k]['name']} | {s['pages']} | {pct(s['read_ok'])} | {pct(s['with_price'])} | {pct(s['with_was'])} | "
-                         f"{pct(s['with_gtin'])} | {pct(s['blocked'])} | {prot} | {s['verdict']} |")
-            print(lines[-1])
-            print(f"    prix : {s['methods'] or '—'} · prix barré : {s['was_methods'] or '—'} · statuts : {s['statuses']}")
-        Path(settings.reports_dir, "diagnostic.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    elif a.cmd == "sample":
-        for k in keys():
-            u = urls(k, a.n)
-            if u:
-                res = D.sample(fetcher, k, u)
-                print(f"{sites[k]['name']:<16} {res['saved']}/{res['pages']} pages enregistrées dans {res['dir']}")
-        print("Compressez le dossier samples/ et joignez-le : l'extraction se règle alors sur vos vraies pages.")
-    elif a.cmd == "build":
-        for k in keys():
-            u = urls(k)
-            if u:
-                print(json.dumps(crawler.build(k, u), ensure_ascii=False))
-    elif a.cmd == "explain":
-        d = crawler.inspect(a.url)
-        print(f"statut {d['status']} (HTTP {d.get('code')}) · page {d.get('page_kind')} · protection {d.get('protection') or '—'}")
-        for c in d.get("candidates") or []:
-            print(f"  source {c['method']:<10} prix {c['price']} · barré {c['list_price']} · {c['currency']} · {c['availability']} · EAN {c['gtin']}")
-        ex = d.get("extraction")
-        if ex:
-            print(f"→ retenu : {ex['price']} € ({ex['method']}) · prix barré {ex.get('list_price')} ({ex.get('was_method') or '—'}) · "
-                  f"{ex['availability']} · {ex.get('title')} · vendeur {ex.get('seller') or '—'} · catalogue : {d.get('scope') or 'oui'}")
-        for reason in d.get("reasons") or []:
-            print(f"  ! {reason}")
-        if d.get("hint"):
-            print(d["hint"])
-    elif a.cmd == "rules":
-        market.set_rules(a.host, json.loads(a.rules))
-        print(f"règle enregistrée pour {a.host} : relancez « python deals.py diagnose <enseigne> »")
     elif a.cmd == "review":
         for p in store.q("SELECT id, title, brand, gtin, mpn FROM products WHERE needs_review=1 LIMIT 50"):
             merchants = " | ".join(o["merchant"] for o in store.q("SELECT merchant FROM offers WHERE product_id=?", (p["id"],)))
             near = ", ".join(f"[{i}] {s:.0%}" for i, s in market.candidates(p["id"])[:3]) or "aucun"
             print(f"[{p['id']}] {p['brand'] or ''} {p['title']} (EAN {p['gtin'] or '—'}, réf. {p['mpn'] or '—'}) : {merchants}"
                   f"\n     titres semblables (jamais fusionnés) : {near}")
-    elif a.cmd == "estimate":
-        print(crawler.estimate())
     elif a.cmd == "metrics":
         from .activity import Activity
         last = store.q("SELECT day, stats FROM runs WHERE stats IS NOT NULL AND COALESCE(status, '')!='retry' "

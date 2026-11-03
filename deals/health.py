@@ -11,17 +11,16 @@ from datetime import datetime, timezone
 
 from . import sources
 
-RULES = {"version": "h3", "blocked": 0.5, "throttled": 0.3, "layout": 0.5, "suspect_min": 5, "suspect_share": 0.20,
+RULES = {"version": "h4", "suspect_min": 5, "suspect_share": 0.20,
          "catalog": 0.80, "catalog_min": 20, "freshness": 0.90, "freshness_critical": 0.70, "mass_min": 30, "mass_factor": 3,
          "clicks_drop": 0.30, "clicks_min": 20, "feed_rejects": 0.20, "feed_collapse": 0.50}
-RUNBOOK = {"source_blocked": "source-bloquee", "source_throttled": "source-ralentie", "source_failing": "source-en-echec",
-           "source_layout": "page-changee", "suspect_prices": "prix-suspects", "budget": "budget-de-nuit",
+RUNBOOK = {"source_failing": "source-en-echec", "source_layout": "flux-change", "suspect_prices": "prix-suspects",
            "catalog_held": "catalogue-retenu", "catalog_small": "catalogue-reduit", "freshness": "fraicheur",
            "mission_mail": "envoi-des-missions", "mail_quota": "quota-e-mails", "mass_mail": "envoi-massif",
            "clicks_drop": "clics-en-chute", "night_error": "nuit-en-erreur", "feed_rejects": "flux-lignes-refusees",
            "feed_collapse": "flux-en-baisse"}
-KIND = {"blocked": "source_blocked", "throttled": "source_throttled", "layout": "source_layout", "transient": "source_failing"}
-EVIDENCE = ("pages", "success", "blocked", "rate_limited", "errors", "no_price", "interrupted", "failures")
+KIND = {"layout": "source_layout", "transient": "source_failing"}
+EVIDENCE = ("pages", "success", "errors", "interrupted", "failures")
 
 
 def day_start(ts):
@@ -29,15 +28,11 @@ def day_start(ts):
     return datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp()
 
 
-def cause(s, rules=RULES):
-    """Pourquoi une source va mal, d'après son bilan de la nuit → blocked (anti-robot), throttled (l'enseigne demande de
-    ralentir), layout (plus de prix lisible, ou plus de prix barré), transient (erreurs), ou None : elle va bien."""
-    pages = (s or {}).get("pages") or 0
-    if pages and s.get("blocked", 0) / pages >= rules["blocked"]:
-        return "blocked"
-    if pages and s.get("rate_limited", 0) / pages >= rules["throttled"]:
-        return "throttled"
-    if pages and (s.get("no_price", 0) / pages >= rules["layout"] or s.get("was_drop")):
+def cause(s):
+    """Pourquoi une source va mal, d'après son bilan de la nuit → layout (le flux ne donne presque plus de prix barré alors
+    que les prix n'ont pas bougé : sa correspondance a sans doute changé), transient (flux injoignable, illisible, ou sans
+    aucune offre retenue), ou None : elle va bien."""
+    if (s or {}).get("pages") and s.get("was_drop"):
         return "layout"
     return "transient" if sources.failed(s) else None
 
@@ -74,12 +69,12 @@ def mass_threshold(store, rules=RULES):
     return max(rules["mass_min"], rules["mass_factor"] * (statistics.median(past) if past else 0))
 
 
-def snapshot(store, now, crawl=None, publish=None, missions=None, errors=()):
+def snapshot(store, now, collect=None, publish=None, missions=None, errors=()):
     """L'état de la nuit, pour les contrôles : par source (bilan de la passe et état), offres en quarantaine par source,
     publication, missions, offres publiées par source face aux 7 nuits d'avant, fraîcheur (produits dont le prix montré a
     été lu depuis 26 h), clics des dernières 24 h face aux 7 jours d'avant."""
     reg = {r["key"]: r for r in store.q("SELECT * FROM sources")}
-    per = (crawl or {}).get("retailers") or {}
+    per = (collect or {}).get("retailers") or {}
     fresh = freshness(store, now)
     start = day_start(now)
     days = [store.q("SELECT COUNT(*) n FROM clicks WHERE at>=? AND at<?", (start - k * 86400, start - (k - 1) * 86400), one=True)["n"]
@@ -102,15 +97,15 @@ def finding(kind, entity, severity, **evidence):
 
 
 def findings(snap, rules=RULES):
-    """Les constats d'une nuit (pur) : sources bloquées, ralenties, en échec, page changée, prix suspects en nombre, budget
-    atteint, publication retenue, catalogue réduit, fraîcheur insuffisante, e-mails des missions en échec, différés ou
-    retenus (envoi massif), clics en chute, étape de la nuit en erreur."""
+    """Les constats d'une nuit (pur) : sources en échec, flux changé, lignes refusées en nombre, flux en baisse, prix
+    suspects en nombre, publication retenue, catalogue réduit, fraîcheur insuffisante, e-mails des missions en échec,
+    différés ou retenus (envoi massif), clics en chute, étape de la nuit en erreur."""
     out = []
     for key, s in sorted(snap["sources"].items()):
         pages = s.get("pages") or 0
-        if not (pages or s.get("interrupted") or s.get("not_read")):
-            continue                                         # pas lue cette nuit : mise de côté, pas partenaire, rien à relire
-        c = cause(s, rules)
+        if not (pages or s.get("interrupted")):
+            continue                                         # pas lue cette nuit : mise de côté, pas partenaire
+        c = cause(s)
         if c:
             out.append(finding(KIND[c], key, "critical" if s.get("failures", 0) >= sources.FAIL_NIGHTS else "warning",
                                **{k: s.get(k) for k in EVIDENCE}, **({"was_drop": True} if s.get("was_drop") else {})))
@@ -123,8 +118,6 @@ def findings(snap, rules=RULES):
         held = (snap.get("quarantine") or {}).get(key, 0)
         if held >= rules["suspect_min"] and pages and held / pages >= rules["suspect_share"]:
             out.append(finding("suspect_prices", key, "warning", held=held, pages=pages))
-        if s.get("not_read"):
-            out.append(finding("budget", key, "warning", not_read=s["not_read"]))
     pub = snap.get("publish") or {}
     if pub.get("held"):
         out.append(finding("catalog_held", "", "critical", **pub["held"]))

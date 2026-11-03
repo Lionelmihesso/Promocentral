@@ -2,14 +2,13 @@
 
   track(url, retailer, merchant, category_hint) → offer_id     une adresse de fiche à suivre
   record(offer, ex) → changed | unchanged | suspect            le prix lu, enregistré au changement seulement
-  touch(offer_id)                                              page inchangée (304) : le dernier prix est reconfirmé
-  mark(offer_id, source, external_id, tracking_url, batch_id)  d'où vient l'offre (ingestion par flux)
-  set_result(offer_id, status, ok, …)                          issue d'une lecture : statut, note, protection, ETag
+  mark(offer_id, source, external_id, tracking_url, batch_id)  d'où vient l'offre (la ligne de flux, son lot)
+  set_result(offer_id, status, ok, note)                       issue d'une lecture : statut, note
   match_product(ex) → product_id                               EAN, sinon marque + référence ; sinon un produit neuf
   candidates(product_id) → [(produit, ressemblance)]           les produits au titre semblable, à revoir (jamais fusionnés)
-  other_product(offer, ex) → bool                              la page relue montre-t-elle un autre produit ?
-Les écritures se font dans la transaction de l'appelant (une par page relue). Une variation énorme (÷2, ×2) est mise
-en attente et confirmée par une seconde lecture avant d'être enregistrée.
+  other_product(offer, ex) → bool                              l'adresse montre-t-elle désormais un autre produit ?
+Les écritures se font dans la transaction de l'appelant (un paquet de lignes de flux). Une variation énorme (÷2, ×2) est
+mise en attente et confirmée par la lecture suivante avant d'être enregistrée.
 """
 import json
 import re
@@ -40,7 +39,6 @@ def jaccard(a, b):
 class Market:
     def __init__(self, store, clock=time.time):
         self.s, self.clock = store, clock
-        self.batch_of = {}            # enseigne → lot en cours (ingest/collector.py) : chaque prix relevé dit son lot
 
     def today(self):
         return utc_day(self.clock())
@@ -64,21 +62,9 @@ class Market:
         self.s.x("UPDATE offers SET source=COALESCE(?, source), external_id=COALESCE(?, external_id), tracking_url=?, "
                  "batch_id=COALESCE(?, batch_id) WHERE id=?", (source, external_id, tracking_url, batch_id, offer_id))
 
-    def set_result(self, offer_id, status, ok, note=None, protection=None, etag=None, last_modified=None):
-        self.s.x("UPDATE offers SET status=?, note=?, protection=?, etag=COALESCE(?, etag), last_modified=COALESCE(?, last_modified), "
-                 "fails=CASE WHEN ? THEN 0 ELSE fails + 1 END, checked_at=? WHERE id=?",
-                 (status, note, protection, etag, last_modified, int(ok), self.clock(), offer_id))
-
-    # ------------------------------------------------------------ règles de lecture par site
-    def set_rules(self, host, rules):
-        for sel in (v for v in rules.values() if isinstance(v, str)):
-            X.compile_selector(sel)                      # refuse un sélecteur invalide avant de l'enregistrer
-        self.s.x("INSERT INTO site_rules(host, rules) VALUES (?,?) ON CONFLICT(host) DO UPDATE SET rules=excluded.rules",
-                 (host.lower(), json.dumps(rules)))
-
-    def rules_for(self, host):
-        r = self.s.q("SELECT rules FROM site_rules WHERE host=?", (host,), one=True)
-        return json.loads(r["rules"]) if r else None
+    def set_result(self, offer_id, status, ok, note=None):
+        self.s.x("UPDATE offers SET status=?, note=?, fails=CASE WHEN ? THEN 0 ELSE fails + 1 END, checked_at=? WHERE id=?",
+                 (status, note, int(ok), self.clock(), offer_id))
 
     # ------------------------------------------------------------ produits
     def match_product(self, ex):
@@ -161,13 +147,9 @@ class Market:
         self.s.x("INSERT INTO prices(offer_id, first_seen, last_seen, price, was, availability, seller, valid_until, lowest_30d, "
                  "source, was_source, batch_id, shipping) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                  (offer["id"], now, now, price, was, avail, ex.get("seller"), ex.get("valid_until"), ex.get("lowest_30d"),
-                  ex.get("method"), ex.get("was_method"), ex.get("batch_id") or self.batch_of.get(offer["retailer"]),
+                  ex.get("method"), ex.get("was_method"), ex.get("batch_id"),
                   ex.get("shipping")))
         return "changed"
-
-    def touch(self, offer_id):
-        self.s.x("UPDATE prices SET last_seen=? WHERE id=(SELECT id FROM prices WHERE offer_id=? ORDER BY first_seen DESC, id DESC LIMIT 1)",
-                 (self.clock(), offer_id))
 
     def last_prices(self, offer_id, n=2):
         return self.s.q("SELECT price, was, first_seen FROM prices WHERE offer_id=? ORDER BY first_seen DESC, id DESC LIMIT ?", (offer_id, n))

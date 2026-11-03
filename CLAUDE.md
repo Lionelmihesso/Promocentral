@@ -8,7 +8,7 @@ Consignes pour toute évolution de ce dépôt. Le produit est décrit dans `READ
 Monolithe modulaire Python 3.11+, bibliothèque standard uniquement, une base SQLite (WAL), un front React compilé dans
 un fichier HTML autonome (`web/app.html`).
 
-- **Nuit** : sources → ingestion (`deals/ingest/`) → marché (`market.py`) → publication (`publish.py`) → catalogue.
+- **Nuit** : flux des enseignes → ingestion (`deals/ingest/`) → marché (`market.py`) → publication (`publish.py`) → catalogue.
 - **Jour** : l'app (`api.py`, `web.py`, `catalog.py`, `missions.py`, `accounts.py`) ne lit que le catalogue publié.
 - **Exploitation** : `night.py`, `agent.py`, `health.py`, `ops.py`, `backup.py`, `cli.py`.
 
@@ -22,7 +22,7 @@ Règles de conception :
 ## 2. Conventions de développement
 
 - Français pour le code commenté, la documentation et les messages.
-- Pas de dépendance externe au code de production. `deals/vendor/protego` est vendu, sous licence (`LICENSE`).
+- Pas de dépendance externe au code de production (le code et les données de tiers : `THIRD_PARTY_NOTICES.md`).
 - Mesurer avant de changer : un changement de comportement s'accompagne d'un test qui échoue sans lui.
 - Ne pas modifier le catalogue, les règles métier (`judge`, `alternatives`, `funnel`, `query`), les parcours utilisateur
   ni les paramètres de sécurité sans accord explicite.
@@ -35,9 +35,9 @@ Règles de conception :
 ## 3. Commandes
 
 ```
-python -m unittest discover -s tests -t .      # 292 tests, environ 110 s — à lancer avant tout commit
+python -m unittest discover -s tests -t .      # 285 tests, environ 90 s — à lancer avant tout commit
 python -m unittest tests.test_release -v        # release et rollback seuls
-python -m bench.cadre                           # cadre de mise en production (17/19 ; aucun point P0 ouvert)
+python -m bench.cadre                           # cadre de mise en production (16/18 ; aucun point P0 ouvert)
 python deals.py demo                            # app sur un marché simulé, base temporaire (jamais la base de production)
 python -m unittest tests.test_demo_mode tests.test_install -v   # mode démo et installation en une commande
 bash web/build.sh                               # reconstruit web/app.html (bash ; esbuild et react requis, voir web/build.sh)
@@ -57,8 +57,8 @@ multiprocessing) et tolère 0,5 s pour la pire écriture. Un échec de ce test d
 - Cookie de session `HttpOnly; SameSite=Lax`, `Secure` en HTTPS. En-têtes : `nosniff`, `X-Frame-Options: DENY`, HSTS.
 - Les messages d'erreur passent par `Collector._scrub` ; le journal masque les champs sensibles (`ops.SENSITIVE`).
 - Les exemples (`*.example*`) ne désignent aucune enseigne réelle et ne contiennent aucune valeur réelle.
-- Le robot se présente avec son nom, sa page `/robot` et un contact ; il respecte `robots.txt` et un délai de 5 s par site.
-  Un anti-robot n'est jamais contourné.
+- Seuls les flux des programmes d'affiliation sont lus (v68) : aucune fiche d'enseigne n'est téléchargée ni analysée.
+  Une source « site » est refusée au démarrage (`ingest/registry.py`).
 
 ## 5. Processus de release
 
@@ -72,7 +72,7 @@ sudo sh deploy/install.sh prod                      # production : refusée tant
 sudo sh /opt/deals/current/deploy/verify.sh         # vérification : configuration, service, écoute, tests de fumée
 ```
 
-Modes : `DEALS_ENV` vaut `dev`, `demo` ou `prod`. En `demo`, les commandes qui lisent des sites ou envoient des
+Modes : `DEALS_ENV` vaut `dev`, `demo` ou `prod`. En `demo`, les commandes qui lisent des flux ou envoient des
 e-mails (`config.DEMO_REFUSED`) refusent de tourner, la page affiche un bandeau « données fictives », la page
 « Mentions légales » ne publie aucune identité, et la santé ne dépend pas de la date des nuits. En `prod`, les
 mentions légales restent obligatoires : aucun mode démo ne relâche ce contrôle, et `demo` et `prod` ne partagent

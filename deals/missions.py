@@ -316,13 +316,6 @@ class Missions:
             out["alert"] = bool(alert)
         return out
 
-    def interpret_text(self, uid, text):
-        """Aperçu d'une phrase, avant de lancer la mission (sans compte) : ce qui est compris, ce qui y répond déjà."""
-        return self._view(uid, self._spec(interpret(text, self._brands()), need_price=False))
-
-    def preview(self, uid, body):
-        return self._view(uid, self._spec(body or {}, need_price=False))
-
     def pending(self, body):
         """Une mission lancée avant la connexion : vérifiée tout de suite, puis gardée avec le lien de connexion et lancée
         quand il est ouvert, sur n'importe quel appareil. → (la mission en JSON, son libellé), ou (None, None)."""

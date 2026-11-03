@@ -1,24 +1,23 @@
-"""Registre des sources : les enseignes lues (une par clé de deals/ingest/retailers.py, de DEALS_SOURCES ou de la démo), partenaires ou
+"""Registre des sources : les enseignes lues (une par clé de DEALS_SOURCES ou de la démo), partenaires ou
 non, et leur état d'exploitation, que la nuit et l'agent tiennent à jour.
 
   active       lue chaque nuit
   degraded     au moins une nuit ratée de suite (failures), toujours lue
-  disabled     plus lue : mise de côté par l'agent après FAIL_NIGHTS nuits ratées de suite (anti-robot, panne durable)
-               ou par un responsable ; la reprendre est une décision humaine (deals.py sources enable <clé>), que
-               l'agent propose quand une page témoin se lit de nouveau
+  disabled     plus lue : mise de côté par l'agent après FAIL_NIGHTS nuits ratées de suite (flux injoignable ou illisible,
+               panne durable) ou par un responsable ; la reprendre est une décision humaine (deals.py sources enable
+               <clé>), que l'agent propose quand le flux se lit de nouveau
 
-Une nuit est ratée quand moins de 80 % des pages relues donnent un prix, ou que la passe a été interrompue (coupe-circuit).
+Une nuit est ratée quand le flux n'a pas pu être lu (injoignable, illisible) ou ne donne aucune offre ; des lignes
+refusées en nombre sont un constat de qualité (health.py), pas un échec.
 """
-from .ingest.retailers import KEEP_THRESHOLD
-
 FAIL_NIGHTS = 3
 STATUSES = ("active", "degraded", "disabled")
 
 
 def sync(store, retailers, rules, now):
-    """Les sources à suivre : enseignes activées dans le code et, si des partenaires sont déclarés, partenaires (une
-    source qui ne l'est plus reste au registre, marquée non partenaire, et n'est plus lue). L'état d'exploitation (nuits
-    ratées, mise de côté) est gardé d'une nuit à l'autre."""
+    """Les sources à suivre : les flux activés (DEALS_SOURCES, ou ceux de la démo) et, si des partenaires sont déclarés,
+    partenaires (une source qui ne l'est plus reste au registre, marquée non partenaire, et n'est plus lue). L'état
+    d'exploitation (nuits ratées, mise de côté) est gardé d'une nuit à l'autre."""
     with store.tx() as c:
         if rules is not None:
             c.execute("UPDATE sources SET partner=0 WHERE partner=1")
@@ -27,7 +26,7 @@ def sync(store, retailers, rules, now):
                 continue
             c.execute("INSERT INTO sources(key, kind, name, partner, updated_at) VALUES (?,?,?,?,?) "
                       "ON CONFLICT(key) DO UPDATE SET kind=excluded.kind, name=excluded.name, partner=excluded.partner",
-                      (key, r.get("kind") or "site", r["name"], int(rules is not None), now))
+                      (key, r.get("kind") or "feed", r["name"], int(rules is not None), now))
 
 
 def readable(store, keys):
@@ -37,14 +36,12 @@ def readable(store, keys):
 
 
 def failed(stat):
-    """Une nuit ratée pour une source, d'après le bilan de la passe (ingest/report.py) ; None si rien n'était à relire.
-    Un flux : raté s'il est injoignable, illisible, ou ne donne aucune offre (des lignes refusées sont un constat de
-    qualité, pas un échec : health.py)."""
-    if stat and stat.get("kind") == "feed":
-        return bool(stat.get("broken"))
-    if not stat or not (stat.get("pages") or stat.get("interrupted")):
+    """Une nuit ratée pour une source, d'après le bilan de son flux (ingest/collector.py) ; None si elle n'a pas été lue.
+    Raté : injoignable, illisible, ou aucune offre retenue (des lignes refusées sont un constat de qualité, pas un échec :
+    health.py)."""
+    if not stat or stat.get("kind") != "feed":
         return None
-    return bool(stat.get("interrupted")) or (stat.get("success") is not None and stat["success"] < KEEP_THRESHOLD)
+    return bool(stat.get("broken"))
 
 
 def record_night(store, key, bad, now):

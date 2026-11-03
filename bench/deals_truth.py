@@ -1,8 +1,8 @@
 """Vraie ou fausse remise, mesurée de bout en bout contre une vérité connue.
 
 Un an de marché simulé (deals/sim.py : promos des enseignes, Black Friday, soldes, fausses promos à prix gonflé,
-hausses, ruptures), 30 produits × 3 enseignes, plusieurs tirages. Chaque nuit, la vraie chaîne tourne (collecte →
-marché → publication), puis le catalogue publié est comparé à la vérité du jour : un produit est une OPPORTUNITÉ si
+hausses, ruptures), 30 produits × 3 enseignes, plusieurs tirages. Chaque nuit, la vraie chaîne tourne (collecte des flux
+→ marché → publication), puis le catalogue publié est comparé à la vérité du jour : un produit est une OPPORTUNITÉ si
 son meilleur prix en stock est à 92 % ou moins du meilleur prix normal du marché.
 
 Sont comptés les jours où la meilleure offre en stock affiche un prix barré (sans prix barré, l'app ne montre pas de
@@ -15,12 +15,12 @@ import argparse
 import tempfile
 import time
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from deals import sim
-from deals.ingest.pages.crawl import Crawler
-from deals.demo import retailers
+from deals.demo import feeds
+from deals.ingest.collector import Collector
 from deals.market import Market
 from deals.publish import publish
 from deals.store import Store
@@ -34,14 +34,16 @@ def run(seed, days, tmp):
     store = Store(Path(tmp, f"truth-{seed}.sqlite"))
     clock = sim.SimClock(START)
     market = Market(store, clock)
-    crawler = Crawler(market, sim.SimFetcher(m, clock), retailers(sim.MERCHANTS), budget_s=10 ** 9, clock=clock)
     for o in m.offers:
         market.track(o["url"], sim.slug(o["merchant"]), o["merchant"])
+    day = lambda: (datetime.fromtimestamp(clock(), timezone.utc).date() - m.start).days
+    collector = Collector(store, market, feeds(sim.MERCHANTS), raw_dir=str(Path(tmp, f"raw-{seed}")), clock=clock,
+                          transport=lambda spec: m.feed(spec["name"], day(), spec["format"]))
     sim_id = {p["gtin"]: p["id"] for p in m.products}
     res = {"cold": Counter(), "warm": Counter()}
     for k in range(days):
         clock.set(START + timedelta(days=k))
-        crawler.nightly()
+        collector.nightly()
         publish(store, market.today(), clock())
         rows = store.q("SELECT p.gtin, c.pct, c.verified, b.pct AS displayed, b.availability FROM catalog c "
                        "JOIN products p ON p.id=c.product_id JOIN catalog_offers b ON b.product_id=c.product_id AND b.rank=0")

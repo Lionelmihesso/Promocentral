@@ -15,96 +15,59 @@ sudo deals actions                    # ce que l'agent a fait, proposé, conseil
 Une décision proposée par l'agent s'exécute avec `sudo deals approve <n°>` ou s'écarte avec `sudo deals reject <n°>`.
 Un incident se résout tout seul la nuit où la cause a disparu : rien à fermer à la main.
 
-<a id="source-bloquee"></a>
-## Source bloquée par un anti-robot
-
-**Ce que l'agent a fait.** Rien de plus que s'arrêter : un anti-robot n'est jamais contourné (l'action « contourner la
-protection » est interdite et refusée dans le journal), la source n'est pas relancée. Après 3 nuits ratées de suite, la
-source est mise de côté (plus lue) ; une page témoin est relue tous les 3 jours, et si elle se lit de nouveau, l'agent
-propose de reprendre la source.
-
-**Vérifier.** `sudo deals diagnose <enseigne>` : part des pages bloquées et protection reconnue (DataDome, Cloudflare…).
-
-**Corriger.** C'est une enseigne partenaire : demandez-lui, via la plateforme d'affiliation, son flux produits (la
-plupart des réseaux en fournissent un) ou l'ajout de votre robot à sa liste blanche (son User-Agent est dans
-`DEALS_USER_AGENT`). Ne changez ni d'adresse IP ni de User-Agent pour passer : c'est un contournement.
-
-**Revenir à la normale.** Une fois l'accès obtenu : `sudo deals sources enable <enseigne> --reason "liste blanche obtenue"`,
-ou approuvez la reprise proposée après une page témoin lisible. La nuit suivante relit tout ; l'incident se résout.
-
-<a id="source-ralentie"></a>
-## Source ralentie par l'enseigne (trop de requêtes)
-
-**Ce que l'agent a fait.** Pas de relance (relancer aggraverait) ; conseil d'espacer les requêtes. Après 3 nuits ratées,
-la source est mise de côté.
-
-**Vérifier.** `sudo deals diagnose <enseigne>` ; `sudo deals estimate` pour la durée de la nuit.
-
-**Corriger.** Espacer les requêtes : `DEALS_MIN_INTERVAL_S` (réglage global, dans `/etc/deals/deals.env`), en vérifiant
-avec `estimate` que la nuit tient dans son budget. Mieux : demander le flux produits de l'enseigne.
-
-**Revenir à la normale.** `sudo deals sources enable <enseigne>` si elle a été mise de côté.
-
 <a id="source-en-echec"></a>
-## Source en échec (erreurs)
+## Source en échec : flux injoignable, illisible, ou sans offre
 
-**Ce que l'agent a fait.** Une panne passagère (erreurs serveur, délais) est relancée une fois dans la nuit et vérifiée :
-si la relance passe, rien n'est signalé. Si elle échoue, l'incident est ouvert ; il ne vous est écrit qu'à la deuxième
-nuit (ce peut être passager). Après 3 nuits ratées, la source est mise de côté.
+**Ce que l'agent a fait.** Un flux en échec (réseau injoignable, fichier illisible ou coupé, aucune offre retenue) est
+relu une fois dans la nuit et vérifié : si la relance passe, rien n'est signalé. Si elle échoue, l'incident est ouvert ;
+il ne vous est écrit qu'à la deuxième nuit (ce peut être passager). Après 3 nuits ratées de suite, la source est mise de
+côté (plus lue) ; son flux est relu tous les 3 jours, et s'il se lit de nouveau, l'agent propose de reprendre la source.
+Rien n'est supprimé pendant ce temps : ses offres vieillissent (au-delà de 3 jours, plus montrées).
 
-**Vérifier.** Une enseigne lue par ses fiches : `sudo deals diagnose <enseigne>` ; le site répond-il depuis le serveur
-(`curl -I https://…`) ? Une enseigne lue par son flux : `sudo deals batches --source <clé>` (l'erreur du lot : flux
-injoignable, illisible, ou aucune offre retenue) ; les identifiants du réseau dans `/etc/deals/deals.env` ont-ils changé ?
+**Vérifier.** `sudo deals batches --source <clé>` (l'erreur du lot : flux injoignable, illisible, ou aucune offre
+retenue) ; `sudo deals probe --source <clé>` (le flux se lit-il depuis le serveur, et comment) ; les identifiants du
+réseau dans `/etc/deals/deals.env` (`DEALS_FEED_<ENSEIGNE>`) ont-ils changé, l'adhésion au programme est-elle toujours
+active ?
 
-**Corriger.** Rien si le site ou le réseau est en panne chez lui : la page témoin (ou le flux, relu tous les 3 jours) dira
-quand il revient. Si seul votre serveur est
-refusé, c'est peut-être un blocage : voir [source bloquée](#source-bloquee).
+**Corriger.** Rien si le réseau est en panne chez lui : la relecture du flux tous les 3 jours dira quand il revient. Un
+identifiant qui a changé : `sudoedit /etc/deals/deals.env`. Une correspondance qui ne trouve plus rien : voir [flux
+changé](#flux-change).
 
-**Revenir à la normale.** Automatique tant qu'elle n'est pas mise de côté ; sinon `sudo deals sources enable <enseigne>`.
+**Revenir à la normale.** Automatique tant qu'elle n'est pas mise de côté ; sinon `sudo deals sources enable <clé>`, ou
+approuvez la reprise que l'agent propose quand le flux se lit de nouveau.
 
-<a id="page-changee"></a>
-## Page changée : plus de prix lisible, ou plus de prix barré
+<a id="flux-change"></a>
+## Flux changé : plus de prix barré
 
-**Ce que l'agent a fait.** Incident dès la première nuit, avec la commande à lancer sur une fiche réelle. Pas de relance
-(relire la même page ne change rien). Après 3 nuits sans prix, la source est mise de côté et relue par page témoin.
-« Plus de prix barré » n'est signalé que si les prix, eux, n'ont pas bougé : une fin de promotion fait remonter les prix
-et n'est pas une alerte.
+**Ce que l'agent a fait.** Incident dès la première nuit, avec les commandes à lancer. Le flux se lit (rien à relancer),
+mais il ne donne presque plus de prix barré alors que les prix, eux, n'ont pas bougé : la colonne du prix barré (ou du prix
+promotionnel) a sans doute changé de nom ou de format chez le réseau. Une fin de promotion fait remonter les prix et n'est
+pas une alerte. Le constat compare à la nuit précédente : la nuit suivante, il ne se répète pas tout seul, d'où l'e-mail
+dès la première nuit.
 
-**Vérifier.** `sudo deals explain <adresse d'une fiche>` : ce que l'extraction voit (sources de prix, raisons). Une
-enseigne lue par son flux : c'est la colonne du prix barré (ou du prix promotionnel) qui a changé de nom ou de format ;
-`sudo deals batches --source <clé>`, puis la correspondance (voir [brancher un flux](#brancher-un-flux)).
+**Vérifier.** `sudo deals probe --source <clé>` : les colonnes du flux d'aujourd'hui et la correspondance proposée, à
+comparer avec `/etc/deals/feeds/<clé>.json` ; `sudo deals batches --source <clé>`.
 
-**Corriger.** Écrire la règle de lecture du site : `sudo deals rules <site> '{"price": "<sélecteur>", "list_price": "<sélecteur>"}'`,
-puis `sudo deals diagnose <enseigne>` (au moins 80 % des pages avec un prix pour garder l'enseigne).
-
-**Revenir à la normale.** `sudo deals sources enable <enseigne>` si elle a été mise de côté (ou la page témoin la
-proposera d'elle-même avec la nouvelle règle).
+**Corriger.** La correspondance de la source (voir [brancher un flux](#brancher-un-flux)), vérifiée sur le fichier gardé
+(`sudo deals ingest <clé> --file <fichier> --dry-run`), puis `sudo deals replay <clé>` relit le dernier fichier sans
+attendre la nuit.
 
 <a id="prix-suspects"></a>
 ## Prix suspects en nombre
 
-**Ce que l'agent a fait.** Chaque prix relu à moins de 30 % du prix habituel du produit est mis en quarantaine : pas
-publié, pas envoyé aux missions, relu en priorité. Revenu à la normale, il est libéré et le prix faux est écarté des
-courbes ; relu au même prix les deux nuits suivantes, il est cru et publié. Beaucoup de prix suspects chez une même
-enseigne (au moins 5, et 20 % des pages) signalent plutôt une lecture qui s'est déréglée (prix en centimes, prix mensuel
-d'un financement pris pour le prix).
+**Ce que l'agent a fait.** Une variation énorme (prix divisé ou multiplié par deux, ou plus) n'est enregistrée que si le
+flux de la nuit suivante la redonne. Enregistré, un prix à moins de 30 % du prix habituel du produit est mis en
+quarantaine : pas publié, pas envoyé aux missions. Revenu à la normale, il est libéré et le prix faux est écarté des
+courbes ; redonné au même prix les deux nuits suivantes, il est cru et publié. Beaucoup de prix suspects chez une même
+enseigne (au moins 5, et 20 % de ses offres) signalent plutôt une correspondance déréglée (prix en centimes, prix
+mensuel d'un financement pris pour le prix).
 
-**Vérifier.** `sudo deals quarantine` (les offres retenues, leur prix, le prix habituel) ; `sudo deals explain <adresse>`.
+**Vérifier.** `sudo deals quarantine` (les offres retenues, leur prix, le prix habituel) ; `sudo deals batches --source
+<clé>` et `sudo deals probe --source <clé>` (la colonne lue comme prix).
 
-**Corriger.** La règle de lecture du site (voir [page changée](#page-changee)). Un prix vérifié chez l'enseigne (vraie
+**Corriger.** La correspondance du flux (voir [flux changé](#flux-change)). Un prix vérifié chez l'enseigne (vraie
 liquidation) se libère à la main : `sudo deals quarantine release <offre>` ; il est publié à la publication suivante
 (`sudo deals publish` pour tout de suite).
-
-<a id="budget-de-nuit"></a>
-## Budget de nuit atteint
-
-**Ce que l'agent a fait.** Rien : relever le budget est un réglage global, votre décision. Les pages non relues gardent
-leur prix, qui vieillit (au-delà de 3 jours, il n'est plus montré) ; l'ordre de relecture garde l'essentiel (prix en
-quarantaine, deals en cours, favoris, clics récents).
-
-**Vérifier.** `sudo deals estimate` (durée prévue de la nuit), le nombre de pages non relues dans le rapport du matin.
-
-**Corriger.** `DEALS_NIGHT_BUDGET_S` dans `/etc/deals/deals.env`, ou moins de fiches suivies pour l'enseigne la plus chargée.
 
 <a id="catalogue-retenu"></a>
 ## Publication retenue : le nouveau catalogue fondait
@@ -139,9 +102,9 @@ retrouve sa taille, ou quand les sources retirées sont mises de côté.
 depuis 26 h (moins de 90 % : attention ; moins de 70 % : critique). Si toutes les offres en cause viennent de sources
 déjà signalées (en échec, mises de côté), l'incident est seulement noté : la cause a déjà son incident.
 
-**Vérifier.** `sudo deals status` (fraîcheur, sources) ; la nuit a-t-elle tourné en entier (budget, étape en erreur) ?
+**Vérifier.** `sudo deals status` (fraîcheur, sources) ; la nuit a-t-elle tourné en entier (étape en erreur) ?
 
-**Corriger.** La cause : une source (voir ses fiches), le [budget](#budget-de-nuit), ou une publication retenue.
+**Corriger.** La cause : une source (voir sa fiche ci-dessus), ou une publication retenue.
 
 <a id="envoi-des-missions"></a>
 ## E-mails des missions en échec

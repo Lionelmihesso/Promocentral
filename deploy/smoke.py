@@ -15,7 +15,6 @@ CHECKS = [
     ("une recherche", "/api/r/search?q=lave-linge", lambda code, body: code == 200 and "products" in json.loads(body)),
     ("l'état pour la sonde", "/api/r/health", lambda code, body: code in (200, 503) and "status" in json.loads(body)),
     ("les mentions légales", "/api/r/legal", lambda code, body: code == 200 and json.loads(body)["name"] == "Promo Central"),
-    ("la page du robot", "/robot", lambda code, body: code == 200 and b"PromoCentralBot" in body),
     ("rien d'autre n'est servi", "/admin", lambda code, body: code == 404),
 ]
 

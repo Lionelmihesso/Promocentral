@@ -17,9 +17,7 @@ class Settings:
     public_url: str = "http://127.0.0.1:8000"     # sert aux liens de connexion ; en https, le cookie est marqué Secure
     port: int = 8000
     trust_proxy: bool = True                        # X-Forwarded-For pris en compte seulement s'il vient de 127.0.0.1 (Caddy)
-    user_agent: str = "PromoCentralBot/0.1 (+https://promocentral.example/robot ; contact : robot@promocentral.example)"
-    min_interval_s: float = 5.0                     # au moins 5 s entre deux requêtes vers un même site
-    night_budget_s: float = 4 * 3600.0              # durée maximale de la passe de nuit
+    user_agent: str = "PromoCentral/1.0"            # nom donné au téléchargement des flux (ingest/collector.py)
     reports_dir: str = "reports"
     smtp_host: str = ""                             # vide : les liens restent en mémoire (et dans DEALS_OUTBOX) — développement
     smtp_port: int = 587
@@ -43,7 +41,8 @@ class Settings:
     legal_host: str = ""                            # hébergeur : nom, adresse, téléphone
     operator_email: str = ""                        # responsable d'exploitation : l'agent lui écrit si c'est utile (agent.py)
     photos: bool = False                            # v67 : montrer la photo du produit donnée par le flux (chargée depuis le
-                                                    # serveur de l'enseigne) ; non : nos illustrations. À décider (droits, tiers)
+                                                    # serveur de l'enseigne) ; non : nos illustrations. Décidé (v68) : oui dès
+                                                    # que les droits d'usage sont vérifiés (docs/PRODUCTION.md, D6)
     env: str = "dev"                                # dev | demo | prod : noté dans chaque ligne du journal
     log_json: bool = False                          # journal opérationnel aussi en JSON sur la sortie d'erreur (journald)
 
@@ -53,7 +52,7 @@ SMTP_TLS = ("starttls", "ssl", "none")
 ENVS = ("dev", "demo", "prod")
 # Mode démo (DEALS_ENV=demo) : données simulées, fictives, affichées comme telles ; aucune mention légale, aucun SMTP,
 # aucun flux ni partenaire réel. Ce mode ne relâche aucun contrôle de la production : il est exclusif de prod.
-DEMO_REFUSED = ("nightly", "missions", "discover", "diagnose", "sample", "build", "ingest", "replay", "publish")
+DEMO_REFUSED = ("nightly", "missions", "ingest", "replay", "publish")
 
 
 LEGAL = ("legal_editor", "legal_registration", "legal_address", "legal_director", "legal_contact", "legal_host")
@@ -76,11 +75,9 @@ def problems(s):
             out.append("mentions légales incomplètes (" + ", ".join(missing) + ") : la production ne démarre pas sans elles")
         if not s.public_url.startswith("https://"):
             out.append("DEALS_PUBLIC_URL doit être en https:// en production")
-        if s.user_agent == Settings.user_agent:
-            out.append("DEALS_USER_AGENT : le nom du robot, sa page et un contact sont à régler")
         if not s.operator_email:
             out.append("DEALS_OPERATOR_EMAIL : le responsable d'exploitation est à renseigner")
-        exemples = [k for k in ("public_url", "mail_from", "operator_email", "user_agent", "smtp_host")
+        exemples = [k for k in ("public_url", "mail_from", "operator_email", "smtp_host")
                     if ".example" in getattr(s, k)]
         if exemples:
             out.append("valeurs d'exemple encore présentes (" + ", ".join(exemples) + ") : à remplacer par les vraies")

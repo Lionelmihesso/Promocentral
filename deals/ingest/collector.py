@@ -1,22 +1,21 @@
-"""Le collecteur : toutes les sources derrière une seule interface. La nuit (night.py) et l'agent (agent.py) lui
-demandent de lire des enseignes, de relancer l'une, d'en sonder une autre ; ils ne savent pas si elle donne un flux ou
-ses fiches.
+"""Le collecteur : les flux des enseignes partenaires derrière une seule interface. La nuit (night.py) et l'agent
+(agent.py) lui demandent de lire les sources, de relancer l'une, d'en sonder une autre.
 
-  nightly(clés, cid, retry) → bilan de la passe (le même que pages/crawl.py : par enseigne, plus fortes baisses) ;
-                              un lot par source lue (batches.py)
+  nightly(clés, cid, retry) → bilan de la passe (report.summarize : par source, plus fortes baisses), avec sa ligne
+                              dans runs ; un lot par source lue (batches.py)
   ingest(clé, cid, file, dry_run, replay) → (bilan de la source, résultats) : un flux lu de bout en bout
   probe_source(clé)         → {readable} : une source mise de côté se lit-elle de nouveau ?
 
 Un flux, de bout en bout : acquérir (https, fichier ; taille plafonnée) → garder le fichier brut et son empreinte →
 lire (feeds.records) → normaliser (feeds.normalize) → contrôler (contract.check : rejet motivé, ligne à ligne, sans
 arrêter le lot) → une offre par fiche (variantes : la moins chère en stock) → périmètre à la première lecture
-(contract.in_scope) → écrire par market.py (un prix au changement seulement, la quarantaine et la garde de publication
-s'appliquent comme aux fiches). Rien n'est supprimé : une offre absente du flux vieillit comme une fiche non relue (au
-bout de 3 jours, plus montrée). Le même fichier relu ne crée ni doublon ni ligne de prix ; un rejeu relit le fichier
+(contract.in_scope) → écrire par market.py (un prix au changement seulement ; la quarantaine et la garde de
+publication s'appliquent). Rien n'est supprimé : une offre absente du flux vieillit (au bout de 3 jours, plus montrée). Le même fichier relu ne crée ni doublon ni ligne de prix ; un rejeu relit le fichier
 gardé du dernier lot, à l'heure de sa lecture.
 Une source flux est en échec (sources.failed) quand elle est injoignable, illisible, ou ne donne aucune offre.
 """
 import gzip
+import json
 import urllib.error
 import urllib.request
 from collections import Counter
@@ -60,51 +59,35 @@ def _short(why):
 
 
 class Collector:
-    def __init__(self, store, market, crawler, specs, raw_dir="raw", keep_days=batches.KEEP_DAYS, transport=None,
+    def __init__(self, store, market, specs, raw_dir="raw", keep_days=batches.KEEP_DAYS, transport=None,
                  clock=None, max_bytes=MAX_BYTES, user_agent="PromoCentralBot"):
-        self.s, self.m, self.crawler, self.specs = store, market, crawler, specs
+        self.s, self.m, self.specs = store, market, specs
         self.raw_dir, self.keep_days, self.max_bytes, self.ua = raw_dir, keep_days, max_bytes, user_agent
         self.transport = transport or (lambda spec: download(spec, self.max_bytes, self.ua))
         self.clock = clock or market.clock
 
     # ------------------------------------------------------------------ la nuit
     def nightly(self, retailers=None, cid=None, retry=False):
+        """La passe : retailers, les clés à lire (None : toutes les sources activées) ; cid, l'identifiant de corrélation de
+        la nuit ; retry : relance d'une source par l'agent. Chaque passe laisse une ligne dans runs (état : succeeded,
+        partial_success — au moins une source en alerte —, ou retry). → bilan (report.summarize), avec son numéro."""
         keys = [k for k in (self.specs if retailers is None else retailers) if self.specs.get(k, {}).get("enabled")]
-        sites = [k for k in keys if self.specs[k]["kind"] == "site"]
-        flows = [k for k in keys if self.specs[k]["kind"] == "feed"]
-        now = self.clock()
-        site_batches = {k: batches.open(self.s, k, "site", cid, now) for k in sites}
-        self.m.batch_of = dict(site_batches)
-        try:
-            stats = self.crawler.nightly(sites, cid=cid, retry=retry)
-        finally:
-            self.m.batch_of = {}
-        for k, bid in site_batches.items():
-            self._close_site(k, bid, (stats.get("retailers") or {}).get(k))
-        if flows:
-            day = self.m.today()
-            before = previous_retailers(self.s, day)
-            results, per = [], {}
-            for k in flows:
-                stat, res = self.ingest(k, cid=cid)
-                per[k], results = stat, results + res
-            merged = summarize(self.m, day, results, {k: self.specs[k]["name"] for k in flows}, previous=before)
-            for k, stat in per.items():
-                stats["retailers"][k] = {**(merged["retailers"].get(k) or {}), **stat}
-            stats["offers"] = stats.get("offers", 0) + len(results)
-            stats["price_drops"] = sorted((stats.get("price_drops") or []) + merged["price_drops"], key=lambda d: -d["drop"])[:30]
-            stats["products"], stats["to_review"] = merged["products"], merged["to_review"]
+        day = self.m.today()
+        run = self.s.x("INSERT INTO runs(day, started, cid, status) VALUES (?,?,?,'running')", (day.isoformat(), self.clock(), cid))
+        before = previous_retailers(self.s, day)
+        results, per = [], {}
+        for k in keys:
+            stat, res = self.ingest(k, cid=cid)
+            per[k], results = stat, results + res
+        stats = summarize(self.m, day, results, {k: self.specs[k]["name"] for k in keys}, previous=before)
+        for k, stat in per.items():
+            stats["retailers"][k] = {**(stats["retailers"].get(k) or {}), **stat}
+        status = "retry" if retry else "partial_success" if any(r.get("alert") or r.get("interrupted") for r in stats["retailers"].values()) \
+            else "succeeded"
+        self.s.x("UPDATE runs SET ended=?, stats=?, status=? WHERE id=?", (self.clock(), json.dumps(stats, ensure_ascii=False), status, run))
         if not retry:
             batches.prune(self.raw_dir, self.keep_days, self.clock())
-        return stats
-
-    def _close_site(self, key, bid, st):
-        st = st or {}
-        counts = {"received": st.get("pages", 0), "accepted": st.get("ok", 0) + st.get("unchanged_304", 0),
-                  "changed": st.get("changed", 0), "ignored": st.get("out_of_scope", 0),
-                  "rejected": st.get("no_price", 0) + st.get("errors", 0) + st.get("blocked", 0)}
-        status = "partial" if st.get("alert") or st.get("interrupted") else "succeeded"
-        batches.close(self.s, bid, self.clock(), status, counts, connector="site/1")
+        return {**stats, "run": run}
 
     # ------------------------------------------------------------------ un flux
     def ingest(self, key, cid=None, file=None, dry_run=False, replay=None):
@@ -215,17 +198,12 @@ class Collector:
         spec = self.specs.get(key)
         if spec is None:
             return {"readable": False, "why": "source inconnue"}
-        if spec["kind"] == "site":
-            return self.crawler.probe_source(key)
         try:
             raw = self.transport(spec)
             n = next(iter(feeds.records(raw, spec["mapping"])), None)
             return {"readable": n is not None, "bytes": len(raw)}
         except (feeds.FeedError, OSError, urllib.error.URLError, ValueError, TimeoutError) as e:
             return {"readable": False, "why": self._scrub(f"{type(e).__name__} : {e}", spec)[:200]}
-
-    def read(self, o):
-        return self.crawler.read(o)
 
     @staticmethod
     def _scrub(message, spec):

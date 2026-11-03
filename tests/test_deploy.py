@@ -12,7 +12,6 @@ from pathlib import Path
 
 from deals import affiliate, cli, config
 from deals.ingest import registry
-from deals.ingest.retailers import RETAILERS
 
 DEPLOY = Path(__file__).resolve().parent.parent / "deploy"
 
@@ -84,7 +83,7 @@ class Examples(unittest.TestCase):
 
     def test_copying_the_partner_example_declares_no_retailer(self):
         rules = affiliate.load(str(DEPLOY / "affiliate.example.json"))
-        known = set(RETAILERS) | set(json.loads((DEPLOY / "sources.example.json").read_text(encoding="utf-8")))
+        known = set(json.loads((DEPLOY / "sources.example.json").read_text(encoding="utf-8")))
         self.assertEqual(set(rules) & known, set(), "l'exemple ferait d'une vraie enseigne un partenaire")
         self.assertTrue(all("{subid}" in r for r in rules.values()))   # les deux formes de règle, avec l'identifiant du clic
 

@@ -1,14 +1,16 @@
 """Pannes injectées, nuit après nuit : ce que la plateforme voit, dit, fait seule, et ce qu'elle laisse passer.
 
-Le marché simulé de la démo (59 produits, quatre enseignes, une source chacune), chauffé 50 nuits par la vraie nuit
-(night.run), puis, pour chaque scénario, six nuits avec une panne : anti-robot durable, panne passagère, page changée,
-erreur de prix d'un soir (÷ 10, et quelqu'un guette ce produit), SMTP en panne deux nuits (et une mission atteinte),
-fichier des partenaires mal rempli (une enseigne déclarée sur quatre). On relève : incidents, actions de l'agent par
-politique, e-mails au responsable (nuit par nuit), requêtes vers le site qui bloque, part des fiches relues, prix faux
-publiés, e-mails trompeurs, offres publiées.
+Le marché simulé de la démo (127 produits, quatre enseignes, une source chacune : son flux), chauffé 50 nuits par la
+vraie nuit (night.run), puis, pour chaque scénario, six nuits avec une panne : flux injoignable durable, panne passagère,
+flux changé (plus de prix barré), erreur de prix d'un soir (÷ 10, et quelqu'un guette ce produit), SMTP en panne deux
+nuits (et une mission atteinte), fichier des partenaires mal rempli (une enseigne déclarée sur quatre). On relève :
+incidents, actions de l'agent par politique, e-mails au responsable (nuit par nuit), lectures du flux en panne, part des
+offres relues, prix faux publiés, e-mails trompeurs, offres publiées.
 
   python -m bench.autonomy
 """
+import json
+import re
 import shutil
 import tempfile
 from collections import Counter
@@ -25,35 +27,46 @@ OPERATOR = "ops@exemple.test"
 
 
 class Faulty:
-    """Le marché simulé, avec la panne du scénario (par hôte ou par adresse, sur des jours donnés)."""
+    """Les flux du marché simulé, avec la panne du scénario (par source, sur des jours donnés) : down (injoignable : les
+    `first` premières lectures du jour, ou toutes), barred (plus de prix barré, prix inchangés), price_error (÷ 10, écrit
+    dans le marché simulé : le flux du jour le donne)."""
 
-    def __init__(self, base, clock):
-        self.base, self.clock, self.plan, self.hits = base, clock, [], Counter()
+    def __init__(self, world):
+        self.w, self.base, self.plan, self.hits = world, world.collector.transport, [], Counter()
+        world.collector.transport = self
 
-    def get(self, url, etag=None, last_modified=None):
-        host, day = url.split("/")[2], datetime.fromtimestamp(self.clock(), timezone.utc).date()
-        self.hits[host, day] += 1
+    def add(self, f):
+        self.plan.append(f)
+        if f["kind"] == "price_error":
+            m = self.w.sim
+            o = next(x for x in m.offers if x["url"] == f["url"])
+            for k in range((f["start"] - m.start).days, (f["end"] - m.start).days + 1):
+                o["price"][k] = round(o["price"][k] / 10, 2)
+
+    def __call__(self, spec):
+        key, day = spec["key"], datetime.fromtimestamp(self.w.clock(), timezone.utc).date()
+        self.hits[key, day] += 1
         for f in self.plan:
-            if not f["start"] <= day <= f["end"] or f.get("host") not in (None, host) or f.get("url") not in (None, url):
+            if not f["start"] <= day <= f["end"] or f.get("source") != key:
                 continue
-            if f["kind"] == "blocked":
-                return {"status": "blocked", "code": 403, "protection": "datadome", "html": "", "final_url": url}
-            if f["kind"] == "error" and f.setdefault("served", Counter())[day] < f["first"]:
-                f["served"][day] += 1
-                return {"status": "error", "code": 503, "html": "", "final_url": url}
-            r = self.base.get(url)
-            if f["kind"] == "layout":
-                return {**r, "html": "<html><head><title>Nouvelle page</title></head><body><div class='prix'></div></body></html>"}
-            if f["kind"] == "price_error":
-                html = r["html"]
-                a = html.index('"price": "') + len('"price": "')
-                b = html.index('"', a)
-                return {**r, "html": html[:a] + f"{float(html[a:b]) / 10:.2f}" + html[b:]}
-            return r
-        return self.base.get(url)
+            served = f.setdefault("served", Counter())
+            if f["kind"] == "down" and (f.get("first") is None or served[day] < f["first"]):
+                served[day] += 1
+                raise OSError("503 Service Unavailable")
+            if f["kind"] == "barred":
+                return unbarred(self.base(spec))
+        return self.base(spec)
 
-    def delay_for(self, host):
-        return 0.0
+
+def unbarred(xml):
+    """Un flux Google Shopping qui ne donne plus que le prix réduit, comme seul prix : plus de prix barré, prix inchangés."""
+    def one(m):
+        item, sale = m.group(0), re.search(rb"<g:sale_price>([^<]*)</g:sale_price>", m.group(0))
+        if not sale:
+            return item
+        item = re.sub(rb"<g:price>[^<]*</g:price>", b"<g:price>" + sale.group(1) + b"</g:price>", item.replace(sale.group(0), b""))
+        return re.sub(rb"<g:sale_price_effective_date>[^<]*</g:sale_price_effective_date>", b"", item)
+    return re.sub(rb"<item>.*?</item>", one, xml, flags=re.S)
 
 
 class Box:
@@ -71,30 +84,34 @@ class Box:
 
 
 def mission(store, email, product_id, max_price):
+    """Une recherche sauvegardée sous max_price que ce produit remplit : son rayon, sa marque, les mots de son nom (v65 :
+    plus d'alerte sur un produit, une alerte d'avant reste inerte)."""
+    r = store.q("SELECT category, brand, name FROM catalog WHERE product_id=?", (product_id,), one=True)
+    want = {"features": [], "attrs": {}, "words": [w for w in r["name"].lower().split() if w.isalpha()][:3]}
     uid = store.x("INSERT INTO users(email, created_at) VALUES (?, 0)", (email,))
-    store.x("INSERT INTO missions(user_id, product_id, want, max_price, label, created_at, notified) VALUES (?,?,'{}',?,?,0,'{}')",
-            (uid, product_id, max_price, "Ce produit"))
+    store.x("INSERT INTO missions(user_id, category, brand, want, max_price, label, created_at, notified) VALUES (?,?,?,?,?,?,0,'{}')",
+            (uid, r["category"], r["brand"], json.dumps(want), max_price, "Ce produit"))
 
 
-def blocked(s, f, box, ctx):
-    f.plan.append({"kind": "blocked", "host": "rapido.sim", "start": D, "end": D + timedelta(days=NIGHTS)})
-    ctx["host"] = "rapido.sim"
+def down(s, f, box, ctx):
+    f.add({"kind": "down", "source": "rapido", "start": D, "end": D + timedelta(days=NIGHTS)})
+    ctx["source"] = "rapido"
 
 
 def transient(s, f, box, ctx):
-    f.plan.append({"kind": "error", "host": "electroplus.sim", "start": D, "end": D, "first": 5})
-    ctx["host"], ctx["read"] = "electroplus.sim", "electroplus"
+    f.add({"kind": "down", "source": "electroplus", "start": D, "end": D, "first": 1})
+    ctx["source"], ctx["read"] = "electroplus", "electroplus"
 
 
-def layout(s, f, box, ctx):
-    f.plan.append({"kind": "layout", "host": "maisonco.sim", "start": D, "end": D + timedelta(days=NIGHTS)})
-    ctx["host"] = "maisonco.sim"
+def barred(s, f, box, ctx):
+    f.add({"kind": "barred", "source": "rapido", "start": D, "end": D + timedelta(days=NIGHTS)})
+    ctx["source"] = "rapido"
 
 
 def price_error(s, f, box, ctx):
     o = s.q("SELECT o.url, o.product_id, c.price FROM offers o JOIN catalog c ON c.product_id=o.product_id "
             "WHERE o.retailer='grandbazar' ORDER BY c.price DESC LIMIT 1", one=True)
-    f.plan.append({"kind": "price_error", "url": o["url"], "start": D, "end": D})
+    f.add({"kind": "price_error", "url": o["url"], "start": D, "end": D})
     mission(s, "lea@exemple.test", o["product_id"], round(o["price"] * 0.7))
     ctx["product"], ctx["normal"] = o["product_id"], o["price"]
 
@@ -109,7 +126,7 @@ def partners(s, f, box, ctx):
     ctx["partners"] = {"rapido"}
 
 
-SCENARIOS = [("anti-robot durable", blocked), ("panne passagère", transient), ("page changée", layout),
+SCENARIOS = [("flux injoignable durable", down), ("panne passagère", transient), ("flux changé (plus de prix barré)", barred),
              ("erreur de prix", price_error), ("SMTP en panne", smtp), ("partenaires mal configurés", partners)]
 
 
@@ -124,7 +141,7 @@ def scenario(base, name, setup):
     shutil.copy(base, path)
     s = Store(path)
     w = demo.world(s, START)
-    f = w.crawler.f = Faulty(w.crawler.f, w.clock)
+    f = Faulty(w)
     box, ctx = Box(w.clock), {"partners": set(demo.RULES)}
     settings = config.load({}, public_url="https://deals.test", operator_email=OPERATOR)
     setup(s, f, box, ctx)
@@ -132,11 +149,11 @@ def scenario(base, name, setup):
     for k in range(NIGHTS):
         day = D + timedelta(days=k)
         w.clock.set(day)
-        r = night.run(s, settings, w.crawler, box, w.retailers, ctx["partners"], clock=w.clock)
+        r = night.run(s, settings, w.collector, box, w.retailers, ctx["partners"], clock=w.clock)
         start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc).timestamp()
         row = {"day": day, "offers": s.q("SELECT COUNT(*) n FROM catalog_offers", one=True)["n"], "held": bool((r["publish"] or {}).get("held"))}
-        if ctx.get("host"):
-            row["hits"] = f.hits[ctx["host"], day]
+        if ctx.get("source"):
+            row["hits"] = f.hits[ctx["source"], day]
         if ctx.get("read"):
             n = s.q("SELECT COUNT(*) n, SUM((SELECT MAX(last_seen) FROM prices p WHERE p.offer_id=o.id) >= ?) f FROM offers o "
                     "WHERE retailer=? AND status='active'", (start, ctx["read"]), one=True)
@@ -165,9 +182,9 @@ def show(r):
     print(f"  e-mails aux personnes : {len(r['users'])} ({', '.join(d for d, _ in r['users']) or '—'})")
     print(f"  offres publiées par nuit : {[x['offers'] for x in n]} · publication retenue : {sum(x['held'] for x in n)} nuit(s)")
     if "hits" in n[0]:
-        print(f"  requêtes vers le site en panne, par nuit : {[x['hits'] for x in n]}")
+        print(f"  lectures du flux en panne, par nuit : {[x['hits'] for x in n]}")
     if "read" in n[0]:
-        print(f"  part des fiches relues, par nuit : {[x['read'] for x in n]}")
+        print(f"  part des offres relues, par nuit : {[x['read'] for x in n]}")
     if "wrong_price" in n[0]:
         print(f"  nuits avec le prix faux publié : {sum(x['wrong_price'] for x in n)}")
 

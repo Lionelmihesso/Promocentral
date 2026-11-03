@@ -1,17 +1,14 @@
-"""Lecture d'une page produit — fonctions pures (aucune base, aucun réseau).
+"""Ce que dit une offre — fonctions pures (aucune base, aucun réseau).
 
-  analyze(html, rules, url, merchant) → {page_kind, best, candidates, reasons}
-  extract(html, rules, url, merchant) → offre | None
   categorize(title, declared) → (catégorie | None, source) ; attributes(title, properties, category, declared) → dict ;
   product_attributes(title, category, stored, props, declared) → les caractéristiques gardées d'un produit
+  parse_price, parse_currency, parse_availability, clean_gtin : les valeurs d'une ligne de flux (values.py)
 
-Offre (dict) : price, list_price (prix barré validé), was_method, currency, currency_known, availability, title, brand,
-gtin, mpn, sku, seller, marketplace, category, image, properties, valid_until, lowest_30d, kind ("from" : à partir de),
-member_price, method (source du prix), confidence, found (prix par source), consistent, reasons.
+v68 : la plateforme ne lit plus que les flux des enseignes partenaires ; l'analyse des fiches HTML (JSON-LD,
+microdonnées, règles de site) est retirée.
 """
 from .categories import attributes, categorize, plain, product_attributes
-from .offer import (analyze, clean_gtin, compile_selector, extract, lowest_30d, parse_availability, parse_currency,
-                    parse_price)
+from .values import clean_gtin, parse_availability, parse_currency, parse_price
 
-__all__ = ["analyze", "extract", "categorize", "attributes", "product_attributes", "plain", "parse_price", "parse_currency",
-           "parse_availability", "clean_gtin", "lowest_30d", "compile_selector"]
+__all__ = ["categorize", "attributes", "product_attributes", "plain", "parse_price", "parse_currency", "parse_availability",
+           "clean_gtin"]

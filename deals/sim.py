@@ -7,10 +7,9 @@ Chaque offre suit un prix « normal » (érosion, bruit hebdomadaire, écart pro
                              prix normal
   hausse temporaire          ~1 fois / 200 j : +12 % pendant 10 j ;   rupture : ~1 fois / 100 j, 3 à 8 j
 Vérité par produit et par jour : OPPORTUNITÉ = meilleur prix en stock ≤ 92 % du meilleur prix normal du marché.
-Deux offres sur trois déclarent la fin de leur promotion (priceValidUntil), comme beaucoup d'enseignes. Marques et
+Deux offres sur trois déclarent la fin de leur promotion (dans le flux), comme beaucoup d'enseignes. Marques et
 enseignes sont fictives.
 """
-import json
 import random
 import re
 from xml.sax.saxutils import escape
@@ -316,27 +315,8 @@ class Market:
         best = min(o["price"][k] for o in live)
         return {"opp": best <= min(o["normal"][k] for o in offs) * 0.92, "best": best}
 
-    def html(self, url, k):
-        o = next(x for x in self.offers if x["url"] == url)
-        p = self.products[o["pid"]]
-        offer = {"@type": "Offer", "price": f"{o['price'][k]:.2f}", "priceCurrency": "EUR",
-                 "availability": "https://schema.org/" + ("InStock" if o["stock"][k] else "OutOfStock")}
-        if o["list"][k] and o["declares"] and o["until"][k] is not None:
-            offer["priceValidUntil"] = (self.start + timedelta(days=o["until"][k])).isoformat()
-        if o["list"][k]:
-            offer["priceSpecification"] = [{"@type": "UnitPriceSpecification", "price": o["price"][k], "priceCurrency": "EUR"},
-                                           {"@type": "UnitPriceSpecification", "priceType": "https://schema.org/ListPrice",
-                                            "price": o["list"][k], "priceCurrency": "EUR"}]
-        ld = {"@context": "https://schema.org", "@type": "Product", "name": p["title"], "gtin13": p["gtin"],
-              "brand": {"@type": "Brand", "name": p["brand"]}, "category": p["category"].replace("_", "-"),
-              "additionalProperty": ([{"@type": "PropertyValue", "name": "Classe énergétique", "value": p["energy"]}] if p["energy"] else [])
-              + [{"@type": "PropertyValue", "name": k, "value": v} for k, v in p["props"].items()],
-              "offers": offer}
-        return f"<html><head><script type='application/ld+json'>{json.dumps(ld, ensure_ascii=False)}</script></head><body></body></html>"
-
-
     def feed(self, merchant, k, fmt="xml"):
-        """Le flux produits d'une enseigne simulée le jour k : les mêmes offres que ses fiches (html), au format Google
+        """Le flux produits d'une enseigne simulée le jour k : toutes ses offres du jour, au format Google
         Shopping (XML, espace de noms g:) ou en CSV à la française (point-virgule, virgule décimale, Windows-1252)."""
         day = self.start + timedelta(days=k)
         rows = []
@@ -388,18 +368,3 @@ class SimClock:
 
     def __call__(self):
         return self.t
-
-
-class SimFetcher:
-    """Remplace fetch.Fetcher : sert la page simulée du jour de l'horloge."""
-    ua = "sim"
-
-    def __init__(self, market, clock):
-        self.m, self.clock = market, clock
-
-    def get(self, url, etag=None, last_modified=None):
-        k = (datetime.fromtimestamp(self.clock(), timezone.utc).date() - self.m.start).days
-        return {"status": "ok", "code": 200, "html": self.m.html(url, k), "final_url": url, "elapsed_ms": 0}
-
-    def delay_for(self, host):
-        return 0.0

@@ -1,17 +1,15 @@
-"""Le registre des sources : quelles enseignes on lit, et comment. Une source par enseigne, sous sa clé.
+"""Le registre des sources : quelles enseignes on lit, et comment. Une source par enseigne, sous sa clé, déclarée dans
+le fichier DEALS_SOURCES (JSON). v68 : seuls les flux sont lus (kind « feed ») ; la lecture des fiches des enseignes est
+retirée, une source « site » est refusée au démarrage.
 
-Deux origines, fusionnées par clé :
-  - les enseignes connues du code (retailers.py) : leurs fiches, lues par pages/ (kind « site ») ;
-  - le fichier DEALS_SOURCES (JSON) : une entrée par enseigne, qui remplace ou complète celle du code — le plus souvent
-    son flux (kind « feed »), ou le réglage de ses fiches (enabled…).
-
-Une source « feed » dit :
+Une source dit :
   url       où lire le flux : https://…, http://… ou un chemin de fichier ; ${NOM} y est remplacé par la variable
             d'environnement NOM (les identifiants des réseaux vivent dans /etc/deals/deals.env, jamais dans ce fichier)
   mapping   la correspondance de ses colonnes : un objet, ou le chemin d'un fichier JSON (relatif au fichier des sources)
             — voir feeds.Mapping ; {"preset": "google_shopping"} pour un flux au format standard
   headers   des en-têtes HTTP (${NOM} remplacé), facultatif
-  network   le réseau d'affiliation (information), name, families (familles attendues), enabled
+  name      le nom de l'enseigne (affiché), network (le réseau d'affiliation, information), families (familles
+            attendues ; toutes par défaut), enabled
 Un réglage invalide arrête le démarrage en nommant la source et le champ, plutôt qu'une nuit qui tourne mal.
 """
 import json
@@ -19,12 +17,11 @@ import os
 import re
 from pathlib import Path
 
+from ..extract.categories import FAMILIES
 from .feeds import FeedError, Mapping
-from .retailers import FAMILIES, RETAILERS
 
-KINDS = ("site", "feed")
-KEYS = {"kind", "name", "enabled", "families", "network", "url", "mapping", "headers", "home", "product_url", "sitemaps",
-        "disabled_reason", "_note"}
+KINDS = ("feed",)
+KEYS = {"kind", "name", "enabled", "families", "network", "url", "mapping", "headers", "disabled_reason", "_note"}
 VAR = re.compile(r"\$\{([A-Z0-9_]+)\}")
 
 
@@ -36,10 +33,10 @@ def resolve(value, env, where):
     return VAR.sub(one, value)
 
 
-def load(path=None, env=None, base=None):
-    """→ {clé: source} : les enseignes du code (fiches), puis celles du fichier `path` qui les remplacent ou s'ajoutent."""
+def load(path=None, env=None):
+    """→ {clé: source} : les flux du fichier `path` (aucun sans fichier)."""
     env = os.environ if env is None else env
-    specs = {k: {**v, "key": k, "kind": "site"} for k, v in (base if base is not None else RETAILERS).items()}
+    specs = {}
     if not path:
         return specs
     where = f"DEALS_SOURCES ({path})"
@@ -56,22 +53,20 @@ def load(path=None, env=None, base=None):
         unknown = set(src) - KEYS
         if unknown:
             raise ValueError(f"{w} : champ inconnu {', '.join(sorted(unknown))}")
-        kind = src.get("kind", "site")
+        kind = src.get("kind", "feed")
+        if kind == "site":
+            raise ValueError(f"{w} : kind « site » : la lecture des fiches des enseignes est retirée (v68), seuls les flux "
+                             "sont lus")
         if kind not in KINDS:
             raise ValueError(f"{w} : kind {kind!r} au lieu de {' | '.join(KINDS)}")
-        known = RETAILERS.get(key, {})
-        spec = {**(known if kind == "site" else {"name": known.get("name"), "families": known.get("families")}),
-                **{k: v for k, v in src.items() if k != "_note"}, "key": key, "kind": kind}
+        spec = {**{k: v for k, v in src.items() if k != "_note"}, "key": key, "kind": kind}
         spec["enabled"] = bool(spec.get("enabled", True))
         spec["families"] = list(spec.get("families") or FAMILIES)
         if not spec.get("name"):
-            raise ValueError(f"{w} : name manquant (enseigne inconnue du code)")
+            raise ValueError(f"{w} : name manquant (le nom de l'enseigne, affiché)")
         if set(spec["families"]) - set(FAMILIES):
             raise ValueError(f"{w} : famille inconnue {', '.join(sorted(set(spec['families']) - set(FAMILIES)))}")
-        if kind == "site" and spec["enabled"] and not (spec.get("home") and spec.get("product_url")):
-            raise ValueError(f"{w} : une source « site » demande home et product_url")
-        if kind == "feed":
-            spec.update(_feed(src, spec, Path(path).parent, env, w))
+        spec.update(_feed(src, spec, Path(path).parent, env, w))
         specs[key] = spec
     return specs
 
@@ -107,11 +102,6 @@ def address(spec, env=None):
     w = f"DEALS_SOURCES : {spec['key']}"
     return {"url": resolve(spec["url_template"], env, w),
             "headers": {k: resolve(str(v), env, w) for k, v in (spec.get("headers_template") or {}).items()}}
-
-
-def sites(specs):
-    """Les sources lues par leurs fiches (le crawler de pages/)."""
-    return {k: s for k, s in specs.items() if s["kind"] == "site"}
 
 
 def feeds(specs):

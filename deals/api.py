@@ -4,11 +4,11 @@ Lecture ouverte : catalog (v67 : ce que contient le catalogue publié — famill
 de recherche, heure de publication ; le front n'a rien du catalogue écrit en dur et se relit quand elle change),
 today?category=&q= (remises du jour), top?family= (l'onglet Top deals : remises et prix bas, why dit
 pourquoi ; v66 : family, un univers — familles séparées par des virgules), search (tout le catalogue suivi ; voir plus bas), categories et brands (celles qui ont des remises ; ?all=1 :
-toutes), brand/<nom> et category/<clé> (tous les produits, remises d'abord), item/<id> (v67 : shipping, les frais de
+toutes), item/<id> (v67 : shipping, les frais de
 livraison de l'offre, null s'ils sont inconnus ; image sur chaque carte si DEALS_PHOTOS), view {product_id, from, m, v}
 (fiche vue : le taux de clic), out/<offer_id>?from=&m=&v= (clic tracé → lien affilié de l'enseigne partenaire, avec
-l'identifiant du clic ; m : la mission d'où il part), missions/parse {text} et missions/preview {mission} (ce qui est
-compris, ce qui y répond déjà).
+l'identifiant du clic ; m : la mission d'où il part). v68 : brand/<nom>, category/<clé>, missions/parse et
+missions/preview retirés (le front ne les appelait pas : une marque, une catégorie, c'est search?brand=, search?category=).
 Recherche (v56) : search?q=&category=&brand=&feat=&attr=&min=&max=&off=&low=&sort=&recent= ; q est une phrase comprise
 (query.read : « aspirateur balai sans fil sous 300 € ») ; les autres paramètres, choisis dans l'app, l'emportent sur ce
 que dit la phrase (feat : fonctions séparées par des virgules ; attr : clé:valeur séparés par des virgules). La réponse
@@ -38,7 +38,6 @@ import re
 import time
 import traceback
 from dataclasses import dataclass, field
-from urllib.parse import unquote
 
 from . import affiliate, config, ontology
 from .accounts import Accounts
@@ -101,8 +100,6 @@ class Api:
             ("GET", r"/api/r/catalog", lambda r: C.vocabulary()),
             ("GET", r"/api/r/categories", lambda r: C.categories(r.query.get("all") == "1")),
             ("GET", r"/api/r/brands", lambda r: C.brands(uid(r), r.query.get("all") == "1")),
-            ("GET", r"/api/r/brand/([^/]+)", lambda r, name: C.brand(uid(r), unquote(name))),
-            ("GET", r"/api/r/category/([a-z_]+)", lambda r, key: C.category(uid(r), key)),
             ("GET", r"/api/r/item/(\d+)", lambda r, pid: C.item(uid(r), int(pid))),
             ("GET", r"/api/r/out/(\d+)", lambda r, oid: Response(302, location=T.click(uid(r), int(oid), r.query.get("from"),
                                                                                          r.query.get("m"), r.query.get("v")))),
@@ -111,8 +108,6 @@ class Api:
             ("GET", r"/api/r/saves", lambda r: C.saves(uid(r))),
             ("POST", r"/api/r/brand/follow", lambda r: T.follow(need(r), r.body)),
             ("GET", r"/api/r/follows", lambda r: T.follows(uid(r))),
-            ("POST", r"/api/r/missions/parse", lambda r: M.interpret_text(uid(r), (r.body or {}).get("text"))),
-            ("POST", r"/api/r/missions/preview", lambda r: M.preview(uid(r), r.body or {})),
             ("GET", r"/api/r/missions", lambda r: M.list(uid(r))),
             ("POST", r"/api/r/missions", lambda r: M.create(need(r), r.body or {})),
             ("POST", r"/api/r/missions/delete", lambda r: M.remove(uid(r), (r.body or {}).get("id"))),

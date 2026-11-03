@@ -1,7 +1,7 @@
 """Les frontières de la plateforme, vérifiées sur le code (docs/ARCHITECTURE.md) : un module qui en franchit une casse ce
 test, pas la production. Monolithe modulaire : des couches qui se parlent par des contrats, pas des services.
 
-  ingestion   ingest/ (sources, flux, fiches, lots)          → écrit par market.py, jamais l'app
+  ingestion   ingest/ (sources, flux, lots)                  → écrit par market.py, jamais l'app
   marché      market.py, quarantine.py                       → les seuls à écrire produits, offres, prix
   publication publish.py                                      → le seul à écrire le catalogue publié
   moteurs     extract/, ontology/, judge, alternatives, query, funnel, ingest/feeds, ingest/contract : purs (ni base, ni
@@ -14,9 +14,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "deals"
-PURE = ["extract/__init__.py", "extract/offer.py", "extract/page.py", "extract/categories.py", "ontology/__init__.py",
-        "judge.py", "alternatives.py", "query.py", "funnel.py", "labels.py", "ingest/feeds.py", "ingest/contract.py",
-        "ingest/retailers.py"]
+PURE = ["extract/__init__.py", "extract/values.py", "extract/categories.py", "ontology/__init__.py",
+        "judge.py", "alternatives.py", "query.py", "funnel.py", "labels.py", "ingest/feeds.py", "ingest/contract.py"]
 APP = ["api.py", "web.py", "catalog.py", "missions.py", "accounts.py", "activity.py", "profile.py", "funnel.py", "query.py"]
 IMPURE = {"sqlite3", "socket", "urllib.request", "http.client", "http.server", "deals.store", "deals.market",
           "deals.ingest.batches", "deals.ingest.collector", "deals.api", "deals.web"}
@@ -50,7 +49,7 @@ def imports(path):
 
 
 def files():
-    return [p for p in ROOT.rglob("*.py") if "vendor" not in p.parts and "__pycache__" not in p.parts]
+    return [p for p in ROOT.rglob("*.py") if "__pycache__" not in p.parts]
 
 
 class Boundaries(unittest.TestCase):

@@ -1,77 +1,15 @@
-/* DEALS — application grand public, branchée sur /api/r/. Interface v47 : un flux vivant de remises, à la croisée d'un
-   Pinterest (des visuels, une mosaïque, l'inspiration par pièce) et d'un Bloomberg (un bandeau qui défile, l'heure de
-   mise à jour, la courbe du prix sur 90 jours, « au plus bas depuis 90 jours »).
+/* Promo Central — l'application grand public, une seule page, branchée sur /api/r/ (deals/api.py).
 
-   v48 : sur la fiche, la marque et la catégorie se touchent et mènent à tous leurs produits (jamais de cul-de-sac) ;
-   « Me prévenir sous un prix » pour ce produit ou tous les comparables ; les Missions, un onglet : une envie et un prix
-   en une phrase (« aspirateur balai sous 300 € »), ce qui y répond déjà, puis un e-mail la nuit où c'est le cas.
+   Quatre onglets : Top deals (ouvert au lancement, filtré par univers), Explorer (pour vous, les pièces, les marques en
+   promo, notre sélection), Recherche (une phrase comprise, l'entonnoir Affiner, Promo et Trier, Sauvegarder) et Profil
+   (vos recherches, favoris, marques, rayons ; « Comment ça marche » et « Mentions légales » à son pied). La carte dit le
+   produit comme une étiquette (la remise, le prix et le prix barré, l'économie) et mène à la fiche ; la fiche mène chez
+   l'enseigne (« Voir l'offre chez … »), et c'est là seulement qu'on garde ou partage un produit.
 
-   v49 : deux onglets, deux rôles. L'Accueil est éditorial (les pièces, les marques en promo, notre sélection) ; la
-   Recherche sert à trouver (un produit, une marque, une catégorie). La fiche dit en mots et d'un coup d'œil si le prix
-   du jour est bas sur les derniers mois, et ne propose que l'enseigne la moins chère.
-
-   v50 : la Recherche répond à une intention précise, sobrement : un champ, trois filtres (catégorie, budget, remise) et
-   un tri visibles d'emblée, des résultats en mosaïque ; avant toute recherche, quelques exemples. L'accueil inspire, la
-   recherche répond, les missions guettent.
-
-   v51 : la Recherche n'est jamais vide. Un feed est là avant toute saisie (l'étendue du catalogue, une catégorie à tour
-   de rôle, ou « Pour vous » d'après vos dernières recherches, gardées par ce navigateur) ; chaque lettre, filtre ou tri
-   l'adapte sur place, sans écran blanc, et une recherche sans résultat retombe sur le feed.
-
-   v52 : la conversion d'abord (modèle d'affiliation, enseignes partenaires seulement). Une mission mène à l'offre en un
-   geste (« Voir l'offre » sur la mission atteinte, et dans son e-mail) ; lancée sans compte, elle attend le lien sur le
-   serveur et démarre sur n'importe quel appareil. Chaque fiche ouverte est comptée, d'où elle vient (taux de clic par
-   écran, par mission) ; la mention « enseigne partenaire » est près de l'offre, et « Comment ça marche » sur chaque écran.
-
-   v53 : l'accueil commence par les top deals (les plus fortes remises et les prix parmi les plus bas depuis longtemps, à
-   tour de rôle, chacun dit pourquoi il est là) ; la Recherche filtre par promo (−10 % à −50 %, ou prix bas), avec le
-   nombre de produits de chaque choix ; les favoris passent dans le Profil : quatre onglets.
-
-   v58 : dans un domaine qui a son ontologie (les aspirateurs), la Recherche comprend le type (balai, robot, traîneau…) et
-   deux attributs (sans fil, sans sac), lus dans l'offre de l'enseigne ; Affiner les propose. Le Profil est aéré : des
-   titres seuls, vos rayons repliés.
-
-   v59 : chaque rayon a son ontologie, et l'électronique arrive (téléviseurs, smartphones, ordinateurs portables, tablettes,
-   casques, enceintes, montres, consoles, écrans PC) : une pièce « High-tech » à l'accueil, ses exemples dans la Recherche,
-   ses illustrations.
-
-   v60 : Affiner en entonnoir. Une question à la fois — l'univers (High-tech, Salon…), le rayon, le type, un attribut, le
-   budget —, chaque réponse avec son nombre de produits, « Passer » pour passer ; quand il n'y a plus de question,
-   c'est votre sélection. Le même entonnoir dans la Recherche et sur la page d'une marque, d'une catégorie, d'une pièce.
-   La fiche n'a plus la jauge du prix des derniers mois : le prix, la remise, l'offre.
-
-   v64 : quatre onglets. Top deals (les plus fortes remises réelles et les prix parmi les plus bas, à tour de rôle)
-   devient un onglet, le premier, ouvert au lancement ; l'Accueil devient Explorer, le même sans les top deals (le
-   bandeau, « Pour vous », les inspirations du moment, les marques en promo, notre sélection) ; « Pour vous » y montre
-   tous vos deals, top deals compris. Recherche et Profil ne changent pas.
-
-   v65 : le plus simple possible, pour aller vite au produit. Un logo qui se reconnaît (« Promo » surligné dans la
-   couleur action, « Central » dans la couleur remise) ; deux couleurs : l'action (le bouton vers l'enseigne) et la
-   remise ; la carte dit le produit, le prix, le prix barré, la remise en % et l'économie en euros, rien d'autre ; sur la
-   fiche, le bouton vers l'enseigne vient juste sous le prix. Plus de phrases d'explication (sous-titre, accroche,
-   « pourquoi » des cartes, durée de la remise) ; « Comment ça marche » et « Mentions légales » dans le Profil seulement ;
-   « Me prévenir sous un prix » est arrêté.
-
-   v66 : d'après la maquette du responsable. Une seule police, Manrope, lisible partout (plus de serif aux titres, plus
-   de chasse fixe) ; « Promo » gris anthracite et « Central » gris clair ; l'anthracite pour agir (le bouton vers
-   l'enseigne, la puce choisie), un violet pour la remise (celui de Pixmania, assombri pour se lire : 5 : 1 avec le
-   blanc). Des cartes à l'horizontale, une colonne au téléphone : le visuel à gauche ; la marque et la remise ; le nom ;
-   le prix et le prix barré ; l'économie ; toute la carte mène à la fiche, sans cœur ni bouton. Top deals se filtre par
-   univers (Tout, Électroménager, Maison, High-tech). Plus de bandeau défilant ni de cloche. La fiche : Retour, cœur et
-   partage au-dessus du visuel, puis la marque et la catégorie, le nom, la remise, le prix et le prix barré,
-   l'économie, le bouton, la livraison et les retours.
-
-   v67 : rien du catalogue n'est écrit ici. Les puces de Top deals (les univers qui ont des top deals), les pièces
-   d'Explorer, les exemples de la Recherche et les familles suivies viennent de /api/r/catalog, relu à chaque nouvelle
-   publication : un onglet resté ouvert se relit quand on y revient (ou toutes les 10 minutes) si la nuit a publié. La
-   fiche dit la livraison que le flux donne (offerte, son prix, ou « selon le marchand » s'il ne la donne pas).
-
-   Les visuels sont des illustrations originales par catégorie (art.jsx) : aucune image extérieure, aucune requête vers un
-   tiers, aucun droit de tiers. v67 : si DEALS_PHOTOS l'autorise, la photo donnée par le flux de l'enseigne la remplace
-   (chargée depuis son serveur, sans dire d'où l'on vient) ; une photo qui ne se charge pas laisse l'illustration.
-   Gardé des versions précédentes : le produit comme entrée, un deal identique pour tous, des
-   remises réelles seulement (la qualité est implicite), « Moins cher, comparable », la recherche dans tout le
-   catalogue, la connexion au moment de l'action, contrastes et zones à toucher aux normes. */
+   Rien du catalogue n'est écrit ici : univers, pièces, exemples de recherche et familles viennent de /api/r/catalog,
+   relu quand la nuit a publié (au retour sur l'onglet, ou toutes les 10 minutes). La livraison est celle du flux ; la
+   photo du flux remplace l'illustration du rayon (art.jsx) si DEALS_PHOTOS l'autorise. Contrastes et zones à toucher aux
+   normes WCAG AA. Les choix de chaque version : docs/UX.md, et git (git log -p -- web/src/App.jsx). */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Vignette, ratioOf } from "./art.jsx";
 

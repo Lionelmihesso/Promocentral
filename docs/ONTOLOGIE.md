@@ -162,7 +162,7 @@ qu'aux produits de son rayon et de son type, et ce qu'il a est lu une fois) ; le
 
 1. Le rayon est d'abord reconnu et suivi (`extract/categories.py` : ses mots, sa famille ; `labels.py` : son nom).
 2. Dans le fichier de sa famille, un domaine : ses types et leur règle (le plus précis d'abord), un ou deux attributs que
-   les flux disent vraiment (le relevé `sample` d'une enseigne le montre), leurs mots, et pour chaque nom montré par l'app
+   les flux disent vraiment (`deals.py probe --source <clé>` montre les colonnes d'un flux), leurs mots, et pour chaque nom montré par l'app
    le mot qui le relit.
 3. `python -m unittest tests.test_ontology` : les fichiers sont relus, chaque nom se relit ; ajouter les offres réelles
    qui les mettent en défaut à `bench/ontologie.py`, puis `python -m bench.ontologie` : rien de faux, rien de deviné.
@@ -172,7 +172,7 @@ qu'aux produits de son rayon et de son type, et ce qu'il a est lu une fois) ; le
 
 - Des règles écrites à la main, en français, et deux jeux d'offres écrits par le même auteur : ils disent ce que les
   règles savent lire, pas ce que donneront de vrais flux. La lecture sur un échantillon réel de chaque enseigne reste à
-  faire (`deals.py sample`), avant la mise en production.
+  faire (`deals.py probe --source <clé>`, puis `deals.py ingest <clé> --dry-run`), avant la mise en production.
 - Un mot absent n'est pas lu (« cordless ») ; une coque vendue « iPhone 15 coque silicone » (le produit d'abord) n'est
   écartée que par le seuil de prix.
 - Le type « non dit » est fréquent dans de vrais flux : un produit dont le type n'est pas dit n'a d'alternatives que

@@ -29,10 +29,11 @@ ARGS = ap.parse_args() if __name__ == "__main__" else ap.parse_args([])
 CODE = Path(ARGS.code).resolve()
 sys.path.insert(0, str(CODE))
 
-from deals import extract as X                                        # noqa: E402
 from deals import judge as J                                          # noqa: E402
 from deals.affiliate import link                                      # noqa: E402
 from deals.backup import backup                                       # noqa: E402
+from deals.ingest import contract as C                                # noqa: E402
+from deals.ingest import feeds as F                                   # noqa: E402
 from deals.market import Market, jaccard, norm_title                  # noqa: E402
 from deals.missions import Missions, matches                          # noqa: E402
 from deals.publish import publish                                     # noqa: E402
@@ -49,6 +50,16 @@ def point(section, name, ok, proof, gravity):
 
 def fresh_store(tmp, name):
     return Store(str(Path(tmp) / name))
+
+
+def line(item):
+    """Une ligne de flux Google Shopping, lue comme la nuit la lit : correspondance, normalisation, contrôle. → l'offre
+    retenue, ou None si elle est refusée."""
+    mapping = F.Mapping.load({"preset": "google_shopping"})
+    raw = ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel>'
+           f"<item>{item}</item></channel></rss>").encode()
+    (_, rec), = list(F.records(raw, mapping))
+    return C.check(F.normalize(rec, mapping, "xml"))[0]
 
 
 # ------------------------------------------------------------------------------------------------ données
@@ -81,12 +92,10 @@ def data(tmp):
     point("Données", "deux EAN différents ne sont jamais fusionnés", g != h, f"EAN …017 → {g}, EAN …024 → {h}", "P0")
 
     # Disponibilité : non dite → inconnue ; inconnue → promise ?
-    page = ('<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"Product",'
-            '"name":"Lave-linge hublot Kessler WM8 8 kg 1400 tr/min classe A","brand":"Kessler","offers":{"@type":"Offer",'
-            '"price":"549.00","priceCurrency":"EUR"}}</script></head><body><h1>Lave-linge Kessler WM8</h1></body></html>')
-    ex = X.analyze(page, None, url="https://exemple.fr/p/1")["best"]
-    point("Données", "une disponibilité que la fiche ne dit pas reste « inconnue »", ex["availability"] == "unknown",
-          f"disponibilité lue : {ex['availability']!r}", "P1")
+    ex = line("<g:id>1</g:id><title>Lave-linge hublot Kessler WM8 8 kg 1400 tr/min classe A</title>"
+              "<link>https://exemple.fr/p/1</link><g:price>549.00 EUR</g:price><g:brand>Kessler</g:brand>")
+    point("Données", "une disponibilité que le flux ne dit pas reste « inconnue »", ex and ex["availability"] == "unknown",
+          f"disponibilité lue : {ex and ex['availability']!r}", "P1")
     with st.tx():
         oid = m.track("https://exemple.fr/p/1", "exemple", "Exemple")
         m.record(m.offer(oid), {**ex, "category": "Lave-linge"})
@@ -99,20 +108,16 @@ def data(tmp):
           f"600 € » la compte {'disponible : l’e-mail de la nuit partirait' if promised else 'non disponible'}", "P1")
 
     # Types de prix
-    member = ('<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":'
-              '"Canapé Lina 3 places","offers":{"@type":"Offer","priceCurrency":"EUR","price":"899.00","priceSpecification":'
-              '[{"@type":"UnitPriceSpecification","price":"799.00","validForMemberTier":{"@type":"MemberProgramTier","name":'
-              '"Club"}}]}}</script></head><body></body></html>')
-    mb = X.analyze(member, None, url="https://exemple.fr/p/2")["best"]
-    point("Données", "le prix membre n'est pas pris pour le prix public", mb and mb["price"] == 899.0,
+    mb = line("<g:id>2</g:id><title>Canapé Lina 3 places</title><link>https://exemple.fr/p/2</link><g:price>899.00 EUR</g:price>"
+              "<g:loyalty_program><g:program_label>Club</g:program_label><g:tier_label>membre</g:tier_label>"
+              "<g:price>799.00 EUR</g:price></g:loyalty_program>")
+    point("Données", "le prix membre (programme de fidélité du flux) n'est pas pris pour le prix public", mb and mb["price"] == 899.0,
           f"prix public 899 €, prix membre 799 € → prix lu {mb and mb['price']} €", "P0")
-    coded = ('<html><body><div class="product"><h1>Matelas Solenne 160x200</h1><div class="price-block"><span class="price">'
-             '649,00 €</span><span class="promo">599,00 € avec le code MATELAS50</span><span class="shipping">Livraison 39,00 €'
-             '</span></div></div></body></html>')
-    cd = X.analyze(coded, {"price": "span.price"}, url="https://exemple.fr/p/3")["best"]
-    point("Données", "un prix avec code et des frais de livraison ne sont pris ni pour le prix ni pour le prix barré",
-          cd and cd["price"] == 649.0 and not cd.get("list_price"),
-          f"prix lu {cd and cd['price']} €, prix barré {cd and cd.get('list_price')}", "P0")
+    cd = line("<g:id>3</g:id><title>Matelas Solenne 160x200</title><link>https://exemple.fr/p/3</link><g:price>649.00 EUR</g:price>"
+              "<g:shipping><g:country>FR</g:country><g:price>39.00 EUR</g:price></g:shipping>")
+    point("Données", "les frais de livraison ne sont pris ni pour le prix ni pour le prix barré",
+          cd and cd["price"] == 649.0 and not cd.get("list_price") and cd.get("shipping") == 39.0,
+          f"prix lu {cd and cd['price']} €, prix barré {cd and cd.get('list_price')}, livraison {cd and cd.get('shipping')} €", "P0")
     cols = {r["name"] for r in st.q("PRAGMA table_info(prices)")}
     point("Données", "les frais de livraison sont connus (prix livré possible)", {"shipping", "delivery"} & cols,
           f"colonnes de prices : {', '.join(sorted(cols))} — le prix est celui de l'article seul", "P2")
@@ -201,7 +206,6 @@ def served(tmp):
             return e.code, dict(e.headers)
     try:
         code, headers = get("/")
-        robot, _ = get("/robot")
     finally:
         srv.shutdown()
         srv.server_close()
@@ -213,10 +217,6 @@ def served(tmp):
     hsts = headers.get("Strict-Transport-Security") or ("Caddyfile" if "Strict-Transport-Security" in caddy else None)
     point("Sécurité", "le HTTPS est imposé au navigateur (Strict-Transport-Security)", hsts,
           f"adresse publique en https : Strict-Transport-Security {hsts!r}", "P1")
-    env = (CODE / "deploy" / "deals.env.example").read_text(encoding="utf-8")
-    announced = "/robot" in env
-    point("Sécurité", "la page qui décrit le robot, annoncée aux enseignes, existe", not announced or robot == 200,
-          f"DEALS_USER_AGENT annonce « …/robot » ; GET /robot → {robot}", "P1")
     tracked = []
     if (CODE / ".git").exists():
         files = subprocess.run(["git", "-C", str(CODE), "ls-files"], capture_output=True, text=True).stdout.split()

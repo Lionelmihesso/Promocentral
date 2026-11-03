@@ -129,7 +129,11 @@ def main():
     api = Api(store, config.load({}, public_url="https://deals.test"), clock=lambda: NOW, rules=rules)
     anon = Client(api)
     cats = [c for c in anon.call("GET", "/api/r/categories", {"all": "1"}) if c["products"] >= 3]
-    products = {c["key"]: anon.call("GET", f"/api/r/category/{c['key']}")["products"] for c in cats}
+    # le choix des personnes simulées : tous les produits d'un rayon, les remises d'abord, puis du moins cher au plus cher
+    # (la liste de l'ancienne route category/<clé>, retirée en v68 : le même tirage d'une version à l'autre)
+    pool = lambda key: api.catalog.cards(None, store.q("SELECT * FROM catalog WHERE category=? ORDER BY pct > 0 DESC, pct DESC, "
+                                                        "price, product_id LIMIT 60", (key,)))
+    products = {c["key"]: pool(c["key"]) for c in cats}
     rng = random.Random(7)
     totals = defaultdict(lambda: defaultdict(list))
     for n in range(ARGS.people):
